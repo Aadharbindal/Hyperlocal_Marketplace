@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { createPostgresJobsRepo } from './jobs';
 import type {
   AddressRecord,
   AuditLogRecord,
@@ -191,6 +192,8 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
       listEnabled: () => many('select * from service_categories where is_enabled order by sort_order'),
       listSkills: (ids) => many('select * from service_skills where category_id = any($1::uuid[])', [ids]),
     },
+
+    jobs: createPostgresJobsRepo(q),
 
     audit: {
       async append(e) {

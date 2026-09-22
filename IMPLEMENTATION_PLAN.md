@@ -106,7 +106,7 @@ tokens only; screens never hard-code colours. Final design handoff protocol in `
 - [x] **M0 Repository & architecture** - docs, env template, structure, adapters defined.
 - [x] **M1 Foundation** - workspace setup, OTP auth, roles, DB migration 0001, base navigation,
   design tokens, error handling, logging/monitoring hooks.
-- [ ] **M2 Customer job flow** - profile, addresses, job create, media/voice upload, submit, status.
+- [x] **M2 Customer job flow** - profile, addresses, job create, media/voice upload, submit, status.
 - [ ] **M3 Provider workflow** - profile, verification, radius, nearby feed, bids, revisions.
 - [ ] **M4 Negotiation & confirmation** - offers, counter-offers, quote lock, acceptance tx, payment auth.
 - [ ] **M5 Execution & completion** - assignment, technician, arrival, OTP start, price revision, approval.

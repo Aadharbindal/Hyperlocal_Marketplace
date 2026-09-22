@@ -15,7 +15,7 @@ PostgreSQL 15 (Supabase). Conventions:
 | Migration | Milestone | Tables |
 | --- | --- | --- |
 | `0001_foundation` | M1 | extensions, enums, users, user_roles, otp_challenges, sessions, customer/provider/contractor/technician/vendor profiles, addresses, service_categories, service_skills, provider_skills, consents, audit_logs, notifications, retention_events |
-| `0002_jobs` | M2 | jobs, job_media, job_status_events |
+| `0002_jobs` | M2 | jobs, job_media, job_status_events (+ enums, submission and media-phase triggers) |
 | `0003_bidding` | M3-M4 | bids, bid_revisions, offers, booking_quotes, job_assignments |
 | `0004_execution` | M5 | start_otps, price_revision_requests, chat_threads, chat_messages |
 | `0005_materials` | M6 | material_requests, material_quotes, material_orders |

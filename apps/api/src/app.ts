@@ -16,6 +16,8 @@ import { authService, type AuthService } from './modules/auth/service';
 import { tokenService } from './modules/auth/tokens';
 import { auditService, type AuditService } from './modules/audit/service';
 import { categoryRoutes } from './modules/categories/routes';
+import { jobRoutes } from './modules/jobs/routes';
+import { jobService, type JobService } from './modules/jobs/service';
 import { userRoutes } from './modules/users/routes';
 import { makeAuthenticate } from './plugins/auth';
 
@@ -23,7 +25,7 @@ export interface AppContext {
   env: Env;
   store: DataStore;
   adapters: Adapters;
-  services: { auth: AuthService; audit: AuditService };
+  services: { auth: AuthService; audit: AuditService; jobs: JobService };
 }
 
 export interface BuildOptions {
@@ -48,7 +50,8 @@ export async function buildApp(opts: BuildOptions = {}) {
   const tokens = tokenService(env);
   const audit = auditService(store);
   const auth = authService({ env, store, adapters, audit, tokens });
-  const ctx: AppContext = { env, store, adapters, services: { auth, audit } };
+  const jobs = jobService({ env, store, adapters });
+  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs } };
 
   if (opts.seed ?? (env.DATA_MODE === 'memory' && env.APP_ENV !== 'test')) {
     await seedDemo(store, env);
@@ -152,6 +155,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     await userRoutes(scope, ctx);
     await addressRoutes(scope, ctx);
     await categoryRoutes(scope, ctx);
+    await jobRoutes(scope, ctx);
     await adminRoutes(scope, ctx);
   });
 

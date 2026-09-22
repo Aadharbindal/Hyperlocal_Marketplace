@@ -68,10 +68,26 @@ Errors: `OTP_RATE_LIMITED`, `OTP_EXPIRED`, `OTP_INVALID`, `OTP_LOCKED`, `AUTH_SU
 | POST | `/admin/users/:id/reactivate` | ADMIN | `{ reason }` *audited* |
 | GET | `/admin/audit-logs?entityType=&entityId=` | ADMIN | |
 
-## Planned (by milestone)
+## Milestone 2 (implemented)
 
-- **M2** `POST /jobs`, `GET /jobs/:id`, `POST /jobs/:id/media`, `POST /jobs/:id/submit`,
-  `GET /me/jobs`, `POST /jobs/:id/cancel`, `GET /track/:token`
+### Jobs
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/jobs` | CUSTOMER | Creates or resumes the DRAFT for that category+address. Body: `JobCreate`. Validates category is enabled and the address belongs to the caller. *audited* |
+| PATCH | `/jobs/:id` | CUSTOMER (owner) | Edits a DRAFT only; 409 once submitted (JOB-04) |
+| GET | `/jobs/:id` | owner | Full `JobView`: status, plain-language key, media with signed URLs, status trail, hazards |
+| GET | `/me/jobs?scope=active\|past\|all&limit=` | any role | `JobListItem[]` for the signed-in customer |
+| POST | `/jobs/:id/media` | CUSTOMER (owner) | Registers a file and returns an upload target. `upload.required` is false in mock storage mode. Enforces kind/mime/size/duration/count limits |
+| DELETE | `/jobs/:id/media/:mediaId` | uploader | DRAFT only |
+| POST | `/jobs/:id/submit` | CUSTOMER (owner) | DRAFT -> SUBMITTED -> QUALIFYING -> OPEN_FOR_BIDS in one call, opens the bid window (30 min normal, 10 min urgent), mints the tracking token, notifies the customer. Returns `{ job, duplicateOf }` *audited* |
+| POST | `/jobs/:id/cancel` | CUSTOMER (owner) | `{ reason }` required *audited* |
+| GET | `/track/:token` | none | Minimal public status for the person at home: status, category, name, provider business name. No address, phone or media |
+
+Errors: `JOB_INVALID_TRANSITION` (422) for an illegal state change; `VALIDATION_ERROR` with
+`details.blockers` (submission) or `details.media` (uploads); 403 for a job or address that is
+not the caller's.
+
+## Planned (by milestone)
 - **M3** `PUT /provider/profile`, `POST /provider/kyc`, `GET /provider/jobs/nearby`,
   `POST /jobs/:id/bids`, `POST /bids/:id/revise`, `POST /bids/:id/withdraw`, `GET /provider/jobs`
 - **M4** `POST /jobs/:id/counter-offer`, `POST /offers/:id/respond`, `POST /bids/:id/accept`,

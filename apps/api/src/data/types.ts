@@ -1,6 +1,10 @@
 import type {
   ConsentType,
+  JobPriority,
+  JobRequestType,
+  JobStatus,
   Language,
+  PaymentStatus,
   RoleStatus,
   UserRole,
   UserStatus,
@@ -200,6 +204,75 @@ export interface RetentionEventRecord {
   created_at: Date;
 }
 
+export interface JobRecord {
+  id: string;
+  customer_id: string;
+  booked_for_name: string | null;
+  booked_for_phone_e164: string | null;
+  recipient_tracking_token: string | null;
+  category_id: string;
+  skill_ids: string[];
+  description: string | null;
+  priority: JobPriority;
+  request_type: JobRequestType;
+  inspection_required: boolean;
+  hazards: string[];
+  preferred_start: Date | null;
+  preferred_end: Date | null;
+  address_id: string | null;
+  address_snapshot: Record<string, unknown> | null;
+  lat: number | null;
+  lng: number | null;
+  geohash: string | null;
+  status: JobStatus;
+  payment_status: PaymentStatus;
+  bid_window_ends_at: Date | null;
+  confirmed_provider_id: string | null;
+  active_quote_id: string | null;
+  cancelled_reason: string | null;
+  cancelled_by_role: UserRole | null;
+  submitted_at: Date | null;
+  completed_at: Date | null;
+  settled_at: Date | null;
+  deleted_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface JobMediaRecord {
+  id: string;
+  job_id: string;
+  uploader_id: string;
+  uploader_role: UserRole;
+  kind: 'PHOTO' | 'VIDEO' | 'VOICE_NOTE' | 'DOCUMENT' | 'INVOICE';
+  phase: 'REQUEST' | 'PROGRESS' | 'COMPLETION' | 'DISPUTE' | 'PRICE_REVISION';
+  storage_key: string;
+  mime: string;
+  size_bytes: number;
+  duration_seconds: number | null;
+  sha256: string | null;
+  lat: number | null;
+  lng: number | null;
+  transcript: string | null;
+  review_status: 'PENDING' | 'APPROVED' | 'FLAGGED' | 'REJECTED';
+  uploaded_at: Date | null;
+  deleted_at: Date | null;
+  created_at: Date;
+}
+
+export interface JobStatusEventRecord {
+  id: string;
+  job_id: string;
+  actor_user_id: string | null;
+  actor_role: UserRole | null;
+  from_status: JobStatus | null;
+  to_status: JobStatus;
+  reason: string | null;
+  metadata: Record<string, unknown>;
+  request_id: string | null;
+  created_at: Date;
+}
+
 export interface IdempotencyRecord {
   key: string;
   user_id: string;
@@ -281,6 +354,24 @@ export interface RetentionRepo {
   schedule(e: New<RetentionEventRecord>): Promise<RetentionEventRecord>;
 }
 
+export interface JobsRepo {
+  create(j: New<JobRecord>): Promise<JobRecord>;
+  get(id: string): Promise<JobRecord | null>;
+  getByTrackingToken(token: string): Promise<JobRecord | null>;
+  update(id: string, patch: Partial<JobRecord>): Promise<JobRecord>;
+  listForCustomer(customerId: string, opts: { statuses?: JobStatus[]; limit: number }): Promise<JobRecord[]>;
+  findOpenForTarget(customerId: string, categoryId: string, addressId: string | null): Promise<JobRecord[]>;
+  findDraft(customerId: string, categoryId: string, addressId: string | null): Promise<JobRecord | null>;
+
+  addMedia(m: New<JobMediaRecord>): Promise<JobMediaRecord>;
+  listMedia(jobId: string, phase?: JobMediaRecord['phase']): Promise<JobMediaRecord[]>;
+  getMedia(id: string): Promise<JobMediaRecord | null>;
+  updateMedia(id: string, patch: Partial<JobMediaRecord>): Promise<JobMediaRecord>;
+
+  appendEvent(e: New<JobStatusEventRecord>): Promise<JobStatusEventRecord>;
+  listEvents(jobId: string): Promise<JobStatusEventRecord[]>;
+}
+
 export interface IdempotencyRepo {
   get(key: string, userId: string): Promise<IdempotencyRecord | null>;
   put(rec: IdempotencyRecord): Promise<void>;
@@ -292,6 +383,7 @@ export interface DataStore {
   auth: AuthRepo;
   addresses: AddressesRepo;
   categories: CategoriesRepo;
+  jobs: JobsRepo;
   audit: AuditRepo;
   notifications: NotificationsRepo;
   retention: RetentionRepo;

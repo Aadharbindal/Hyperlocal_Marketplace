@@ -1,6 +1,7 @@
 import { newId } from '../../lib/crypto';
 import { conflict } from '../../lib/errors';
 import { CATEGORY_SEED, SKILL_SEED } from '../catalog';
+import { createMemoryJobsRepo } from './jobs';
 import type {
   AddressRecord,
   AuditLogRecord,
@@ -39,6 +40,7 @@ export function createMemoryStore(): DataStore {
   const notifications: NotificationRecord[] = [];
   const retention: RetentionEventRecord[] = [];
   const idem = new Map<string, IdempotencyRecord>();
+  const jobsRepo = createMemoryJobsRepo();
 
   // Serialise "transactions" with a simple promise chain so concurrent acceptances cannot interleave.
   let chain: Promise<unknown> = Promise.resolve();
@@ -249,6 +251,8 @@ export function createMemoryStore(): DataStore {
         return SKILL_SEED.filter((s) => categoryIds.includes(s.category_id));
       },
     },
+
+    jobs: jobsRepo,
 
     audit: {
       async append(entry) {

@@ -16,6 +16,8 @@ Updated every milestone. **Nothing external is live.** Each row names the produc
 | Database | memory mode by default | in-process store, resets on restart | Supabase Postgres via migrations (schema written, not yet exercised by tests) | M1 (schema), M2 (postgres repo tests) |
 | Admin MFA | not started | – | TOTP | M8 |
 | KYC encryption | not started | – | envelope encryption | M8 |
+| Voice-note recording (mobile) | not started | the API accepts voice notes (60 s cap enforced); the app only attaches photos so far | expo-audio recorder in the booking flow | M3 |
+| Media bytes in mock mode | **MOCKED** | `/jobs/:id/media` returns `upload.required: false` and marks the row uploaded; no bytes are stored, so photo thumbnails fall back to an icon | Supabase Storage / S3 signed PUT | M6 |
 | Voice-note transcription | deferred | none | Phase 2 | – |
 | Regional voice UI, AI categorisation, AI damage assessment | deferred by spec §31 | – | – | – |
 | Mobile dependency pin | workaround | `query-string@7` added to `apps/mobile` because `@react-navigation/native` 7.4 dropped it while `expo-router` 5.1 still imports it | remove when expo-router updates | M2 |

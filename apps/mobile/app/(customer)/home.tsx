@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useCategories } from '@/api/hooks';
@@ -19,7 +20,9 @@ export default function HomeScreen() {
   const categories = useCategories();
   const [notice, setNotice] = useState<string | null>(null);
   const firstName = user?.displayName?.split(' ')[0] ?? '';
+  const router = useRouter();
   const comingSoon = () => setNotice(t('home.comingSoon'));
+  const book = (categoryId?: string) => router.push({ pathname: '/(customer)/book', params: categoryId ? { categoryId } : {} });
 
   return (
     <Screen withTabBar refreshing={categories.isRefetching} onRefresh={() => void categories.refetch()}>
@@ -60,7 +63,7 @@ export default function HomeScreen() {
           <Text variant="label" tone="onPrimaryMuted">
             {t('home.hero.subtitle')}
           </Text>
-          <Button title={t('home.hero.cta')} variant="onPrimary" size="md" iconRight="arrow-forward" style={styles.heroCta} onPress={comingSoon} />
+          <Button title={t('home.hero.cta')} variant="onPrimary" size="md" iconRight="arrow-forward" style={styles.heroCta} onPress={() => book()} />
         </View>
         <View style={styles.heroArt} accessibilityElementsHidden>
           <HomeHeroIllustration />
@@ -70,7 +73,7 @@ export default function HomeScreen() {
 
       {/* Categories */}
       <Spacer h={spacing.xxl} />
-      <SectionHeader title={t('home.categories')} actionLabel={t('home.viewAll')} onAction={comingSoon} />
+      <SectionHeader title={t('home.categories')} actionLabel={t('home.viewAll')} onAction={() => book()} />
       {categories.isPending ? (
         <View style={styles.grid}>
           {Array.from({ length: 4 }).map((_, i) => (
@@ -86,7 +89,7 @@ export default function HomeScreen() {
         <View style={styles.grid}>
           {categories.data.items.map((c) => {
             return (
-              <Card key={c.id} style={styles.tile} padding="md" onPress={comingSoon} accessibilityLabel={c.name}>
+              <Card key={c.id} style={styles.tile} padding="md" onPress={() => book(c.id)} accessibilityLabel={c.name}>
                 <RealisticIcon iconKey={c.iconKey} size={56} />
                 <Text variant="label" weight="medium" center numberOfLines={2} style={styles.tileLabel}>
                   {c.name}

@@ -13,12 +13,22 @@ export async function makeApp(): Promise<TestApp> {
   return app;
 }
 
+/**
+ * A stable pseudo-IP per phone number. Every test user is a different device, so one test file
+ * cannot trip the per-IP OTP limit that protects real users.
+ */
+function ipFor(phone: string): string {
+  const n = Number(phone.slice(-6)) || 1;
+  return `10.${(n >> 16) & 255}.${(n >> 8) & 255}.${(n % 254) + 1}`;
+}
+
 /** Full OTP login; returns tokens for the given phone. */
 export async function login(app: TestApp, phone: string) {
-  const r1 = await app.inject({ method: 'POST', url: '/auth/request-otp', payload: { phone } });
+  const headers = { 'x-forwarded-for': ipFor(phone) };
+  const r1 = await app.inject({ method: 'POST', url: '/auth/request-otp', payload: { phone }, headers });
   if (r1.statusCode !== 200) throw new Error(`request-otp failed: ${r1.body}`);
   const { challengeId, demoCode } = r1.json();
-  const r2 = await app.inject({ method: 'POST', url: '/auth/verify-otp', payload: { challengeId, code: demoCode } });
+  const r2 = await app.inject({ method: 'POST', url: '/auth/verify-otp', payload: { challengeId, code: demoCode }, headers });
   if (r2.statusCode !== 200) throw new Error(`verify-otp failed: ${r2.body}`);
   return r2.json() as { accessToken: string; refreshToken: string; user: { id: string }; isNewUser: boolean };
 }
