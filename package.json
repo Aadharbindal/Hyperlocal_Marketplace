@@ -1,0 +1,35 @@
+{
+  "name": "hyperlocal-marketplace",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Hyperlocal Services and Materials Marketplace - modular monolith monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:unit": "npm run test --workspace packages/core",
+    "test:integration": "npm run test --workspace apps/api",
+    "build": "npm run build --workspaces --if-present",
+    "check": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "migrate:check": "node scripts/check-migrations.mjs",
+    "api:dev": "npm run dev --workspace apps/api",
+    "mobile:start": "npm run start --workspace apps/mobile",
+    "seed:demo": "npm run seed --workspace apps/api",
+    "mobile:web": "npm run web --workspace apps/mobile"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "typescript": "~5.7.2"
+  }
+}

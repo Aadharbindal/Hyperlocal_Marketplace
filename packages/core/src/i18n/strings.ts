@@ -1,0 +1,101 @@
+import type { Language } from '../contracts/enums';
+
+/**
+ * User-facing strings shared by API error messages and the mobile app.
+ * Keys are stable; add languages by extending the record. Hindi is transliteration-friendly
+ * plain language per PRODUCT_SPEC section 22.
+ */
+export const STRINGS = {
+  en: {
+    'status.draft': 'Draft',
+    'status.submitted': 'Request submitted',
+    'status.finding_providers': 'Finding providers',
+    'status.offers_received': 'Offers received',
+    'status.payment_pending': 'Payment pending',
+    'status.provider_confirmed': 'Provider confirmed',
+    'status.on_the_way': 'Provider is on the way',
+    'status.arrived': 'Provider has arrived',
+    'status.work_started': 'Work started',
+    'status.approval_required': 'Additional approval required',
+    'status.work_completed': 'Work completed',
+    'status.awaiting_approval': 'Awaiting your approval',
+    'status.completed': 'Completed',
+    'status.payment_completed': 'Payment completed',
+    'status.cancelled': 'Cancelled',
+    'status.cancelled_by_provider': 'Cancelled by provider',
+    'status.auto_cancelled': 'Expired',
+    'status.disputed': 'Under review',
+    'status.refunded': 'Refunded',
+    'status.abandoned': 'Abandoned',
+
+    'error.VALIDATION_ERROR': 'Please check the details and try again.',
+    'error.UNAUTHENTICATED': 'Please sign in to continue.',
+    'error.AUTH_INVALID_TOKEN': 'Your session has expired. Please sign in again.',
+    'error.AUTH_SUSPENDED': 'Your account is suspended. Please contact support.',
+    'error.FORBIDDEN': "You don't have permission to do this.",
+    'error.NOT_FOUND': "We couldn't find that.",
+    'error.CONFLICT': 'This was just updated by someone else. Please refresh.',
+    'error.RATE_LIMITED': 'Too many requests. Please wait a moment.',
+    'error.OTP_RATE_LIMITED': 'Too many code requests. Please try again in an hour.',
+    'error.OTP_EXPIRED': 'This code has expired. Request a new one.',
+    'error.OTP_INVALID': 'Incorrect code. Please try again.',
+    'error.OTP_LOCKED': 'Too many attempts. Request a new code.',
+    'error.OTP_CONSUMED': 'This code was already used. Request a new one.',
+    'error.ROLE_NOT_SELF_SERVICE': 'This role cannot be added from the app.',
+    'error.REASON_REQUIRED': 'A reason is required for this action.',
+    'error.JOB_INVALID_TRANSITION': "This booking can't move to that step right now.",
+    'error.IDEMPOTENCY_KEY_REUSED': 'This request was already processed.',
+    'error.MAINTENANCE': "We're doing maintenance. Please try again shortly.",
+    'error.INTERNAL': 'Something went wrong on our side. Please try again.',
+    'error.OFFLINE': "You're offline. We'll retry automatically.",
+  },
+  hi: {
+    'status.draft': 'ड्राफ़्ट',
+    'status.submitted': 'अनुरोध भेजा गया',
+    'status.finding_providers': 'प्रोवाइडर खोजे जा रहे हैं',
+    'status.offers_received': 'ऑफ़र मिले',
+    'status.payment_pending': 'भुगतान बाकी है',
+    'status.provider_confirmed': 'प्रोवाइडर कन्फ़र्म',
+    'status.on_the_way': 'प्रोवाइडर रास्ते में है',
+    'status.arrived': 'प्रोवाइडर पहुँच गया',
+    'status.work_started': 'काम शुरू',
+    'status.approval_required': 'आपकी मंज़ूरी चाहिए',
+    'status.work_completed': 'काम पूरा',
+    'status.awaiting_approval': 'आपकी पुष्टि का इंतज़ार',
+    'status.completed': 'पूरा हुआ',
+    'status.payment_completed': 'भुगतान पूरा',
+    'status.cancelled': 'रद्द',
+    'status.cancelled_by_provider': 'प्रोवाइडर ने रद्द किया',
+    'status.auto_cancelled': 'समय समाप्त',
+    'status.disputed': 'समीक्षा में',
+    'status.refunded': 'रिफ़ंड हो गया',
+    'status.abandoned': 'छोड़ा गया',
+
+    'error.VALIDATION_ERROR': 'कृपया जानकारी जाँचें और फिर कोशिश करें।',
+    'error.UNAUTHENTICATED': 'जारी रखने के लिए साइन इन करें।',
+    'error.AUTH_INVALID_TOKEN': 'सेशन समाप्त हो गया। फिर से साइन इन करें।',
+    'error.AUTH_SUSPENDED': 'आपका खाता निलंबित है। सपोर्ट से संपर्क करें।',
+    'error.FORBIDDEN': 'आपको इसकी अनुमति नहीं है।',
+    'error.NOT_FOUND': 'यह नहीं मिला।',
+    'error.CONFLICT': 'यह अभी बदला गया है। कृपया रीफ़्रेश करें।',
+    'error.RATE_LIMITED': 'बहुत सारे अनुरोध। थोड़ा इंतज़ार करें।',
+    'error.OTP_RATE_LIMITED': 'बहुत बार कोड माँगा गया। एक घंटे बाद कोशिश करें।',
+    'error.OTP_EXPIRED': 'कोड की समय-सीमा समाप्त। नया कोड माँगें।',
+    'error.OTP_INVALID': 'गलत कोड। फिर से कोशिश करें।',
+    'error.OTP_LOCKED': 'बहुत बार गलत कोशिश। नया कोड माँगें।',
+    'error.OTP_CONSUMED': 'यह कोड पहले इस्तेमाल हो चुका है।',
+    'error.ROLE_NOT_SELF_SERVICE': 'यह भूमिका ऐप से नहीं जोड़ी जा सकती।',
+    'error.REASON_REQUIRED': 'इस कार्रवाई के लिए कारण ज़रूरी है।',
+    'error.JOB_INVALID_TRANSITION': 'यह बुकिंग अभी इस चरण पर नहीं जा सकती।',
+    'error.IDEMPOTENCY_KEY_REUSED': 'यह अनुरोध पहले ही पूरा हो चुका है।',
+    'error.MAINTENANCE': 'रखरखाव चल रहा है। थोड़ी देर बाद कोशिश करें।',
+    'error.INTERNAL': 'हमारी तरफ़ से कुछ गड़बड़ हुई। फिर कोशिश करें।',
+    'error.OFFLINE': 'आप ऑफ़लाइन हैं। हम अपने-आप दोबारा कोशिश करेंगे।',
+  },
+} as const satisfies Record<Language, Record<string, string>>;
+
+export type StringKey = keyof (typeof STRINGS)['en'];
+
+export function t(key: StringKey, lang: Language = 'en'): string {
+  return (STRINGS[lang] as Record<string, string>)[key] ?? STRINGS.en[key] ?? key;
+}
