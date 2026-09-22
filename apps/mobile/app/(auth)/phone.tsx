@@ -59,8 +59,20 @@ export default function PhoneScreen() {
   const request = useRequestOtp();
 
   const compact = height < 760;
-  const heroWidth = compact ? width * 0.94 : width;
-  const heroHeight = heroWidth * HERO_RATIO;
+
+  // The artwork is anchored bottom-right and scaled to whatever height the hero actually gets,
+  // so it never grows into the copy on short handsets.
+  const [heroBox, setHeroBox] = useState({ w: 0, h: 0 });
+  const natWidth = heroBox.w || width;
+  const natHeight = natWidth * HERO_RATIO;
+  const fit = heroBox.h > 0 ? Math.min(1, heroBox.h / natHeight) : 1;
+  // on short handsets pull the art in a little more so the script line clears the copy
+  const scale = Math.max(height < 700 ? fit * 0.92 : fit, 0.7);
+  const heroWidth = natWidth * scale;
+  const heroHeight = natHeight * scale;
+  // the hand-written line baked into the art occupies the bottom third of it - keep the
+  // feature rows above that band so nothing ever crosses the copy
+  const copyBottomInset = Math.min(Math.max(52, heroHeight * 0.33), compact ? 70 : 150);
 
   // continuous gentle float of the whole illustration
   const floatY = useSharedValue(0);
@@ -107,7 +119,7 @@ export default function PhoneScreen() {
   return (
     <LinearGradient colors={['#FFFFFF', '#FBFDFD', '#F4FDFA', '#EAF8F1']} locations={[0, 0.35, 0.72, 1]} style={styles.root}>
       <StatusBar style="dark" />
-      <View style={{ paddingTop: insets.top }}>
+      <View style={{ paddingTop: insets.top + spacing.xs }}>
         <OfflineBanner visible={!online} label={t('error.OFFLINE')} />
       </View>
 
@@ -130,34 +142,42 @@ export default function PhoneScreen() {
           </Animated.View>
 
           {/* ---------------- hero ---------------- */}
-          <View style={[styles.hero, { height: heroHeight }]}>
-            <Animated.View entering={FadeIn.delay(120).duration(700)} style={[styles.heroArt, heroFloat]} pointerEvents="none">
+          <View
+            style={styles.hero}
+            onLayout={(e) => {
+              const { width: w, height: h } = e.nativeEvent.layout;
+              setHeroBox((prev) => (Math.abs(prev.w - w) > 1 || Math.abs(prev.h - h) > 1 ? { w, h } : prev));
+            }}
+          >
+            <Animated.View entering={FadeIn.delay(120).duration(700)} style={[styles.heroArt, heroFloat, { opacity: heroBox.h ? 1 : 0, bottom: compact ? -14 : 0 }]} pointerEvents="none">
               <Image source={HERO} style={{ width: heroWidth, height: heroHeight }} resizeMode="contain" accessibilityLabel="Verified LocalHub technician with plumbing, electrical, painting and appliance services" />
             </Animated.View>
 
-            <View style={styles.heroCopy} pointerEvents="box-none">
+            <View style={[styles.heroCopy, { paddingBottom: copyBottomInset }]} pointerEvents="box-none">
+              <View>
               <Animated.View entering={FadeInLeft.delay(180).duration(560)}>
                 <Text weight="extrabold" style={[styles.welcome, compact && styles.welcomeCompact]}>
                   Welcome!
                 </Text>
               </Animated.View>
               <Animated.View entering={FadeInLeft.delay(280).duration(560)}>
-                <Text weight="regular" style={styles.subtitle}>
+                <Text weight="regular" style={[styles.subtitle, compact && styles.subtitleCompact]}>
                   Get trusted professionals{'\n'}for all your home needs
                 </Text>
               </Animated.View>
+              </View>
 
-              <View style={styles.features}>
+              <View style={[styles.features, compact && styles.featuresCompact]}>
                 {FEATURES.map((f, i) => (
                   <Animated.View key={f.title} entering={FadeInLeft.delay(400 + i * 110).duration(520)} style={styles.feature}>
                     <LinearGradient colors={[f.from, f.to]} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.featureIcon}>
-                      {f.icon ? <Ionicons name={f.icon} size={20} color={f.fg} /> : <Text weight="bold" style={[styles.glyph, { color: f.fg }]}>{f.glyph}</Text>}
+                      {f.icon ? <Ionicons name={f.icon} size={22} color={f.fg} /> : <Text weight="bold" style={[styles.glyph, { color: f.fg }]}>{f.glyph}</Text>}
                     </LinearGradient>
                     <View style={styles.featureText}>
-                      <Text weight="semibold" style={styles.featureTitle}>
+                      <Text weight="semibold" style={[styles.featureTitle, compact && styles.featureCompact]}>
                         {f.title}
                       </Text>
-                      <Text weight="regular" style={styles.featureBody}>
+                      <Text weight="regular" style={[styles.featureBody, compact && styles.featureCompact]}>
                         {f.body}
                       </Text>
                     </View>
@@ -168,13 +188,13 @@ export default function PhoneScreen() {
           </View>
 
           {/* ---------------- sign-in card ---------------- */}
-          <Animated.View entering={FadeInDown.delay(260).duration(620).springify().damping(18)} style={[styles.card, { marginBottom: Math.max(insets.bottom, spacing.lg) }]}>
+          <Animated.View entering={FadeInDown.delay(260).duration(620).springify().damping(18)} style={[styles.card, compact && styles.cardCompact, { marginBottom: insets.bottom + (compact ? spacing.md : spacing.xl) }]}>
             <Text weight="bold" style={styles.cardTitle}>
               Enter your mobile number to continue
             </Text>
             <Text style={styles.fieldLabel}>Mobile number</Text>
 
-            <Animated.View style={[styles.field, { borderColor }, fieldStyle]}>
+            <Animated.View style={[styles.field, compact && styles.fieldCompact, { borderColor }, fieldStyle]}>
               <Pressable accessibilityRole="button" accessibilityLabel="Country code India +91" style={styles.country}>
                 <View style={styles.flag}>
                   <View style={[styles.flagBand, { backgroundColor: '#FF9933' }]} />
@@ -235,7 +255,7 @@ export default function PhoneScreen() {
               disabled={request.isPending}
               style={[styles.ctaWrap, ctaStyle]}
             >
-              <LinearGradient colors={['#12886A', '#0A6A51']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cta}>
+              <LinearGradient colors={['#12886A', '#0A6A51']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.cta, compact && styles.ctaCompact]}>
                 <LinearGradient colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']} style={styles.ctaGloss} />
                 <Text weight="bold" style={styles.ctaText}>
                   {request.isPending ? 'Sending code…' : 'Continue'}
@@ -255,7 +275,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { flexGrow: 1 },
 
-  brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.screen, paddingTop: spacing.md },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.screen, paddingTop: spacing.lg },
   logo: {
     width: 56,
     height: 56,
@@ -269,22 +289,24 @@ const styles = StyleSheet.create({
     elevation: 7,
   },
   logoGloss: { position: 'absolute', top: 0, left: 0, right: 0, height: 26, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
-  brandName: { fontSize: 23, lineHeight: 29, color: '#0F1D18', letterSpacing: -0.4 },
+  brandName: { fontSize: 25, lineHeight: 31, color: '#0F1D18', letterSpacing: -0.4 },
   brandAccent: { color: '#0E8A6A' },
-  brandTag: { fontSize: 12.5, lineHeight: 17, color: '#7C8F88', marginTop: 1 },
+  brandTag: { fontSize: 13, lineHeight: 18, color: '#7C8F88', marginTop: 1 },
 
-  hero: { width: '100%', justifyContent: 'flex-start', overflow: 'hidden' },
+  hero: { flex: 1, width: '100%', minHeight: 296, overflow: 'hidden' },
   heroArt: { position: 'absolute', right: 0, bottom: 0 },
-  heroCopy: { paddingHorizontal: spacing.screen, paddingTop: '5%' },
-  welcome: { fontSize: 37, lineHeight: 45, color: '#0B1512', letterSpacing: -1.2 },
-  welcomeCompact: { fontSize: 33, lineHeight: 40 },
-  subtitle: { fontSize: 14.5, lineHeight: 22, color: '#788B84', marginTop: spacing.xs },
-  features: { marginTop: '7%', gap: spacing.lg },
+  // the bottom inset keeps the feature rows clear of the hand-written line baked into the art
+  heroCopy: { flex: 1, paddingHorizontal: spacing.screen, paddingTop: spacing.sm, justifyContent: 'space-between' },
+  welcome: { fontSize: 43, lineHeight: 51, color: '#0B1512', letterSpacing: -1.2 },
+  welcomeCompact: { fontSize: 35, lineHeight: 42 },
+  subtitle: { fontSize: 15.5, lineHeight: 23, color: '#788B84', marginTop: spacing.xs },
+  subtitleCompact: { fontSize: 13.5, lineHeight: 20 },
+  features: { gap: spacing.lg },
   feature: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   featureIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#0B6F55',
@@ -294,26 +316,32 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   featureText: { flexShrink: 1 },
-  featureTitle: { fontSize: 13.5, lineHeight: 19, color: '#16241F' },
-  featureBody: { fontSize: 13.5, lineHeight: 19, color: '#7A8D86' },
-  glyph: { fontSize: 20, lineHeight: 24 },
+  featureCompact: { fontSize: 13, lineHeight: 18.5 },
+  featuresCompact: { gap: spacing.md },
+  featureTitle: { fontSize: 14.5, lineHeight: 20, color: '#16241F' },
+  featureBody: { fontSize: 14.5, lineHeight: 20, color: '#7A8D86' },
+  glyph: { fontSize: 22, lineHeight: 26 },
 
   card: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: spacing.lg,
+    marginHorizontal: spacing.md + 2,
+    marginTop: -spacing.xxl,
     borderRadius: 26,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.lg + 2,
+    paddingTop: spacing.lg + 2,
+    paddingBottom: spacing.lg + 2,
     shadowColor: '#0B3F30',
     shadowOpacity: 0.1,
     shadowRadius: 26,
     shadowOffset: { width: 0, height: 12 },
     elevation: 10,
   },
-  cardTitle: { fontSize: 16, lineHeight: 23, color: '#0F1D18' },
-  fieldLabel: { fontSize: 12.5, color: '#8C9E97', marginTop: spacing.lg, marginBottom: spacing.sm },
-  field: { flexDirection: 'row', alignItems: 'center', height: 58, borderRadius: 15, borderWidth: 1.5, backgroundColor: '#FFFFFF', paddingHorizontal: spacing.md },
+  cardCompact: { paddingTop: spacing.md, paddingBottom: spacing.md },
+  fieldCompact: { height: 52 },
+  ctaCompact: { height: 52 },
+  cardTitle: { fontSize: 15, lineHeight: 22, letterSpacing: -0.2, color: '#0F1D18' },
+  fieldLabel: { fontSize: 12.5, color: '#8C9E97', marginTop: spacing.md + 2, marginBottom: spacing.xs + 2 },
+  field: { flexDirection: 'row', alignItems: 'center', height: 56, borderRadius: 15, borderWidth: 1.5, backgroundColor: '#FFFFFF', paddingHorizontal: spacing.md },
   country: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingRight: spacing.sm, minHeight: 44 },
   flag: { width: 28, height: 19, borderRadius: 3, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: '#D9E4DF' },
   flagBand: { flex: 1 },
@@ -325,8 +353,8 @@ const styles = StyleSheet.create({
   noteRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: spacing.md },
   note: { fontSize: 12.5, color: '#93A69E', flexShrink: 1 },
 
-  ctaWrap: { marginTop: spacing.xl, borderRadius: radius.pill, shadowColor: '#0A6A51', shadowOpacity: 0.32, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
-  cta: { height: 60, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md, overflow: 'hidden' },
+  ctaWrap: { marginTop: spacing.lg + 2, borderRadius: radius.pill, shadowColor: '#0A6A51', shadowOpacity: 0.32, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
+  cta: { height: 56, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md, overflow: 'hidden' },
   ctaGloss: { position: 'absolute', top: 0, left: 0, right: 0, height: 28 },
   ctaText: { fontSize: 16.5, color: '#FFFFFF', letterSpacing: 0.2 },
 });
