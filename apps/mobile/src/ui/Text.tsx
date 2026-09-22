@@ -3,7 +3,7 @@ import { palette, typography } from '@/theme';
 
 type Variant = 'display' | 'title' | 'heading' | 'subheading' | 'body' | 'label' | 'caption' | 'micro';
 type Tone = 'default' | 'secondary' | 'muted' | 'primary' | 'onPrimary' | 'onPrimaryMuted' | 'danger' | 'success';
-type Weight = 'regular' | 'medium' | 'semibold' | 'bold';
+type Weight = 'regular' | 'medium' | 'semibold' | 'bold' | 'extrabold';
 
 export interface TextProps extends RNTextProps {
   variant?: Variant;
@@ -44,7 +44,7 @@ export function Text({ variant = 'body', tone = 'default', weight, center, style
         {
           fontSize: typography.size[variant],
           lineHeight: typography.lineHeight[variant],
-          fontWeight: typography.weight[w],
+          fontFamily: typography.family[w],
           color: TONE[tone],
           textAlign: center ? 'center' : undefined,
         },

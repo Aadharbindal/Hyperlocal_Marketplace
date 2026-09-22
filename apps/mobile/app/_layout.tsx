@@ -1,3 +1,10 @@
+import { useFonts } from 'expo-font';
+// Import only the weights we ship, not the whole family.
+import Poppins_400Regular from '@expo-google-fonts/poppins/400Regular/Poppins_400Regular.ttf';
+import Poppins_500Medium from '@expo-google-fonts/poppins/500Medium/Poppins_500Medium.ttf';
+import Poppins_600SemiBold from '@expo-google-fonts/poppins/600SemiBold/Poppins_600SemiBold.ttf';
+import Poppins_700Bold from '@expo-google-fonts/poppins/700Bold/Poppins_700Bold.ttf';
+import Poppins_800ExtraBold from '@expo-google-fonts/poppins/800ExtraBold/Poppins_800ExtraBold.ttf';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
@@ -60,10 +67,26 @@ function AuthGate() {
 export default function RootLayout() {
   const hydrate = useSession((s) => s.hydrate);
   const startNetwork = useNetwork((s) => s.start);
+  const [fontsLoaded] = useFonts({
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+    Poppins_800ExtraBold,
+  });
   useEffect(() => {
     void hydrate();
     return startNetwork();
   }, [hydrate, startNetwork]);
+
+  // Hold the first paint until the brand face is ready so text never reflows.
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.ground }}>
+        <ActivityIndicator color={palette.primary} size="large" />
+      </View>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

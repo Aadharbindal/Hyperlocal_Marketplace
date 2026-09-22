@@ -38,6 +38,6 @@ export function Card({ tone = 'surface', padding = 'lg', flat, onPress, style, c
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: radius.lg },
+  card: { borderRadius: radius.lg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)' },
   pressed: { transform: [{ scale: 0.985 }], opacity: 0.95 },
 });

@@ -1,17 +1,36 @@
 {
   "expo": {
-    "name": "Hyperlocal",
+    "name": "LocalHub",
     "slug": "hyperlocal-marketplace",
     "version": "0.1.0",
     "scheme": "hyperlocal",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": { "backgroundColor": "#EAF7F1" },
-    "ios": { "supportsTablet": false, "bundleIdentifier": "com.hyperlocal.marketplace" },
-    "android": { "package": "com.hyperlocal.marketplace", "adaptiveIcon": { "backgroundColor": "#EAF7F1" } },
-    "web": { "bundler": "metro", "output": "single" },
-    "plugins": ["expo-router", "expo-secure-store"],
-    "experiments": { "typedRoutes": true }
+    "splash": {
+      "backgroundColor": "#EAF7F1"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.hyperlocal.marketplace"
+    },
+    "android": {
+      "package": "com.hyperlocal.marketplace",
+      "adaptiveIcon": {
+        "backgroundColor": "#EAF7F1"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

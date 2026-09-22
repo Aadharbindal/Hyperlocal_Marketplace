@@ -6,3 +6,7 @@ export { Screen } from './Screen';
 export { FloatingTabBar, type TabSpec } from './TabBar';
 export { IconChip, IconButton, Badge, Avatar, SectionHeader, Dots, Spacer } from './primitives';
 export { Skeleton, EmptyState, ErrorState, OfflineBanner } from './states';
+export { Chip3D } from './Chip3D';
+export { RealisticIcon } from './RealisticIcon';
+export { OfferIllustration } from './illustrations/OfferIllustration';
+export { HomeHeroIllustration } from './illustrations/HomeHeroIllustration';

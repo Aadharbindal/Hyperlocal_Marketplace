@@ -22,10 +22,10 @@ export function Skeleton({ width = '100%', height = 16, round, style }: { width?
   return <Animated.View accessibilityLabel="Loading" style={[{ width, height, borderRadius: round ? height / 2 : radius.sm, backgroundColor: palette.border, opacity }, style]} />;
 }
 
-export function EmptyState({ icon = 'leaf-outline', title, body, actionLabel, onAction }: { icon?: keyof typeof Ionicons.glyphMap; title: string; body?: string; actionLabel?: string; onAction?: () => void }) {
+export function EmptyState({ icon = 'leaf-outline', title, body, actionLabel, onAction, illustration }: { icon?: keyof typeof Ionicons.glyphMap; title: string; body?: string; actionLabel?: string; onAction?: () => void; illustration?: React.ReactNode }) {
   return (
     <View style={styles.center} accessibilityRole="summary">
-      <IconChip icon={icon} bg={palette.primarySoft} fg={palette.primary} size={72} />
+      {illustration ? illustration : <IconChip icon={icon} bg={palette.primarySoft} fg={palette.primary} size={72} />}
       <Text variant="heading" center style={styles.title}>
         {title}
       </Text>

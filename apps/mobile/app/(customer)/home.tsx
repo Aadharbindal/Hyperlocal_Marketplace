@@ -5,8 +5,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useCategories } from '@/api/hooks';
 import { useStrings } from '@/i18n';
 import { useSession } from '@/store/session';
-import { chipFor, layout, palette, radius, spacing } from '@/theme';
-import { Avatar, Button, Card, Dots, IconButton, IconChip, Screen, SectionHeader, Skeleton, Spacer, Text, TextField, ErrorState } from '@/ui';
+import { layout, palette, radius, spacing } from '@/theme';
+import { Avatar, Button, Card, Dots, IconButton, Screen, SectionHeader, Skeleton, Spacer, Text, TextField, ErrorState, RealisticIcon, HomeHeroIllustration, OfferIllustration } from '@/ui';
 
 function greetingKey(): 'greeting.morning' | 'greeting.afternoon' | 'greeting.evening' {
   const h = new Date().getHours();
@@ -63,8 +63,7 @@ export default function HomeScreen() {
           <Button title={t('home.hero.cta')} variant="onPrimary" size="md" iconRight="arrow-forward" style={styles.heroCta} onPress={comingSoon} />
         </View>
         <View style={styles.heroArt} accessibilityElementsHidden>
-          <Ionicons name="home" size={96} color="rgba(255,255,255,0.22)" />
-          <Ionicons name="leaf" size={40} color="rgba(255,255,255,0.28)" style={styles.heroLeaf} />
+          <HomeHeroIllustration />
         </View>
       </LinearGradient>
       <Dots count={4} active={0} />
@@ -86,10 +85,9 @@ export default function HomeScreen() {
       ) : (
         <View style={styles.grid}>
           {categories.data.items.map((c) => {
-            const chip = chipFor(c.iconKey);
             return (
               <Card key={c.id} style={styles.tile} padding="md" onPress={comingSoon} accessibilityLabel={c.name}>
-                <IconChip icon={chip.icon as never} bg={chip.bg} fg={chip.fg} />
+                <RealisticIcon iconKey={c.iconKey} size={56} />
                 <Text variant="label" weight="medium" center numberOfLines={2} style={styles.tileLabel}>
                   {c.name}
                 </Text>
@@ -102,7 +100,7 @@ export default function HomeScreen() {
       {/* Offer */}
       <Spacer h={spacing.xxl} />
       <Card tone="soft" flat style={styles.offer} onPress={comingSoon} accessibilityLabel={t('home.offer.title')}>
-        <IconChip icon="gift" bg={palette.surface} fg={palette.primary} size={64} />
+        <OfferIllustration size={64} />
         <View style={styles.offerText}>
           <Text variant="heading">{t('home.offer.title')}</Text>
           <Text variant="label" tone="secondary">
@@ -139,8 +137,7 @@ const styles = StyleSheet.create({
   heroText: { flex: 1, gap: spacing.sm, justifyContent: 'center' },
   heroTitle: { marginBottom: 2 },
   heroCta: { marginTop: spacing.md },
-  heroArt: { width: 120, alignItems: 'center', justifyContent: 'flex-end' },
-  heroLeaf: { position: 'absolute', top: 0, right: 0 },
+  heroArt: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   tile: { width: '22.5%', flexGrow: 1, alignItems: 'center', gap: spacing.sm, minHeight: 124 },
   tileLabel: { minHeight: 40 },

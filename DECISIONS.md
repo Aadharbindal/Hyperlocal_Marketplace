@@ -60,3 +60,25 @@ Screens consume components only.
 ## D-010 · 2026-09-22 · Accepted · Job status ≠ payment status
 **Context.** Spec §9. **Decision.** `jobs.status` and `jobs.payment_status` are separate columns,
 each with its own event log. Settlement requires both `COMPLETED` and `CAPTURED`.
+
+## D-011 · 2026-09-22 · Accepted · Welcome hero uses the supplied reference render as an image asset
+**Context.** The user supplied a finished 3D welcome-screen design and asked for that exact look.
+Photoreal 3D cannot be produced from vector/RN primitives at that quality.
+**Decision.** Extract the artwork from the supplied render into
+`apps/mobile/assets/hero-technician.png` (UI text removed, background reconstructed, left edge
+alpha-faded) and composite live, translatable text over it. The screen's background gradient is
+sampled from the same render so the seam is invisible.
+**Consequences.** Pixel-faithful hero with no runtime cost beyond one image. The asset is derived
+from the user's own design - it must be replaced by the final licensed export before release
+(tracked in `KNOWN_LIMITATIONS.md`). Swapping it is a one-file change; no layout code depends on
+its internals. The earlier hand-drawn SVG mascot was removed.
+
+## D-012 · 2026-09-22 · Accepted · Poppins as the brand typeface
+**Context.** The reference uses a geometric sans with a very heavy headline weight; system fonts
+did not match.
+**Decision.** Ship Poppins (400/500/600/700/800, SIL Open Font License) via
+`@expo-google-fonts/poppins`, importing only those five files. `typography.family` maps each
+weight name to a font file and `ui/Text` sets `fontFamily` instead of `fontWeight`, so no
+platform synthesises a fake bold.
+**Consequences.** First paint waits for the font (a spinner holds it) so text never reflows.
+Poppins is wider than the system face, so the type scale was re-tuned.

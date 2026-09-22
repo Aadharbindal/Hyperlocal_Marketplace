@@ -1,25 +1,95 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  FadeInLeft,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { normaliseIndianPhone } from '@hyperlocal/core';
-import { useRequestOtp } from '@/api/hooks';
 import { ApiError } from '@/api/client';
+import { useRequestOtp } from '@/api/hooks';
 import { useStrings } from '@/i18n';
-import { palette, radius, spacing } from '@/theme';
-import { Button, Screen, Spacer, Text, TextField } from '@/ui';
+import { useNetwork } from '@/store/network';
+import { BRAND } from '@/theme/brand';
+import { palette, radius, spacing, typography } from '@/theme';
+import { OfflineBanner, Text } from '@/ui';
+import HERO from '../../assets/hero-technician.png';
+
+const HERO_RATIO = 894 / 828; // natural size of the artwork
+
+interface Feature {
+  icon?: keyof typeof Ionicons.glyphMap;
+  glyph?: string;
+  from: string;
+  to: string;
+  fg: string;
+  title: string;
+  body: string;
+}
+
+const FEATURES: Feature[] = [
+  { icon: 'shield-checkmark', from: '#E6F7EF', to: '#C8EBDC', fg: '#0E8A6A', title: 'Verified', body: 'Professionals' },
+  { icon: 'flash', from: '#FFF6E0', to: '#FFE8B8', fg: '#F0A400', title: 'Quick', body: '& Easy Booking' },
+  { glyph: '₹', from: '#E6F7EF', to: '#C8EBDC', fg: '#0E8A6A', title: 'Affordable', body: '& Transparent Pricing' },
+];
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function PhoneScreen() {
   const t = useStrings();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const online = useNetwork((s) => s.online);
   const [phone, setPhone] = useState('');
+  const [focused, setFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const request = useRequestOtp();
+
+  const compact = height < 760;
+  const heroWidth = compact ? width * 0.94 : width;
+  const heroHeight = heroWidth * HERO_RATIO;
+
+  // continuous gentle float of the whole illustration
+  const floatY = useSharedValue(0);
+  useEffect(() => {
+    floatY.value = withRepeat(withTiming(-9, { duration: 2600, easing: Easing.inOut(Easing.sin) }), -1, true);
+  }, [floatY]);
+  const heroFloat = useAnimatedStyle(() => ({ transform: [{ translateY: floatY.value }] }));
+
+  // press feedback on the primary button
+  const ctaScale = useSharedValue(1);
+  const ctaStyle = useAnimatedStyle(() => ({ transform: [{ scale: ctaScale.value }] }));
+
+  // shake the field when the number is invalid
+  const shake = useSharedValue(0);
+  const fieldStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
+  const shakeField = () => {
+    shake.value = withSequence(
+      withTiming(-8, { duration: 55 }),
+      withTiming(8, { duration: 55 }),
+      withTiming(-5, { duration: 55 }),
+      withTiming(0, { duration: 55 }),
+    );
+  };
 
   const submit = async () => {
     const e164 = normaliseIndianPhone(phone);
     if (!e164) {
       setError('Enter a valid 10-digit Indian mobile number');
+      shakeField();
       return;
     }
     setError(null);
@@ -28,53 +98,235 @@ export default function PhoneScreen() {
       router.push({ pathname: '/(auth)/otp', params: { phone: e164, challengeId: res.challengeId, expires: String(res.expiresInSeconds), demoCode: res.demoCode ?? '' } });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('common.error'));
+      shakeField();
     }
   };
 
+  const borderColor = error ? palette.danger : focused ? palette.primary : '#E4EDE9';
+
   return (
-    <Screen keyboard>
-      <View style={styles.brand}>
-        <View style={styles.logo}>
-          <Ionicons name="home" size={30} color={palette.textOnPrimary} />
-        </View>
-        <Text variant="display">{t('auth.phone.title')}</Text>
-        <Text variant="body" tone="secondary">
-          {t('auth.phone.subtitle')}
-        </Text>
+    <LinearGradient colors={['#FFFFFF', '#FBFDFD', '#F4FDFA', '#EAF8F1']} locations={[0, 0.35, 0.72, 1]} style={styles.root}>
+      <StatusBar style="dark" />
+      <View style={{ paddingTop: insets.top }}>
+        <OfflineBanner visible={!online} label={t('error.OFFLINE')} />
       </View>
-      <Spacer h={spacing.xxxl} />
-      <TextField
-        label="Mobile number"
-        prefix="+91"
-        placeholder={t('auth.phone.placeholder')}
-        keyboardType="phone-pad"
-        textContentType="telephoneNumber"
-        autoComplete="tel"
-        autoFocus
-        maxLength={12}
-        value={phone}
-        onChangeText={(v) => {
-          setPhone(v);
-          if (error) setError(null);
-        }}
-        onSubmitEditing={submit}
-        returnKeyType="done"
-        helper={t('auth.phone.helper')}
-        error={error}
-      />
-      <Spacer h={spacing.xxl} />
-      <Button title={t('auth.phone.cta')} fullWidth iconRight="arrow-forward" loading={request.isPending} onPress={submit} />
-      <View style={styles.footer}>
-        <Text variant="caption" tone="muted" center>
-          {t('brand.tagline')}
-        </Text>
-      </View>
-    </Screen>
+
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
+          {/* ---------------- brand ---------------- */}
+          <Animated.View entering={FadeInDown.duration(500)} style={styles.brand}>
+            <LinearGradient colors={['#1BA87E', '#0A6A51']} start={{ x: 0.2, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.logo}>
+              <LinearGradient colors={['rgba(255,255,255,0.45)', 'rgba(255,255,255,0)']} style={styles.logoGloss} />
+              <Ionicons name="home" size={30} color="#FFFFFF" />
+            </LinearGradient>
+            <View>
+              <Text weight="extrabold" style={styles.brandName}>
+                Local<Text weight="extrabold" style={[styles.brandName, styles.brandAccent]}>Hub</Text>
+              </Text>
+              <Text variant="label" tone="secondary" style={styles.brandTag}>
+                {BRAND.tagline}
+              </Text>
+            </View>
+          </Animated.View>
+
+          {/* ---------------- hero ---------------- */}
+          <View style={[styles.hero, { height: heroHeight }]}>
+            <Animated.View entering={FadeIn.delay(120).duration(700)} style={[styles.heroArt, heroFloat]} pointerEvents="none">
+              <Image source={HERO} style={{ width: heroWidth, height: heroHeight }} resizeMode="contain" accessibilityLabel="Verified LocalHub technician with plumbing, electrical, painting and appliance services" />
+            </Animated.View>
+
+            <View style={styles.heroCopy} pointerEvents="box-none">
+              <Animated.View entering={FadeInLeft.delay(180).duration(560)}>
+                <Text weight="extrabold" style={[styles.welcome, compact && styles.welcomeCompact]}>
+                  Welcome!
+                </Text>
+              </Animated.View>
+              <Animated.View entering={FadeInLeft.delay(280).duration(560)}>
+                <Text weight="regular" style={styles.subtitle}>
+                  Get trusted professionals{'\n'}for all your home needs
+                </Text>
+              </Animated.View>
+
+              <View style={styles.features}>
+                {FEATURES.map((f, i) => (
+                  <Animated.View key={f.title} entering={FadeInLeft.delay(400 + i * 110).duration(520)} style={styles.feature}>
+                    <LinearGradient colors={[f.from, f.to]} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.featureIcon}>
+                      {f.icon ? <Ionicons name={f.icon} size={20} color={f.fg} /> : <Text weight="bold" style={[styles.glyph, { color: f.fg }]}>{f.glyph}</Text>}
+                    </LinearGradient>
+                    <View style={styles.featureText}>
+                      <Text weight="semibold" style={styles.featureTitle}>
+                        {f.title}
+                      </Text>
+                      <Text weight="regular" style={styles.featureBody}>
+                        {f.body}
+                      </Text>
+                    </View>
+                  </Animated.View>
+                ))}
+              </View>
+            </View>
+          </View>
+
+          {/* ---------------- sign-in card ---------------- */}
+          <Animated.View entering={FadeInDown.delay(260).duration(620).springify().damping(18)} style={[styles.card, { marginBottom: Math.max(insets.bottom, spacing.lg) }]}>
+            <Text weight="bold" style={styles.cardTitle}>
+              Enter your mobile number to continue
+            </Text>
+            <Text style={styles.fieldLabel}>Mobile number</Text>
+
+            <Animated.View style={[styles.field, { borderColor }, fieldStyle]}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Country code India +91" style={styles.country}>
+                <View style={styles.flag}>
+                  <View style={[styles.flagBand, { backgroundColor: '#FF9933' }]} />
+                  <View style={[styles.flagBand, styles.flagMid]}>
+                    <View style={styles.chakra} />
+                  </View>
+                  <View style={[styles.flagBand, { backgroundColor: '#138808' }]} />
+                </View>
+                <Text weight="semibold" style={styles.code}>
+                  +91
+                </Text>
+                <Ionicons name="chevron-down" size={16} color="#8FA39B" />
+              </Pressable>
+              <View style={styles.divider} />
+              <TextInput
+                value={phone}
+                onChangeText={(v) => {
+                  setPhone(v);
+                  if (error) setError(null);
+                }}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                onSubmitEditing={submit}
+                placeholder="98765 43210"
+                placeholderTextColor="#A9B8B1"
+                keyboardType="phone-pad"
+                textContentType="telephoneNumber"
+                autoComplete="tel"
+                maxLength={12}
+                returnKeyType="done"
+                accessibilityLabel="Mobile number"
+                style={styles.input}
+              />
+            </Animated.View>
+
+            {error ? (
+              <Animated.View entering={FadeIn.duration(220)} style={styles.noteRow}>
+                <Ionicons name="alert-circle" size={15} color={palette.danger} />
+                <Text style={[styles.note, { color: palette.danger }]}>{error}</Text>
+              </Animated.View>
+            ) : (
+              <View style={styles.noteRow}>
+                <Ionicons name="lock-closed" size={14} color="#93A69E" />
+                <Text style={styles.note}>We&apos;ll send a one-time code by SMS</Text>
+              </View>
+            )}
+
+            <AnimatedPressable
+              accessibilityRole="button"
+              accessibilityState={{ busy: request.isPending }}
+              onPressIn={() => {
+                ctaScale.value = withSpring(0.97, { damping: 18, stiffness: 320 });
+              }}
+              onPressOut={() => {
+                ctaScale.value = withSpring(1, { damping: 14, stiffness: 260 });
+              }}
+              onPress={submit}
+              disabled={request.isPending}
+              style={[styles.ctaWrap, ctaStyle]}
+            >
+              <LinearGradient colors={['#12886A', '#0A6A51']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cta}>
+                <LinearGradient colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']} style={styles.ctaGloss} />
+                <Text weight="bold" style={styles.ctaText}>
+                  {request.isPending ? 'Sending code…' : 'Continue'}
+                </Text>
+                {!request.isPending && <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />}
+              </LinearGradient>
+            </AnimatedPressable>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  brand: { marginTop: spacing.huge, gap: spacing.sm },
-  logo: { width: 64, height: 64, borderRadius: radius.lg, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg },
-  footer: { marginTop: 'auto', paddingTop: spacing.xxl },
+  root: { flex: 1 },
+  flex: { flex: 1 },
+  scroll: { flexGrow: 1 },
+
+  brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.screen, paddingTop: spacing.md },
+  logo: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0B6F55',
+    shadowOpacity: 0.32,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 7,
+  },
+  logoGloss: { position: 'absolute', top: 0, left: 0, right: 0, height: 26, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
+  brandName: { fontSize: 23, lineHeight: 29, color: '#0F1D18', letterSpacing: -0.4 },
+  brandAccent: { color: '#0E8A6A' },
+  brandTag: { fontSize: 12.5, lineHeight: 17, color: '#7C8F88', marginTop: 1 },
+
+  hero: { width: '100%', justifyContent: 'flex-start', overflow: 'hidden' },
+  heroArt: { position: 'absolute', right: 0, bottom: 0 },
+  heroCopy: { paddingHorizontal: spacing.screen, paddingTop: '5%' },
+  welcome: { fontSize: 37, lineHeight: 45, color: '#0B1512', letterSpacing: -1.2 },
+  welcomeCompact: { fontSize: 33, lineHeight: 40 },
+  subtitle: { fontSize: 14.5, lineHeight: 22, color: '#788B84', marginTop: spacing.xs },
+  features: { marginTop: '7%', gap: spacing.lg },
+  feature: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  featureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0B6F55',
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  featureText: { flexShrink: 1 },
+  featureTitle: { fontSize: 13.5, lineHeight: 19, color: '#16241F' },
+  featureBody: { fontSize: 13.5, lineHeight: 19, color: '#7A8D86' },
+  glyph: { fontSize: 20, lineHeight: 24 },
+
+  card: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: spacing.lg,
+    borderRadius: 26,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
+    shadowColor: '#0B3F30',
+    shadowOpacity: 0.1,
+    shadowRadius: 26,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 10,
+  },
+  cardTitle: { fontSize: 16, lineHeight: 23, color: '#0F1D18' },
+  fieldLabel: { fontSize: 12.5, color: '#8C9E97', marginTop: spacing.lg, marginBottom: spacing.sm },
+  field: { flexDirection: 'row', alignItems: 'center', height: 58, borderRadius: 15, borderWidth: 1.5, backgroundColor: '#FFFFFF', paddingHorizontal: spacing.md },
+  country: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingRight: spacing.sm, minHeight: 44 },
+  flag: { width: 28, height: 19, borderRadius: 3, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: '#D9E4DF' },
+  flagBand: { flex: 1 },
+  flagMid: { backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  chakra: { width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: '#000080' },
+  code: { fontSize: 15.5, color: '#16241F' },
+  divider: { width: 1, height: 30, backgroundColor: '#E4EDE9', marginRight: spacing.md },
+  input: { flex: 1, fontSize: 15.5, fontFamily: typography.family.regular, color: '#0F1D18', height: '100%' },
+  noteRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: spacing.md },
+  note: { fontSize: 12.5, color: '#93A69E', flexShrink: 1 },
+
+  ctaWrap: { marginTop: spacing.xl, borderRadius: radius.pill, shadowColor: '#0A6A51', shadowOpacity: 0.32, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
+  cta: { height: 60, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md, overflow: 'hidden' },
+  ctaGloss: { position: 'absolute', top: 0, left: 0, right: 0, height: 28 },
+  ctaText: { fontSize: 16.5, color: '#FFFFFF', letterSpacing: 0.2 },
 });

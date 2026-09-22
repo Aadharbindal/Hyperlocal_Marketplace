@@ -83,11 +83,12 @@ export const radius = {
 
 export const typography = {
   family: {
-    // System fonts until the final design specifies a face. Rounded, friendly weights.
-    regular: undefined as string | undefined,
-    medium: undefined as string | undefined,
-    semibold: undefined as string | undefined,
-    bold: undefined as string | undefined,
+    // Poppins - the geometric face used in the reference design. Loaded in app/_layout.tsx.
+    regular: 'Poppins_400Regular',
+    medium: 'Poppins_500Medium',
+    semibold: 'Poppins_600SemiBold',
+    bold: 'Poppins_700Bold',
+    extrabold: 'Poppins_800ExtraBold',
   },
   size: {
     display: 30,
@@ -120,10 +121,10 @@ export const typography = {
 export const elevation = {
   card: {
     shadowColor: '#0E8A6A',
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 4,
   },
   floating: {
     shadowColor: '#10231C',

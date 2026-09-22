@@ -19,5 +19,6 @@ Updated every milestone. **Nothing external is live.** Each row names the produc
 | Voice-note transcription | deferred | none | Phase 2 | – |
 | Regional voice UI, AI categorisation, AI damage assessment | deferred by spec §31 | – | – | – |
 | Mobile dependency pin | workaround | `query-string@7` added to `apps/mobile` because `@react-navigation/native` 7.4 dropped it while `expo-router` 5.1 still imports it | remove when expo-router updates | M2 |
-| Hero artwork | placeholder | icon-based illustration in the home hero | final design assets | design handoff |
+| Welcome hero artwork | **derived asset** | `apps/mobile/assets/hero-technician.png` is extracted from the reference render the user supplied (text removed, background rebuilt) | final licensed export of the same illustration | before release (D-011) |
+| Home hero artwork | placeholder | vector illustration in the home hero | final design assets | design handoff |
 | Legal/payment structure | **needs professional review** | hold/settlement vocabulary only | – | before launch |
