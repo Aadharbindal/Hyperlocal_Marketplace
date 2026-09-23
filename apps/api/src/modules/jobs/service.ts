@@ -32,6 +32,8 @@ export interface JobDeps {
   env: Env;
   store: DataStore;
   adapters: Adapters;
+  /** Tells the live stream that this job moved, so the apps do not have to poll for it. */
+  onTransition?: (job: JobRecord) => void;
 }
 
 export interface TransitionContext {
@@ -81,6 +83,7 @@ export function jobService(d: JobDeps) {
         metadata: opts.metadata ?? {},
         request_id: ctx.requestId,
       });
+      d.onTransition?.(updated);
       return updated;
     });
   }

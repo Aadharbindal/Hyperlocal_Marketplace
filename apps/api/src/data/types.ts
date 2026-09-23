@@ -794,6 +794,9 @@ export interface NotificationsRepo {
 
 export interface RetentionRepo {
   schedule(e: New<RetentionEventRecord>): Promise<RetentionEventRecord>;
+  /** Events whose time has come and that nothing has executed yet. */
+  listDue(now: Date, limit: number): Promise<RetentionEventRecord[]>;
+  markExecuted(id: string, at: Date): Promise<RetentionEventRecord>;
 }
 
 export interface JobsRepo {
@@ -806,6 +809,8 @@ export interface JobsRepo {
   findDraft(customerId: string, categoryId: string, addressId: string | null): Promise<JobRecord | null>;
   /** Open jobs a provider could quote on; distance is filtered by the caller. */
   listOpenForFeed(opts: { categoryIds: string[]; limit: number }): Promise<JobRecord[]>;
+  /** Jobs sitting in these statuses, oldest first - what the background sweeps work through. */
+  listByStatus(statuses: JobStatus[], limit: number): Promise<JobRecord[]>;
 
   addMedia(m: New<JobMediaRecord>): Promise<JobMediaRecord>;
   listMedia(jobId: string, phase?: JobMediaRecord['phase']): Promise<JobMediaRecord[]>;
@@ -844,6 +849,8 @@ export interface NegotiationRepo {
   listOffersForJob(jobId: string): Promise<OfferRecord[]>;
   listOffersForBid(bidId: string): Promise<OfferRecord[]>;
   findPendingForBid(bidId: string): Promise<OfferRecord | null>;
+  /** Pending offers whose time has run out. */
+  listExpiredOffers(now: Date, limit: number): Promise<OfferRecord[]>;
 
   createQuote(q: NewBookingQuote): Promise<BookingQuoteRecord>;
   getActiveQuote(jobId: string): Promise<BookingQuoteRecord | null>;
@@ -861,6 +868,8 @@ export interface PaymentsRepo {
   findByIdempotencyKey(key: string): Promise<PaymentRecord | null>;
   findByOrderId(orderId: string): Promise<PaymentRecord | null>;
   findLiveBooking(jobId: string): Promise<PaymentRecord | null>;
+  /** Payments still waiting on a gateway answer since before `before`. */
+  listStale(status: PaymentStatusEnum, before: Date, limit: number): Promise<PaymentRecord[]>;
   update(id: string, patch: Partial<PaymentRecord>): Promise<PaymentRecord>;
   listForJob(jobId: string): Promise<PaymentRecord[]>;
 
@@ -906,6 +915,9 @@ export interface MaterialsRepo {
   updateQuote(id: string, patch: Partial<MaterialQuoteRecord>): Promise<MaterialQuoteRecord>;
   listQuotes(requestId: string): Promise<MaterialQuoteRecord[]>;
   findVendorQuote(requestId: string, vendorId: string): Promise<MaterialQuoteRecord | null>;
+  /** Live quotes past their expiry, and requests whose quote window has closed. */
+  listExpiredQuotes(now: Date, limit: number): Promise<MaterialQuoteRecord[]>;
+  listStaleRequests(now: Date, limit: number): Promise<MaterialRequestRecord[]>;
 
   createOrder(o: New<MaterialOrderRecord>): Promise<MaterialOrderRecord>;
   getOrder(id: string): Promise<MaterialOrderRecord | null>;

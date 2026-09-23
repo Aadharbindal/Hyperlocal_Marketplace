@@ -1,6 +1,12 @@
 # Known Limitations
 
-Updated every milestone. **Nothing external is live.** Each row names the production replacement.
+Updated every milestone, and swept line by line at the end of M9. **Nothing external is live.**
+Each row names the production replacement and who owns it next: *before launch* means a real
+customer would be affected, *after pilot* means it can wait.
+
+The honest summary: every flow in this product works end to end against mock adapters, with the
+rules, the ledger and the guards all real. No money has ever moved, no SMS has ever been sent,
+and no file has ever been stored. The list below is what stands between that and a real pilot.
 
 | Area | Status | Current behaviour | Production replacement | Owner milestone |
 | --- | --- | --- | --- | --- |
@@ -8,35 +14,35 @@ Updated every milestone. **Nothing external is live.** Each row names the produc
 | Payment gateway | **MOCKED** | authorization, capture, refunds and payouts all run through the mock adapter, which always succeeds. The flows, the ledger and every guard are real; **no money moves** | Razorpay Orders, Webhooks and RazorpayX payouts | before launch |
 | Maps / geocoding | **MOCKED** | address hashed to pseudo-coordinates near pilot centre; haversine distance | Google Maps Platform or Mapbox | M2 |
 | Push notifications | **MOCKED** | logged; in-app inbox works | Expo Push / FCM | M2 |
-| Masked calling | **MOCKED** | the customer sees a masked number for the technician, but no call can be placed - the adapter returns a fake virtual number | Exotel / Knowlarity | M9 |
+| Masked calling | **MOCKED** | the customer sees a masked number for the technician, but no call can be placed - the adapter returns a fake virtual number | Exotel / Knowlarity | before launch |
 | Object storage | **MOCKED** | files kept in memory / `apps/api/.data`; fake signed URLs | Supabase Storage / S3 | M2 |
 | Error monitoring | **MOCKED** | logged | Sentry | M1 (adapter) |
 | Analytics | **MOCKED** | logged | PostHog (after privacy review) | M1 (adapter) |
-| Realtime | not started | the app polls the job, offers, booking and material endpoints | Supabase Realtime | M9 |
+| Realtime | implemented | Server-Sent Events on `/events`; an event says only what changed and the client re-reads. Polling remains as a 60-second fallback. There is no fan-out across nodes, so a second API node would need a shared bus | Redis or Postgres LISTEN/NOTIFY fan-out | before scale-out |
 | Database | memory mode by default | in-process store, resets on restart | Supabase Postgres via migrations (schema written, not yet exercised by tests) | M1 (schema), M2 (postgres repo tests) |
-| Provider verification approval | implemented | staff review the queue and approving flips the profile to VERIFIED; the document file itself is still mock storage, so there is nothing to look at in demo mode | real object storage | M9 |
-| KYC document bytes | **MOCKED** | the upload target and a 5-minute signed read URL are issued and the access is logged, but mock storage holds no bytes, so the link opens nothing | encrypted object storage + envelope encryption | M9 |
-| Settlement scheduler | **manual** | payouts are due 24 h after capture, but nothing runs on a timer: support calls `POST /admin/settlements/run`. Every guard re-runs per settlement, so this is safe, just not automatic | scheduled job | M9 |
-| Payout failure alerting | partial | three failures park a settlement at ON_HOLD and support can retry it from the console, but nothing alerts anyone that it happened | alerting | M9 |
-| Reconciliation with the gateway | not built | PAYMENT_FLOW section 8 calls for polling the gateway when a webhook never arrives; nothing polls yet, so a stuck payment stays PENDING | reconciliation job | M9 |
-| Chargebacks | not built | the DISPUTE_HOLD path exists, but no gateway chargeback event is handled | chargeback webhook + evidence pack | M9 |
-| Console reporting | **naive** | the ops report walks users and jobs in the store rather than querying aggregates, which is fine at pilot size and will not be at scale | SQL aggregates + a reporting view | M9 |
-| Appeal routing | partial | an appeal reopens the dispute and clears the assignee so a different person picks it up, but nothing enforces that the second reviewer differs from the first | queue assignment rules | M9 |
+| Provider verification approval | implemented | staff review the queue and approving flips the profile to VERIFIED; the document file itself is still mock storage, so there is nothing to look at in demo mode | real object storage | before launch |
+| KYC document bytes | **MOCKED** | the upload target and a 5-minute signed read URL are issued and the access is logged, but mock storage holds no bytes, so the link opens nothing | encrypted object storage + envelope encryption | before launch |
+| Settlement scheduler | implemented | an in-process worker runs the payout sweep every 15 minutes; support can still force it. On more than one node, run the scheduler on exactly one until the work moves to a queue | job queue | before scale-out |
+| Payout failure alerting | partial | three failures park a settlement at ON_HOLD and support can retry it from the console, but nothing alerts anyone that it happened | alerting | before launch |
+| Reconciliation with the gateway | implemented, **mock answers** | a stuck payment is chased every 2 minutes and handed to support after 30. The mock gateway always answers "pending", so the resolve path is exercised by the give-up branch rather than by a real answer | live gateway | before launch |
+| Chargebacks | not built | the DISPUTE_HOLD path exists, but no gateway chargeback event is handled | chargeback webhook + evidence pack | before launch |
+| Console reporting | **naive** | the ops report walks users and jobs in the store rather than querying aggregates, which is fine at pilot size and will not be at scale | SQL aggregates + a reporting view | after pilot |
+| Appeal routing | partial | an appeal reopens the dispute and clears the assignee so a different person picks it up, but nothing enforces that the second reviewer differs from the first | queue assignment rules | after pilot |
 | Tax treatment | **needs professional review** | 18% GST is applied to platform fees only, as a placeholder; TDS, TCS and vendor GST are not modelled | tax advisor + accounting review | before launch |
-| Counter-offer expiry | not scheduled | a 20-minute TTL is stored and checked on every read and response, but nothing sweeps expired offers in the background | scheduled job | M9 |
-| Bid-window expiry | not scheduled | offers stop being accepted once the window passes, but nothing auto-cancels or expires the job in the background | scheduled job | M9 |
-| Admin MFA recovery | partial | TOTP enrolment, single-use codes and a 5-failure lock are implemented; there are no recovery codes, so a lost phone needs a database fix | recovery codes + admin-assisted reset | M9 |
-| KYC encryption | not started | the TOTP seed is AES-256-GCM encrypted with the server key, but documents are not; neither uses a KMS | envelope encryption with a KMS | M9 |
-| Voice-note recording (mobile) | not started | the API accepts voice notes (60 s cap enforced); the app only attaches photos so far | expo-audio recorder in the booking flow | M9 |
-| Completion, revision and delivery photos (mobile) | **stand-in** | the app calls the evidence endpoint with fixed image metadata instead of opening the camera, because mock storage has nowhere to put the bytes | camera capture + signed upload | M9 |
-| Vendor invoice upload (mobile) | not built | the API accepts and validates an invoice against the order total; the vendor app shows what is owed but has no upload screen yet | invoice capture in the vendor app | M9 |
-| Held material orders | **manual** | a reported mismatch parks the order at ON_HOLD and notifies both sides; releasing one is an API call, not a console screen | material row in the console | M9 |
+| Counter-offer expiry | implemented | swept every minute; the job falls back to its standing offers |  |  |
+| Bid-window expiry | implemented | swept every minute; a job nobody answered is auto-cancelled and the customer is told |  |  |
+| Admin MFA recovery | partial | TOTP enrolment, single-use codes and a 5-failure lock are implemented; there are no recovery codes, so a lost phone needs a database fix | recovery codes + admin-assisted reset | before launch |
+| KYC encryption | not started | the TOTP seed is AES-256-GCM encrypted with the server key, but documents are not; neither uses a KMS | envelope encryption with a KMS | before launch |
+| Voice-note recording (mobile) | not started | the API accepts voice notes (60 s cap enforced); the app only attaches photos so far | expo-audio recorder in the booking flow | after pilot |
+| Completion, revision and delivery photos (mobile) | **stand-in** | the app calls the evidence endpoint with fixed image metadata instead of opening the camera, because mock storage has nowhere to put the bytes | camera capture + signed upload | before launch |
+| Vendor invoice upload (mobile) | not built | the API accepts and validates an invoice against the order total; the vendor app shows what is owed but has no upload screen yet | invoice capture in the vendor app | before launch |
+| Held material orders | **manual** | a reported mismatch parks the order at ON_HOLD and notifies both sides; releasing one is an API call, not a console screen | material row in the console | after pilot |
 | Material substitution | not built | a vendor quotes against the list as given; there is no flow for proposing a different brand mid-order (MAT-05) | substitution approval | after pilot |
 | Vendor payouts | implemented, **mocked rail** | a confirmed order with a matching invoice produces a PENDING settlement that the payout adapter pays; the adapter is a mock | RazorpayX payouts | before launch |
-| Chat moderation | **flag only** | messages with a phone number, email or UPI handle are stored flagged; the console has no screen for them yet | flagged-message queue | M9 |
-| Start-code resend | not built | one code per job for 72 hours; there is no resend or rotation | resend with cooldown (policy already in `START_JOB_OTP_POLICY`) | M9 |
-| Customer approval timeout | not scheduled | `CUSTOMER_APPROVAL_HOURS` is defined but nothing chases or auto-approves a job the customer ignores | scheduled job + reminder | M9 |
-| Media bytes in mock mode | **MOCKED** | `/jobs/:id/media` returns `upload.required: false` and marks the row uploaded; no bytes are stored, so photo thumbnails fall back to an icon | Supabase Storage / S3 signed PUT | M9 |
+| Chat moderation | **flag only** | messages with a phone number, email or UPI handle are stored flagged; the console has no screen for them yet | flagged-message queue | after pilot |
+| Start-code resend | not built | one code per job for 72 hours; there is no resend or rotation | resend with cooldown (policy already in `START_JOB_OTP_POLICY`) | after pilot |
+| Customer approval timeout | implemented, **no auto-approval** | after 48 h the customer is reminded and a support ticket is opened. The platform deliberately never approves work on a customer's behalf - that would be taking their money on a silence |  |  |
+| Media bytes in mock mode | **MOCKED** | `/jobs/:id/media` returns `upload.required: false` and marks the row uploaded; no bytes are stored, so photo thumbnails fall back to an icon | Supabase Storage / S3 signed PUT | before launch |
 | Voice-note transcription | deferred | none | Phase 2 | – |
 | Regional voice UI, AI categorisation, AI damage assessment | deferred by spec §31 | – | – | – |
 | Mobile dependency pin | workaround | `query-string@7` added to `apps/mobile` because `@react-navigation/native` 7.4 dropped it while `expo-router` 5.1 still imports it | remove when expo-router updates | M2 |

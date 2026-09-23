@@ -51,3 +51,49 @@ admin privilege escalation · cross-role access · suspended login.
 DATA_MODE=postgres DATABASE_URL=... npm run test:integration
 ```
 The same suite must pass. CI runs memory mode on every push; Postgres mode nightly (M9).
+
+## What actually exists at the end of M9
+
+| Suite | File | Tests |
+| --- | --- | --- |
+| Auth, roles, admin foundation | `auth.test.ts`, `users-roles-admin.test.ts` | 24 |
+| Customer job flow | `jobs.test.ts` | 20 |
+| Provider workflow | `provider.test.ts` | 17 |
+| Negotiation, acceptance, authorization | `negotiation.test.ts` | 17 |
+| Execution: arrival, start code, revisions, completion, chat | `execution.test.ts` | 20 |
+| Materials and vendors | `materials.test.ts` | 16 |
+| Payments, settlement, disputes, reviews | `finance.test.ts` | 18 |
+| Support console and MFA | `admin.test.ts` | 13 |
+| Scheduled work | `scheduler.test.ts` | 10 |
+| Adversarial security pass | `security.test.ts` | 21 |
+| **API integration total** | | **179** |
+| Domain rules | `packages/core/src/**/*.test.ts` | **129** |
+
+Run everything with `npm test`; `npm run typecheck && npm run lint && npm run migrate:check &&
+npm run build` is the rest of the gate. All of it runs in CI on every push.
+
+### What these tests are written to prove
+
+They are not coverage for its own sake. Each suite asserts the claims the product makes to the
+people using it:
+
+- **Money is what was agreed.** Capture uses the locked quote whatever the client sends, refunds
+  can never exceed what the ledger says was taken, and every batch nets to zero.
+- **Privacy holds.** The nearby feed, the offer list, the vendor feed and the public tracking
+  link are searched for the address and phone number that must not be in them.
+- **Nobody skips a step.** Work cannot start without the customer's code; a payout cannot go out
+  during a dispute; a vendor cannot sign for their own delivery; an invoice must match its order.
+- **Two people where it matters.** Large refunds and every suspension are refused with one.
+
+### Gaps, stated plainly
+
+- **No mobile component tests.** The app is exercised by hand and through the web build; there is
+  no jest-expo suite yet. This is the largest gap in the plan above.
+- **Postgres repositories are written but untested.** Every suite runs against the in-memory
+  store, which mirrors each SQL constraint by hand. The SQL itself has never been executed.
+  Running the same suite against a real Postgres is the first thing to do before launch.
+- **No load or soak test.** Nothing has measured what happens at a hundred concurrent bookings,
+  and the ops report walks the store rather than querying aggregates, which will not hold at
+  scale.
+- **No accessibility audit.** Labels and hit areas were written with care; nobody has run a
+  screen reader through a booking.

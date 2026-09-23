@@ -4,6 +4,90 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Milestone 9: Hardening and launch readiness
+
+**Milestone:** M9 - Background work, live updates, the adversarial pass, and an honest final sweep
+**Date:** 2026-09-23
+**Status:** Complete
+
+**Implemented:**
+- `packages/core`: the schedule itself (`TASK_SCHEDULE`, `isDue`, `dueTasks`, `isOverrunning`,
+  `reconcileDecision`) and a version gate (`compareVersions`, `isUnsupportedVersion`), both pure
+  and both tested.
+- `apps/api` scheduler: an in-process worker running eight tasks - bid-window expiry, offer
+  expiry, material expiry, draft abandonment, the payout run, gateway reconciliation, approval
+  chasing and the retention sweep. Each is idempotent and batched, so a missed tick catches up
+  and a double run changes nothing; one failing task never stops the queue.
+- Reconciliation asks the **gateway**, never the client, and hands a payment still unanswered
+  after thirty minutes to support rather than retrying forever. Approval chasing reminds the
+  customer and opens a ticket but deliberately never auto-approves: approving on a silence would
+  be taking someone's money for them.
+- `apps/api` live updates: Server-Sent Events on `/events`. An event carries only *what changed*,
+  so the client re-reads the endpoint it already trusts - a delayed, duplicated or missed message
+  cannot put a wrong number on screen, and a dropped stream degrades to polling rather than to a
+  wrong screen. `POST /events` is a deliberate 403.
+- Operational gates: `MIN_APP_VERSION` (426 with the minimum in the body, and no header means no
+  block) and `MAINTENANCE_MODE` (503 on writes, reads untouched). `/ready` now reports both,
+  plus the scheduler's state and the live-stream count.
+- `apps/mobile`: one live connection at the root that marks queries stale; polling intervals
+  relaxed from 8-30 seconds to a 60-second fallback for when the stream is not connected.
+
+**Changed files:** `packages/core/src/{ops/schedule.ts,ops/schedule.test.ts,ops/version.ts,index.ts}`,
+`apps/api/src/{modules/scheduler/service.ts,modules/events/{service,routes}.ts,modules/execution/service.ts,modules/jobs/service.ts,plugins/auth.ts,lib/logger.ts,config/env.ts,adapters/{types,mocks}.ts,data/types.ts,data/memory/*,data/postgres/*,app.ts,test/{scheduler,security,helpers}.ts}`,
+`apps/mobile/src/api/{live.ts,polling.ts,execution,jobs,materials,negotiation,provider,admin}.ts`,
+`apps/mobile/app/_layout.tsx`, `.env.example`, and every document.
+
+**Database changes:** none. M9 added no tables: the work was behaviour, not schema.
+`migrate:check` still reports 8 valid migrations.
+
+**API changes:** `GET /events`, `GET /admin/scheduler`, `POST /admin/scheduler/run`, plus the
+version and maintenance gates on every route and the extra fields on `/ready`. Documented in
+`API_REFERENCE.md`.
+
+**Tests added / passed:** 10 new scheduler tests and 21 new adversarial security tests, plus 7
+new core unit tests. Totals: **179/179 API**, **129/129 core**. Type check clean in 3/3
+workspaces, lint 0 errors, build OK, `migrate:check` OK.
+
+**Manual verification completed:** the scheduler suite drives time rather than waiting for it: a
+bid window is backdated and the job auto-cancels with the customer told why, while a job that has
+offers is deliberately left alone; a counter-offer is expired and the job falls back to its
+standing offers; a three-day-old draft is abandoned while a fresh one is not; a payment is aged
+past the give-up window and a support ticket appears; a retention event anonymises a user while
+their job history survives. The security suite is written from the attacker's side and was the
+most valuable hour of the milestone - see below.
+
+**What the security pass found:** on its first run, `GET /jobs/:id/execution` checked the
+*permission* but not *membership*, so any signed-in provider could read another job's execution
+panel - the technician's name, the price revisions, the completion notes. The route had a guard
+that looked right and was not. It is fixed, covered by a test, and recorded here rather than
+quietly patched, because the lesson is the point: a permission check is not an ownership check.
+
+**Known limitations:** nothing external is live, and that is now the headline of
+`KNOWN_LIMITATIONS.md` rather than a footnote. The scheduler is in-process, so exactly one node
+may run it. The live stream has no cross-node fan-out. The ops report walks the store instead of
+querying aggregates. There are no mobile component tests, no load test, no accessibility audit,
+and - most significantly - **the Postgres repositories have never been executed**: every suite
+runs against the in-memory store that mirrors each SQL constraint by hand. Running the same suite
+against a real Postgres is the first thing to do before a pilot.
+
+**Security considerations:** the checklist was audited line by line rather than ticked off. Items
+now marked done have a test or a migration behind them; four are marked partial with what is
+missing spelled out (RLS policies beyond `0001`, KYC file encryption, an executed restore drill,
+and `npm audit` being non-blocking in CI), and two are honestly unbuilt. The one new secret path -
+the access token in the stream's query string - is the short-lived token only, never the refresh
+token, and the URL is scrubbed in logs by a serializer rather than by dropping the URL entirely.
+
+**External integrations mocked or live:** ALL MOCKED - SMS, payment, maps, push, storage,
+telephony, monitoring, analytics. Nothing is live. No money has moved, no message has been sent,
+no file has been stored.
+
+**Next milestone:** none - M0 to M9 are complete. What comes next is not a milestone but a pilot:
+real credentials, the suite re-run against Postgres, an executed restore drill, legal and tax
+review of the payment structure, and the final licensed artwork. `KNOWN_LIMITATIONS.md` marks
+each remaining item *before launch* or *after pilot*.
+
+---
+
 ## Milestone 8: Admin and support console
 
 **Milestone:** M8 - The console: a second factor, KYC review, people, queues, payouts, reports

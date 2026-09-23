@@ -13,6 +13,7 @@ export function createLogger(env: Env): Logger {
     redact: {
       paths: [
         'req.headers.authorization',
+        '*.access_token',
         'req.headers.cookie',
         '*.phone',
         '*.phone_e164',
@@ -27,6 +28,14 @@ export function createLogger(env: Env): Logger {
         '*.docNumber',
       ],
       censor: '[REDACTED]',
+    },
+    serializers: {
+      // The live stream carries its token in the query string, so the path is kept and the
+      // token is stripped rather than losing the URL from the logs entirely.
+      req(request: { method?: string; url?: string; headers?: Record<string, unknown> }) {
+        const url = typeof request.url === 'string' ? request.url.replace(/access_token=[^&]*/, 'access_token=[REDACTED]') : request.url;
+        return { method: request.method, url, headers: request.headers };
+      },
     },
     ...(pretty
       ? { transport: { target: 'pino-pretty', options: { colorize: true, translateTime: 'HH:MM:ss', ignore: 'pid,hostname,service,env' } } }

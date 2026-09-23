@@ -3,6 +3,7 @@ import type { MaterialOrderView, MaterialPanelView, MaterialQuoteView, MaterialR
 import { api, newIdempotencyKey } from './client';
 import { executionKeys } from './execution';
 import { jobKeys } from './jobs';
+import { FALLBACK_POLL_MS, FALLBACK_POLL_SLOW_MS } from './polling';
 
 export const materialKeys = {
   panel: (jobId: string) => ['job', jobId, 'materials'] as const,
@@ -26,7 +27,7 @@ export function useMaterials(jobId: string | undefined, enabled = true) {
     queryKey: materialKeys.panel(jobId ?? ''),
     enabled: !!jobId && enabled,
     queryFn: () => api<MaterialPanelView>(`/jobs/${jobId}/materials`),
-    refetchInterval: enabled ? 20_000 : false,
+    refetchInterval: enabled ? FALLBACK_POLL_MS : false,
   });
 }
 
@@ -66,7 +67,7 @@ export function useVendorRequests() {
   return useQuery({
     queryKey: materialKeys.vendorFeed(),
     queryFn: () => api<{ items: VendorRequestView[]; blockers: string[] }>('/vendor/material-requests'),
-    refetchInterval: 30_000,
+    refetchInterval: FALLBACK_POLL_SLOW_MS,
   });
 }
 
@@ -74,7 +75,7 @@ export function useVendorOrders() {
   return useQuery({
     queryKey: materialKeys.vendorOrders(),
     queryFn: () => api<{ items: MaterialOrderView[] }>('/vendor/material-orders'),
-    refetchInterval: 30_000,
+    refetchInterval: FALLBACK_POLL_SLOW_MS,
   });
 }
 

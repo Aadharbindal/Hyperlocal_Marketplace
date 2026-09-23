@@ -271,6 +271,11 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
           [e.entity_type, e.entity_id, e.action, e.scheduled_for, e.executed_at, e.reason],
         ))!;
       },
+      listDue: (at, limit) =>
+        many('select * from retention_events where executed_at is null and scheduled_for <= $1 order by scheduled_for limit $2', [at, limit]),
+      async markExecuted(id, at) {
+        return (await one('update retention_events set executed_at = $2 where id = $1 returning *', [id, at]))!;
+      },
     },
 
     idempotency: {

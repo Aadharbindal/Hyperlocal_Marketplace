@@ -46,6 +46,8 @@ export function createPostgresJobsRepo(q: Queryable): JobsRepo {
            and status not in ('CANCELLED_BY_CUSTOMER','CANCELLED_BY_PROVIDER','AUTO_CANCELLED','REFUNDED','ABANDONED','SETTLED','DISPUTED')`,
         [customerId, categoryId, addressId],
       ),
+    listByStatus: (statuses, limit) =>
+      many<JobRecord>('select * from jobs where status = any($1) order by created_at limit $2', [statuses, limit]),
     listOpenForFeed: ({ categoryIds, limit }) =>
       many<JobRecord>(
         `select * from jobs

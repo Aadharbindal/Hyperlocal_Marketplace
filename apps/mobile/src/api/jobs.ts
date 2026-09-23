@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AddressView, JobListItem, JobMediaUploadTarget, JobView } from '@hyperlocal/core';
 import { api, newIdempotencyKey } from './client';
+import { FALLBACK_POLL_MS } from './polling';
 
 export const jobKeys = {
   list: (scope: string) => ['jobs', scope] as const,
@@ -50,7 +51,7 @@ export function useJob(id: string | undefined, opts: { poll?: boolean } = {}) {
     enabled: !!id,
     queryFn: () => api<JobView>(`/jobs/${id}`),
     // A live booking changes on the server (offers arriving), so poll while it is open.
-    refetchInterval: opts.poll ? 15_000 : false,
+    refetchInterval: opts.poll ? FALLBACK_POLL_MS : false,
   });
 }
 

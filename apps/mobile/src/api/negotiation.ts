@@ -3,6 +3,7 @@ import type { AcceptOfferResponse, AssignmentView, BookingQuoteView, OfferChainI
 import { api, newIdempotencyKey } from './client';
 import { jobKeys } from './jobs';
 import { providerKeys } from './provider';
+import { FALLBACK_POLL_MS } from './polling';
 
 export const bookingKeys = {
   chain: (jobId: string) => ['job', jobId, 'offer-chain'] as const,
@@ -20,7 +21,7 @@ export function useOfferChain(jobId: string | undefined, poll = false) {
     queryKey: bookingKeys.chain(jobId ?? ''),
     enabled: !!jobId,
     queryFn: () => api<{ items: OfferChainItem[] }>(`/jobs/${jobId}/offer-chain`),
-    refetchInterval: poll ? 15_000 : false,
+    refetchInterval: poll ? FALLBACK_POLL_MS : false,
   });
 }
 

@@ -21,6 +21,11 @@ values and, in `production`, refuses `mock` adapters for SMS and payments unless
 | `API_ACCESS_TOKEN_TTL_SECONDS` | 3600 | access token lifetime |
 | `API_REFRESH_TOKEN_TTL_SECONDS` | 2592000 | refresh token lifetime (30 d) |
 | `ADMIN_MFA_REQUIRED` | false | second factor for the support console. **Boot fails in production if this is false**; the TOTP seed is encrypted with `API_JWT_SECRET` |
+| `SCHEDULER_ENABLED` | true | the in-process background worker. Run it on exactly one node |
+| `SCHEDULER_TICK_SECONDS` | 30 | how often the worker checks what is due |
+| `MIN_APP_VERSION` | 0.0.0 | oldest app build the API will talk to; older ones get 426 |
+| `MAINTENANCE_MODE` | false | read-only mode: every state-changing request answers 503 |
+| `MAINTENANCE_MESSAGE` | "We are doing some maintenance…" | what the customer is told during maintenance |
 | `API_CORS_ORIGINS` | localhost dev origins | comma-separated |
 | `API_LOG_LEVEL` | info | pino level |
 | `DATA_MODE` | memory | `memory` (demo/tests) or `postgres` |

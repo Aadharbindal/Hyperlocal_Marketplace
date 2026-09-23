@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BidView, NearbyJobItem, OfferView, ProviderProfileView } from '@hyperlocal/core';
 import { api, newIdempotencyKey } from './client';
+import { FALLBACK_POLL_MS } from './polling';
 
 export const providerKeys = {
   profile: ['provider', 'profile'] as const,
@@ -75,7 +76,7 @@ export function useNearbyJobs() {
     queryKey: providerKeys.feed,
     queryFn: () => api<{ items: NearbyJobItem[]; blockers: string[] }>('/provider/jobs/nearby'),
     // New work arrives on the server, so keep the feed fresh while it is open.
-    refetchInterval: 20_000,
+    refetchInterval: FALLBACK_POLL_MS,
   });
 }
 
@@ -128,6 +129,6 @@ export function useOffers(jobId: string | undefined, poll = true) {
     queryKey: providerKeys.offers(jobId ?? ''),
     enabled: !!jobId,
     queryFn: () => api<{ items: OfferView[] }>(`/jobs/${jobId}/offers`),
-    refetchInterval: poll ? 15_000 : false,
+    refetchInterval: poll ? FALLBACK_POLL_MS : false,
   });
 }

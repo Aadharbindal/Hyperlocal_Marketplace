@@ -3,9 +3,9 @@ import { seedDemo } from '../data/seed';
 
 export type TestApp = App;
 
-export async function makeApp(): Promise<TestApp> {
+export async function makeApp(envOverrides: Record<string, string> = {}): Promise<TestApp> {
   const app = await buildApp({
-    envOverrides: { APP_ENV: 'test', DATA_MODE: 'memory', OTP_DEMO_CODE: '123456', OTP_REQUESTS_PER_HOUR: '5' },
+    envOverrides: { APP_ENV: 'test', DATA_MODE: 'memory', OTP_DEMO_CODE: '123456', OTP_REQUESTS_PER_HOUR: '5', ...envOverrides },
     seed: false,
   });
   await seedDemo(app.ctx.store, app.ctx.env);

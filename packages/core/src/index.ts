@@ -20,6 +20,8 @@ export * from './finance/ledger';
 export * from './finance/settlement';
 export * from './admin/mfa';
 export * from './admin/review';
+export * from './ops/schedule';
+export * from './ops/version';
 export * from './permissions/permissions';
 export * from './geo/geo';
 export * from './otp/otp';

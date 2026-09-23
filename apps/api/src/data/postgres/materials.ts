@@ -59,6 +59,14 @@ export function createPostgresMaterialsRepo(q: Queryable): MaterialsRepo {
         [requestId, vendorId],
       ),
 
+    listExpiredQuotes: (at, limit) =>
+      many<MaterialQuoteRecord>("select * from material_quotes where status = 'ACTIVE' and expires_at <= $1 limit $2", [at, limit]),
+    listStaleRequests: (at, limit) =>
+      many<MaterialRequestRecord>(
+        "select * from material_requests where status in ('OPEN','QUOTED') and quote_window_ends_at <= $1 limit $2",
+        [at, limit],
+      ),
+
     async createOrder(o) {
       return (await one<MaterialOrderRecord>(
         `insert into material_orders (request_id, quote_id, job_id, vendor_id, selected_by, items, subtotal_paise,

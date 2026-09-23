@@ -42,6 +42,17 @@ const EnvSchema = z.object({
   PAYMENT_WEBHOOK_SECRET: z.string().optional(),
   /** Admin MFA is mandatory in production; it can be turned off for a local demo. */
   ADMIN_MFA_REQUIRED: z.coerce.boolean().default(false),
+  /** The background worker. Off in tests, which drive it explicitly instead. */
+  SCHEDULER_ENABLED: z.coerce.boolean().default(true),
+  SCHEDULER_TICK_SECONDS: z.coerce.number().int().min(5).max(600).default(30),
+  /** Oldest app build the API will still talk to. Older ones are told to update (426). */
+  MIN_APP_VERSION: z.string().default('0.0.0'),
+  /**
+   * Read-only mode for a migration or an incident. Reads keep working; anything that would
+   * change state answers 503 with a plain message (INCIDENT_RESPONSE.md).
+   */
+  MAINTENANCE_MODE: z.coerce.boolean().default(false),
+  MAINTENANCE_MESSAGE: z.string().default('We are doing some maintenance. Please try again in a few minutes.'),
   MAPS_PROVIDER: Provider(['mock', 'google', 'mapbox']),
   MAPS_API_KEY: z.string().optional(),
   PUSH_PROVIDER: Provider(['mock', 'expo', 'fcm']),

@@ -545,8 +545,11 @@ export function executionService(d: ExecutionDeps) {
 
     // ------------------------------------------------------------------ the shared panel
     async view(job: JobRecord, viewerId: string): Promise<ExecutionView> {
-      const { assignment } = await partiesFor(job);
+      const { assignment, providerIds } = await partiesFor(job);
       const isCustomer = job.customer_id === viewerId;
+      // The panel carries the technician, the revisions and the completion, so it is for the
+      // people on this job and nobody else - a provider with an account is not a party to it.
+      if (!isCustomer && !providerIds.includes(viewerId)) throw forbidden('not on this job');
       const otp = await store.execution.getStartOtp(job.id);
       const revisions = await store.execution.listRevisions(job.id);
       const open = revisions.find((r) => r.status === 'PENDING' || r.status === 'CLARIFICATION') ?? null;

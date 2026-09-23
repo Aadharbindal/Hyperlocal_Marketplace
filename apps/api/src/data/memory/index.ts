@@ -341,6 +341,19 @@ export function createMemoryStore(): DataStore {
         retention.push(rec);
         return rec;
       },
+      async listDue(at, limit) {
+        return retention
+          .filter((r) => !r.executed_at && r.scheduled_for <= at)
+          .sort((a, b) => a.scheduled_for.getTime() - b.scheduled_for.getTime())
+          .slice(0, limit);
+      },
+      async markExecuted(id, at) {
+        const idx = retention.findIndex((r) => r.id === id);
+        if (idx === -1) throw new Error('retention event not found');
+        const next = { ...retention[idx]!, executed_at: at };
+        retention[idx] = next;
+        return next;
+      },
     },
 
     idempotency: {

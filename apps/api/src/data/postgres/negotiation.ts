@@ -38,6 +38,8 @@ export function createPostgresNegotiationRepo(q: Queryable): NegotiationRepo {
     },
     listOffersForJob: (jobId) => many<OfferRecord>('select * from offers where job_id = $1 order by created_at', [jobId]),
     listOffersForBid: (bidId) => many<OfferRecord>('select * from offers where bid_id = $1 order by created_at', [bidId]),
+    listExpiredOffers: (at, limit) =>
+      many<OfferRecord>("select * from offers where status = 'PENDING' and expires_at <= $1 order by expires_at limit $2", [at, limit]),
     findPendingForBid: (bidId) => one<OfferRecord>("select * from offers where bid_id = $1 and status = 'PENDING'", [bidId]),
 
     async createQuote(q2) {
@@ -94,6 +96,8 @@ export function createPostgresPaymentsRepo(q: Queryable): PaymentsRepo {
     get: (id) => one<PaymentRecord>('select * from payments where id = $1', [id]),
     findByIdempotencyKey: (key) => one<PaymentRecord>('select * from payments where idempotency_key = $1', [key]),
     findByOrderId: (orderId) => one<PaymentRecord>('select * from payments where provider_order_id = $1', [orderId]),
+    listStale: (status, before, limit) =>
+      many<PaymentRecord>('select * from payments where status = $1 and created_at <= $2 order by created_at limit $3', [status, before, limit]),
     findLiveBooking: (jobId) =>
       one<PaymentRecord>(
         "select * from payments where job_id = $1 and purpose = 'BOOKING' and status in ('PENDING','AUTHORIZED','CAPTURED')",

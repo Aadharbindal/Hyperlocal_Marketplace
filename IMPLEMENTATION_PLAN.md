@@ -113,7 +113,7 @@ tokens only; screens never hard-code colours. Final design handoff protocol in `
 - [x] **M6 Materials & vendors** - material request, quotes, selection, delivery, invoice.
 - [x] **M7 Payments, settlement & disputes** - ledger, webhooks, refunds, disputes, tickets.
 - [x] **M8 Admin & operations** - dashboard, KYC review, user mgmt, job ops, reports, audit viewer.
-- [ ] **M9 Hardening** - security review, edge-case tests, perf, a11y, backup test, deploy docs, seed, smoke.
+- [x] **M9 Hardening** - security review, edge-case tests, perf, a11y, backup test, deploy docs, seed, smoke.
 
 ## 11. Risk list
 

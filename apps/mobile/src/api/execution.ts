@@ -3,6 +3,7 @@ import type { ChatThreadView, CompletionView, ExecutionView, PriceRevisionView }
 import { api, newIdempotencyKey } from './client';
 import { bookingKeys } from './negotiation';
 import { jobKeys } from './jobs';
+import { FALLBACK_POLL_MS } from './polling';
 
 export const executionKeys = {
   panel: (jobId: string) => ['job', jobId, 'execution'] as const,
@@ -22,8 +23,8 @@ export function useExecution(jobId: string | undefined, enabled = true) {
     queryKey: executionKeys.panel(jobId ?? ''),
     enabled: !!jobId && enabled,
     queryFn: () => api<ExecutionView>(`/jobs/${jobId}/execution`),
-    // there is no realtime channel yet, so the panel polls while the job is live
-    refetchInterval: enabled ? 15_000 : false,
+    // the live stream carries updates; this is the fallback when it is not connected
+    refetchInterval: enabled ? FALLBACK_POLL_MS : false,
   });
 }
 
@@ -112,7 +113,7 @@ export function useChat(jobId: string | undefined, enabled = true) {
     queryKey: executionKeys.chat(jobId ?? ''),
     enabled: !!jobId && enabled,
     queryFn: () => api<ChatThreadView>(`/jobs/${jobId}/chat`),
-    refetchInterval: enabled ? 8_000 : false,
+    refetchInterval: enabled ? FALLBACK_POLL_MS : false,
   });
 }
 

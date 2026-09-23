@@ -1,7 +1,7 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
-import type { Language } from '@hyperlocal/core';
+import { isUnsupportedVersion, type Language } from '@hyperlocal/core';
 import { createAdapters, type Adapters } from './adapters';
 import { loadEnv, type Env } from './config/env';
 import { createDataStore, type DataStore } from './data';
@@ -18,8 +18,11 @@ import { authService, type AuthService } from './modules/auth/service';
 import { tokenService } from './modules/auth/tokens';
 import { auditService, type AuditService } from './modules/audit/service';
 import { categoryRoutes } from './modules/categories/routes';
+import { eventRoutes } from './modules/events/routes';
+import { eventsService, type EventsService } from './modules/events/service';
 import { executionRoutes } from './modules/execution/routes';
 import { financeRoutes } from './modules/finance/routes';
+import { schedulerService, type SchedulerService } from './modules/scheduler/service';
 import { financeService, type FinanceService } from './modules/finance/service';
 import { executionService, type ExecutionService } from './modules/execution/service';
 import { jobRoutes } from './modules/jobs/routes';
@@ -47,6 +50,8 @@ export interface AppContext {
     materials: MaterialsService;
     finance: FinanceService;
     admin: AdminService;
+    events: EventsService;
+    scheduler: SchedulerService;
   };
 }
 
@@ -62,6 +67,7 @@ declare module 'fastify' {
   }
 }
 
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const IDEMPOTENT_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 
 export async function buildApp(opts: BuildOptions = {}) {
@@ -72,7 +78,32 @@ export async function buildApp(opts: BuildOptions = {}) {
   const tokens = tokenService(env);
   const audit = auditService(store);
   const auth = authService({ env, store, adapters, audit, tokens });
-  const jobs = jobService({ env, store, adapters });
+  const events = eventsService();
+
+  // Every in-app notification is also a nudge on the live stream. Wrapping the repository here
+  // keeps that in one place: an event never carries data, only "this changed", so the client
+  // re-reads the endpoint it already trusts and a missed message cannot put a wrong number on
+  // screen.
+  const createNotification = store.notifications.create.bind(store.notifications);
+  store.notifications.create = async (n) => {
+    const record = await createNotification(n);
+    const jobId = (n.data as { jobId?: string } | undefined)?.jobId;
+    events.publish([record.user_id], { kind: 'notification', jobId, at: new Date().toISOString() });
+    return record;
+  };
+
+  const jobs = jobService({
+    env,
+    store,
+    adapters,
+    onTransition: (job) => {
+      events.publish([job.customer_id, job.confirmed_provider_id], {
+        kind: 'job.updated',
+        jobId: job.id,
+        at: new Date().toISOString(),
+      });
+    },
+  });
   const provider = providerService({ env, store, adapters });
   const finance = financeService({ env, store, adapters, jobs });
   const adminSvc = adminService({ env, store, adapters });
@@ -105,7 +136,14 @@ export async function buildApp(opts: BuildOptions = {}) {
       }
     },
   });
-  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs, provider, negotiation, execution, materials, finance, admin: adminSvc } };
+  // The background worker is built last: it drives the other services rather than the reverse.
+  const scheduler = schedulerService({ env, store, adapters, jobs, finance, negotiation });
+  const ctx: AppContext = {
+    env,
+    store,
+    adapters,
+    services: { auth, audit, jobs, provider, negotiation, execution, materials, finance, admin: adminSvc, events, scheduler },
+  };
 
   if (opts.seed ?? (env.DATA_MODE === 'memory' && env.APP_ENV !== 'test')) {
     await seedDemo(store, env);
@@ -146,6 +184,28 @@ export async function buildApp(opts: BuildOptions = {}) {
   const authenticate = makeAuthenticate(tokens, store);
   app.addHook('onRequest', async (req, reply) => {
     reply.header('x-request-id', req.id);
+
+    // An app too old for the current contracts is told to update, rather than being left to
+    // fail on a shape it no longer understands.
+    const appVersion = req.headers['x-app-version'];
+    if (isUnsupportedVersion(typeof appVersion === 'string' ? appVersion : undefined, env.MIN_APP_VERSION)) {
+      return reply.code(426).send({
+        error: {
+          code: 'UPGRADE_REQUIRED',
+          message: 'Please update the app to continue.',
+          details: { minimumVersion: env.MIN_APP_VERSION },
+          requestId: req.id,
+        },
+      });
+    }
+
+    // Read-only mode: reads keep working, anything that would change state waits.
+    if (env.MAINTENANCE_MODE && !SAFE_METHODS.has(req.method)) {
+      return reply.code(503).send({
+        error: { code: 'MAINTENANCE', message: env.MAINTENANCE_MESSAGE, requestId: req.id },
+      });
+    }
+
     await authenticate(req);
   });
 
@@ -212,6 +272,10 @@ export async function buildApp(opts: BuildOptions = {}) {
       db,
       adapters: adapterStatus,
       mockedAdapters: adapterStatus.filter((a) => a.isMock).map((a) => a.name),
+      maintenanceMode: env.MAINTENANCE_MODE,
+      minAppVersion: env.MIN_APP_VERSION,
+      scheduler: env.SCHEDULER_ENABLED ? scheduler.status() : 'disabled',
+      liveStreams: events.stats(),
       // An operator should be able to see at a glance that the console's second factor is off.
       adminMfaRequired: env.ADMIN_MFA_REQUIRED,
     });
@@ -228,11 +292,32 @@ export async function buildApp(opts: BuildOptions = {}) {
     await executionRoutes(scope, ctx);
     await materialRoutes(scope, ctx);
     await financeRoutes(scope, ctx);
+    await eventRoutes(scope, ctx);
     await adminRoutes(scope, ctx);
     await adminConsoleRoutes(scope, ctx);
   });
 
+  // The background worker and the stream's keep-alive. Both are plain timers in this process:
+  // a single pilot node needs no queue, and the work is idempotent so a restart loses nothing.
+  const timers: NodeJS.Timeout[] = [];
+  if (env.SCHEDULER_ENABLED && env.APP_ENV !== 'test') {
+    const tick = setInterval(() => {
+      void scheduler.runDue().then((results) => {
+        const worked = results.filter((r) => r.handled > 0 || r.error);
+        if (worked.length) app.log.info({ tasks: worked }, 'scheduled work');
+      });
+    }, env.SCHEDULER_TICK_SECONDS * 1000);
+    tick.unref();
+    timers.push(tick);
+
+    const keepAlive = setInterval(() => events.heartbeat(), 25_000);
+    keepAlive.unref();
+    timers.push(keepAlive);
+  }
+
   app.addHook('onClose', async () => {
+    for (const t of timers) clearInterval(t);
+    events.closeAll();
     await store.close();
   });
 

@@ -44,6 +44,12 @@ export function createMemoryNegotiationRepo(): NegotiationRepo {
     async listOffersForBid(bidId) {
       return [...offers.values()].filter((o) => o.bid_id === bidId).sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
     },
+    async listExpiredOffers(at, limit) {
+      return [...offers.values()]
+        .filter((o) => o.status === 'PENDING' && o.expires_at <= at)
+        .sort((a, b) => a.expires_at.getTime() - b.expires_at.getTime())
+        .slice(0, limit);
+    },
     async findPendingForBid(bidId) {
       return [...offers.values()].find((o) => o.bid_id === bidId && o.status === 'PENDING') ?? null;
     },
@@ -124,6 +130,12 @@ export function createMemoryPaymentsRepo(): PaymentsRepo {
     },
     async findByOrderId(orderId) {
       return [...payments.values()].find((p) => p.provider_order_id === orderId) ?? null;
+    },
+    async listStale(status, before, limit) {
+      return [...payments.values()]
+        .filter((p) => p.status === status && p.created_at <= before)
+        .sort((a, b) => a.created_at.getTime() - b.created_at.getTime())
+        .slice(0, limit);
     },
     async findLiveBooking(jobId) {
       return [...payments.values()].find((p) => p.job_id === jobId && p.purpose === 'BOOKING' && LIVE.includes(p.status)) ?? null;

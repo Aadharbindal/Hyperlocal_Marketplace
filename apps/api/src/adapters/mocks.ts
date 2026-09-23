@@ -144,6 +144,12 @@ export function mockPayment(env: Env, log: Logger): PaymentAdapter {
     async capture() {
       return { ok: true };
     },
+    async fetchPayment(providerOrderId) {
+      // The mock gateway has no memory, so it answers "still pending" and reconciliation
+      // leaves the payment where it is rather than inventing an outcome.
+      log.info({ mock: true, providerOrderId }, '[MOCK payment] fetchPayment');
+      return { status: 'PENDING' as const, providerPaymentId: null, amountPaise: null };
+    },
     async refund({ idempotencyKey }) {
       return { providerRefundId: `rfnd_mock_${sha256(idempotencyKey).slice(0, 12)}` };
     },

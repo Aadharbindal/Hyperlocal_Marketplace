@@ -79,6 +79,13 @@ export function createMemoryMaterialsRepo(): MaterialsRepo {
       );
     },
 
+    async listExpiredQuotes(at, limit) {
+      return [...quotes.values()].filter((q) => q.status === 'ACTIVE' && q.expires_at <= at).slice(0, limit);
+    },
+    async listStaleRequests(at, limit) {
+      return [...requests.values()].filter((r) => OPEN_REQUEST.includes(r.status) && r.quote_window_ends_at <= at).slice(0, limit);
+    },
+
     async createOrder(o) {
       // mirrors material_orders_one_live_idx
       if ([...orders.values()].some((x) => x.request_id === o.request_id && x.status !== 'CANCELLED')) {

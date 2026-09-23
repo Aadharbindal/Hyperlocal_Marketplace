@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AdminUserView, DisputeView, KycReviewItem, MfaSetupView, MfaStatusView, OpsReportView } from '@hyperlocal/core';
 import { api } from './client';
+import { FALLBACK_POLL_MS, FALLBACK_POLL_SLOW_MS } from './polling';
 
 export const adminKeys = {
   mfa: () => ['admin', 'mfa'] as const,
@@ -56,7 +57,7 @@ export function useKycQueue(enabled: boolean) {
     queryKey: adminKeys.kyc(),
     enabled,
     queryFn: () => api<{ items: KycReviewItem[] }>('/admin/kyc'),
-    refetchInterval: enabled ? 30_000 : false,
+    refetchInterval: enabled ? FALLBACK_POLL_MS : false,
   });
 }
 
@@ -82,7 +83,7 @@ export function useDisputeQueue(enabled: boolean) {
     queryKey: adminKeys.disputes(),
     enabled,
     queryFn: () => api<{ items: DisputeView[] }>('/admin/disputes'),
-    refetchInterval: enabled ? 30_000 : false,
+    refetchInterval: enabled ? FALLBACK_POLL_MS : false,
   });
 }
 
@@ -146,7 +147,7 @@ export function useOpsReport(enabled: boolean) {
     queryKey: adminKeys.report(),
     enabled,
     queryFn: () => api<OpsReportView>('/admin/reports/overview'),
-    refetchInterval: enabled ? 60_000 : false,
+    refetchInterval: enabled ? FALLBACK_POLL_SLOW_MS : false,
   });
 }
 

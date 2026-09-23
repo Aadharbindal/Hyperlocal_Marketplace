@@ -30,8 +30,13 @@ export function makeAuthenticate(tokens: TokenService, store: DataStore) {
   return async function authenticate(req: FastifyRequest): Promise<void> {
     req.auth = null;
     const header = req.headers.authorization;
-    if (!header?.startsWith('Bearer ')) return;
-    const claims = await tokens.verifyAccess(header.slice(7));
+    // `EventSource` cannot set headers, so the live stream - and only the live stream - may
+    // carry the short-lived access token in the query string. The refresh token never can,
+    // and the URL is redacted in logs.
+    const streamToken = req.url.startsWith('/events') ? (req.query as { access_token?: string } | undefined)?.access_token : undefined;
+    const raw = header?.startsWith('Bearer ') ? header.slice(7) : streamToken;
+    if (!raw) return;
+    const claims = await tokens.verifyAccess(raw);
     const user = await store.users.findById(claims.sub);
     if (!user || user.status === 'DELETED') throw new AppError('AUTH_INVALID_TOKEN');
     // Roles are re-read from the store so revocations take effect immediately.

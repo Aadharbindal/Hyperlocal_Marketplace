@@ -17,6 +17,7 @@ import { ErrorBoundary } from '@/features/ErrorBoundary';
 import { useNetwork } from '@/store/network';
 import { useSession } from '@/store/session';
 import { palette } from '@/theme';
+import { useLiveUpdates } from '@/api/live';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,6 +30,8 @@ const queryClient = new QueryClient({
 
 /** Decides which route group the user belongs in: (auth) -> role picker -> role tabs. */
 function AuthGate() {
+  // One live connection for the whole app; it marks queries stale rather than carrying data.
+  useLiveUpdates();
   const router = useRouter();
   const segments = useSegments() as string[];
   const hydrated = useSession((s) => s.hydrated);

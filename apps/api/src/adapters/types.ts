@@ -48,6 +48,11 @@ export interface StorageAdapter extends AdapterMeta {
 export interface PaymentAdapter extends AdapterMeta {
   createOrder(input: { amountPaise: number; currency: 'INR'; receipt: string; notes?: Record<string, string> }): Promise<{ providerOrderId: string }>;
   capture(input: { providerPaymentId: string; amountPaise: number }): Promise<{ ok: boolean }>;
+  /**
+   * The gateway's own view of an order. Used when a webhook never arrives: the client's word
+   * is never trusted, so reconciliation asks the gateway instead (PAYMENT_FLOW section 8).
+   */
+  fetchPayment(providerOrderId: string): Promise<{ status: 'PENDING' | 'AUTHORIZED' | 'CAPTURED' | 'FAILED'; providerPaymentId: string | null; amountPaise: number | null }>;
   refund(input: { providerPaymentId: string; amountPaise: number; idempotencyKey: string }): Promise<{ providerRefundId: string }>;
   /** Money out to a provider or vendor. Separate from refunds: a payout is not a reversal. */
   payout(input: { amountPaise: number; payeeRef: string; idempotencyKey: string }): Promise<{ transferId: string; ok: boolean; failureReason?: string }>;

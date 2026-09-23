@@ -301,5 +301,26 @@ Errors: `VALIDATION_ERROR` with `details.admin` - `MFA_ALREADY_ENROLLED`, `MFA_N
 `details.reason` of `mfa_enrolment_required` or `mfa_verification_required` when the second
 factor is missing or stale, and for any non-staff caller.
 
+## Milestone 9 (implemented)
+
+### Live updates
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/events` | any signed-in user | A Server-Sent Events stream. Each event carries **only** what changed (`kind`, `jobId`, `at`); the client re-reads the endpoint it already trusts, so a delayed, duplicated or missed event can never put a wrong number on screen. Because `EventSource` cannot set headers, this one route also accepts the short-lived access token as `?access_token=` (never the refresh token), and the URL is redacted in logs |
+| POST | `/events` | - | Always 403. Events are published by the server; a client can never inject one |
+
+### Background work
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/admin/scheduler` | ADMIN, SUPPORT | Every task with its interval, last run, duration and last error, plus the live-stream count |
+| POST | `/admin/scheduler/run` | staff + MFA | `{ task? }` runs one task, or everything that is due. Each task is idempotent, so this is safe to call during an incident *audited* |
+
+### Operational gates (every route)
+| Behaviour | Notes |
+| --- | --- |
+| `426 UPGRADE_REQUIRED` | An `x-app-version` below `MIN_APP_VERSION`, with the minimum in `details`. A caller with no version header is never blocked |
+| `503 MAINTENANCE` | While `MAINTENANCE_MODE` is on, every state-changing request waits and reads keep working |
+| `GET /ready` | Now also reports `maintenanceMode`, `minAppVersion`, `adminMfaRequired`, the scheduler's state and the number of live streams |
+
 ## Planned (by milestone)
-- **M9** hardening: scheduled jobs (bid/offer expiry, settlement runs, reconciliation), realtime, rate-limit sweeps and the load pass
+_Nothing is left planned: all nine milestones are implemented. What is still missing is listed in `KNOWN_LIMITATIONS.md`._
