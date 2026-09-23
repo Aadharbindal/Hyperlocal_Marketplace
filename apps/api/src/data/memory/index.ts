@@ -3,6 +3,7 @@ import { conflict } from '../../lib/errors';
 import { CATEGORY_SEED, SKILL_SEED } from '../catalog';
 import { createMemoryBidsRepo, createMemoryKycRepo } from './bids';
 import { createMemoryJobsRepo } from './jobs';
+import { createMemoryNegotiationRepo, createMemoryPaymentsRepo } from './negotiation';
 import type {
   AddressRecord,
   AuditLogRecord,
@@ -45,6 +46,8 @@ export function createMemoryStore(): DataStore {
   const jobsRepo = createMemoryJobsRepo();
   const bidsRepo = createMemoryBidsRepo();
   const kycRepo = createMemoryKycRepo();
+  const negotiationRepo = createMemoryNegotiationRepo();
+  const paymentsRepo = createMemoryPaymentsRepo();
 
   // Serialise "transactions" with a simple promise chain so concurrent acceptances cannot interleave.
   let chain: Promise<unknown> = Promise.resolve();
@@ -265,6 +268,8 @@ export function createMemoryStore(): DataStore {
     jobs: jobsRepo,
     bids: bidsRepo,
     kyc: kycRepo,
+    negotiation: negotiationRepo,
+    payments: paymentsRepo,
 
     audit: {
       async append(entry) {

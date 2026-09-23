@@ -17,10 +17,10 @@ PostgreSQL 15 (Supabase). Conventions:
 | `0001_foundation` | M1 | extensions, enums, users, user_roles, otp_challenges, sessions, customer/provider/contractor/technician/vendor profiles, addresses, service_categories, service_skills, provider_skills, consents, audit_logs, notifications, retention_events |
 | `0002_jobs` | M2 | jobs, job_media, job_status_events (+ enums, submission and media-phase triggers) |
 | `0003_bidding` | M3 | kyc_records, bids, bid_revisions (+ eligibility and open-job triggers) |
-| `0004_negotiation` | M4 | offers, booking_quotes, job_assignments |
-| `0004_execution` | M5 | start_otps, price_revision_requests, chat_threads, chat_messages |
-| `0005_materials` | M6 | material_requests, material_quotes, material_orders |
-| `0006_finance` | M7 | payments, payment_events, ledger_entries, settlements, refunds, disputes, dispute_evidence, strikes, support_tickets, reviews, kyc_records |
+| `0004_negotiation` | M4 | offers, booking_quotes, job_assignments, payments, payment_events (+ verified-technician trigger, single-winner partial uniques) |
+| `0005_execution` | M5 | start_otps, price_revision_requests, chat_threads, chat_messages |
+| `0006_materials` | M6 | material_requests, material_quotes, material_orders |
+| `0007_finance` | M7 | ledger_entries, settlements, refunds, disputes, dispute_evidence, strikes, support_tickets, reviews |
 
 ## Tables
 
@@ -107,13 +107,15 @@ Unique partial: `(job_id, provider_id) where status='ACTIVE'`. Check: revision_n
 `(id, bid_id fk, revision_no, labour_paise, visit_fee_paise, eta_minutes, warranty_days, notes, created_at)`.
 
 ### offers (M4)
-`(id, job_id fk, bid_id fk, parent_offer_id fk, sender_id, receiver_id, labour_paise, visit_fee_paise, eta_minutes, warranty_days, scope_notes, material_responsibility, status offer_status(PENDING|ACCEPTED|REJECTED|EXPIRED|CANCELLED), expires_at, created_at, responded_at)`.
+One pending offer per bid at a time (unique partial `(bid_id) where status='PENDING'`); a new
+counter-offer from the same side supersedes the sender's own pending one.
+`(id, job_id fk, bid_id fk, parent_offer_id fk, sender_id, receiver_id, labour_paise, visit_fee_paise, eta_minutes, warranty_days, scope_notes, material_responsibility, status offer_status(PENDING|ACCEPTED|REJECTED|EXPIRED|CANCELLED|SUPERSEDED), expires_at, created_at, responded_at)`.
 
 ### booking_quotes (M4)
 `(id, job_id fk, bid_id fk, offer_id fk, provider_id, labour_paise, visit_fee_paise, material_estimate_paise, platform_fee_paise, protection_fee_paise, tax_paise, total_paise, warranty_days, eta_minutes, locked_at, status(ACTIVE|SUPERSEDED|CANCELLED))`.
 Unique partial `(job_id) where status='ACTIVE'`.
 
-### job_assignments (M4/M5)
+### job_assignments (M4)
 `(id, job_id fk, provider_id fk, technician_id fk nullable, assigned_by, status(ACTIVE|REPLACED|CANCELLED), replaced_by uuid, reason, created_at)`.
 Unique partial `(job_id) where status='ACTIVE'`. Trigger: technician must be VERIFIED.
 
@@ -129,8 +131,9 @@ threads `(id, job_id fk unique, participant_ids uuid[])`; messages `(id, thread_
 ### material_requests / material_quotes / material_orders (M6)
 requests `(id, job_id, requested_by, items jsonb, needed_by, status)`; quotes `(id, request_id, vendor_id, items jsonb, subtotal_paise, delivery_paise, eta_minutes, status, expires_at)`; orders `(id, quote_id, selected_by, status(PENDING_PAYMENT|PREPARING|OUT_FOR_DELIVERY|DELIVERED|CONFIRMED|CANCELLED), delivered_at, confirmed_by, invoice_media_id, settlement_id)`.
 
-### payments / payment_events (M7)
-payments `(id, job_id, payer_id, purpose(BOOKING|MATERIAL|MILESTONE|PRICE_REVISION), amount_paise, currency, provider, provider_order_id, provider_payment_id, status(CREATED|AUTHORIZED|CAPTURED|FAILED|REFUNDED|PARTIALLY_REFUNDED|DISPUTE_HOLD), idempotency_key unique, created_at)`; events `(id, payment_id, provider_event_id unique, type, payload jsonb, signature_valid bool, processed_at)`.
+### payments / payment_events (M4)
+Booking payments land in M4; material, milestone and revision purposes are used from M6/M7 on.
+payments `(id, job_id, payer_id, purpose(BOOKING|MATERIAL|MILESTONE|PRICE_REVISION), amount_paise, currency, provider, provider_order_id, provider_payment_id, status(CREATED|AUTHORIZED|CAPTURED|FAILED|REFUNDED|PARTIALLY_REFUNDED|DISPUTE_HOLD), idempotency_key unique, created_at)` - unique partial `(job_id) where purpose='BOOKING' and status in ('CREATED','PENDING','AUTHORIZED','CAPTURED')` so a job can never carry two live booking payments; events `(id, payment_id, provider_event_id unique, type, payload jsonb, signature_valid bool, processed_at)` - UPDATE/DELETE revoked, `provider_event_id` makes webhook replays a no-op.
 
 ### ledger_entries (M7, append-only)
 `(id, job_id, payment_id, entry_type(CUSTOMER_CHARGE|PROVIDER_PAYABLE|VENDOR_PAYABLE|PLATFORM_REVENUE|PROTECTION_RESERVE|REFUND|DISPUTE_HOLD|GATEWAY_FEE|TAX|MANUAL_ADJUSTMENT), account_user_id, amount_paise (signed), currency, idempotency_key unique, reference_type, reference_id, note, created_by, created_at)`.
@@ -162,4 +165,7 @@ disputes `(id, job_id, raised_by, against_user_id, category dispute_category, de
 | No technician assignment without verification | trigger `assignment_requires_verified_technician` |
 | No bid from suspended provider | trigger `bids_require_active_provider` |
 | No duplicate settlement/payment/refund | unique `idempotency_key` |
-| Financial rows immutable | revoke UPDATE/DELETE on ledger_entries, audit_logs, job_status_events |
+| One pending counter-offer per offer thread | partial unique on `offers(bid_id) where status='PENDING'` |
+| One live booking payment per job | partial unique on `payments(job_id) where purpose='BOOKING'` and status is live |
+| Webhook replays are a no-op | unique `payment_events.provider_event_id` |
+| Financial rows immutable | revoke UPDATE/DELETE on ledger_entries, audit_logs, job_status_events, payment_events |

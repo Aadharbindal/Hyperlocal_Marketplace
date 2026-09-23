@@ -87,7 +87,7 @@ export type JobPriority = (typeof JOB_PRIORITIES)[number];
 export const JOB_REQUEST_TYPES = ['LABOUR_ONLY', 'LABOUR_AND_MATERIAL'] as const;
 export type JobRequestType = (typeof JOB_REQUEST_TYPES)[number];
 
-export const OFFER_STATUSES = ['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'CANCELLED'] as const;
+export const OFFER_STATUSES = ['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'CANCELLED', 'SUPERSEDED'] as const;
 export type OfferStatus = (typeof OFFER_STATUSES)[number];
 
 export const BID_STATUSES = ['ACTIVE', 'WITHDRAWN', 'REJECTED', 'ACCEPTED', 'EXPIRED', 'INACTIVE'] as const;

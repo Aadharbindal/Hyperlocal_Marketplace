@@ -18,6 +18,8 @@ import { auditService, type AuditService } from './modules/audit/service';
 import { categoryRoutes } from './modules/categories/routes';
 import { jobRoutes } from './modules/jobs/routes';
 import { jobService, type JobService } from './modules/jobs/service';
+import { negotiationRoutes } from './modules/negotiation/routes';
+import { negotiationService, type NegotiationService } from './modules/negotiation/service';
 import { providerRoutes } from './modules/provider/routes';
 import { providerService, type ProviderService } from './modules/provider/service';
 import { userRoutes } from './modules/users/routes';
@@ -27,7 +29,7 @@ export interface AppContext {
   env: Env;
   store: DataStore;
   adapters: Adapters;
-  services: { auth: AuthService; audit: AuditService; jobs: JobService; provider: ProviderService };
+  services: { auth: AuthService; audit: AuditService; jobs: JobService; provider: ProviderService; negotiation: NegotiationService };
 }
 
 export interface BuildOptions {
@@ -54,7 +56,8 @@ export async function buildApp(opts: BuildOptions = {}) {
   const auth = authService({ env, store, adapters, audit, tokens });
   const jobs = jobService({ env, store, adapters });
   const provider = providerService({ env, store, adapters });
-  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs, provider } };
+  const negotiation = negotiationService({ env, store, adapters, jobs });
+  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs, provider, negotiation } };
 
   if (opts.seed ?? (env.DATA_MODE === 'memory' && env.APP_ENV !== 'test')) {
     await seedDemo(store, env);
@@ -65,6 +68,17 @@ export async function buildApp(opts: BuildOptions = {}) {
     genReqId: () => newId(),
     trustProxy: true,
     bodyLimit: 1024 * 1024,
+  });
+
+  // Several routes take no body at all (submit, accept, logout). A client that still sends
+  // `content-type: application/json` with an empty body would otherwise get an opaque 400.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body: string, done) => {
+    if (!body || body.trim() === '') return done(null, {});
+    try {
+      done(null, JSON.parse(body));
+    } catch {
+      done(new AppError('VALIDATION_ERROR', { details: { body: 'invalid_json' } }), undefined);
+    }
   });
 
   await app.register(cors, { origin: env.API_CORS_ORIGINS.split(',').map((s) => s.trim()) });
@@ -160,6 +174,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     await categoryRoutes(scope, ctx);
     await jobRoutes(scope, ctx);
     await providerRoutes(scope, ctx);
+    await negotiationRoutes(scope, ctx);
     await adminRoutes(scope, ctx);
   });
 

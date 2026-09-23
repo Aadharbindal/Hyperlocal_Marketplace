@@ -4,7 +4,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { formatInr, JOB_STATUS_LABEL_KEY, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
+import { useOfferChain } from '@/api/negotiation';
 import { useMyBids, useWithdrawBid, type ProviderBidItem } from '@/api/provider';
+import { CounterOfferCard } from '@/features/provider/CounterOfferCard';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
@@ -72,6 +74,7 @@ export default function ProviderActiveScreen() {
               <View style={styles.list}>
                 {live.map((b, i) => (
                   <Animated.View key={b.id} entering={FadeInDown.delay(i * 60).duration(360)}>
+                    <PendingCounter bid={b} />
                     <BidRow bid={b} onWithdraw={() => onWithdraw(b.id)} withdrawing={withdraw.isPending} />
                   </Animated.View>
                 ))}
@@ -93,6 +96,18 @@ export default function ProviderActiveScreen() {
         </>
       )}
     </Screen>
+  );
+}
+
+/** Shows the customer's counter-offer above the provider's own offer, when one is waiting. */
+function PendingCounter({ bid }: { bid: ProviderBidItem }) {
+  const chain = useOfferChain(bid.job.id, true);
+  const waiting = chain.data?.items.find((o) => o.bidId === bid.id && o.awaitingYou);
+  if (!waiting) return null;
+  return (
+    <View style={styles.counterWrap}>
+      <CounterOfferCard jobId={bid.job.id} offer={waiting} currentPaise={bid.labourPaise + bid.visitFeePaise} categoryName={bid.job.categoryName} />
+    </View>
   );
 }
 
@@ -172,4 +187,5 @@ const styles = StyleSheet.create({
   amounts: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
   withdraw: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 36 },
   error: { marginBottom: spacing.md },
+  counterWrap: { marginBottom: spacing.md },
 });

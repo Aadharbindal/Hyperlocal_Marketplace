@@ -108,7 +108,7 @@ tokens only; screens never hard-code colours. Final design handoff protocol in `
   design tokens, error handling, logging/monitoring hooks.
 - [x] **M2 Customer job flow** - profile, addresses, job create, media/voice upload, submit, status.
 - [x] **M3 Provider workflow** - profile, verification, radius, nearby feed, bids, revisions.
-- [ ] **M4 Negotiation & confirmation** - offers, counter-offers, quote lock, acceptance tx, payment auth.
+- [x] **M4 Negotiation & confirmation** - offers, counter-offers, quote lock, acceptance tx, payment auth.
 - [ ] **M5 Execution & completion** - assignment, technician, arrival, OTP start, price revision, approval.
 - [ ] **M6 Materials & vendors** - material request, quotes, selection, delivery, invoice.
 - [ ] **M7 Payments, settlement & disputes** - ledger, webhooks, refunds, disputes, tickets.

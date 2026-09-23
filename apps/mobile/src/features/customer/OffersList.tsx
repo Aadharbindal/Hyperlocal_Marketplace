@@ -1,17 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { formatInr, type OfferView } from '@hyperlocal/core';
+import { useCounterOffer } from '@/api/negotiation';
 import { useOffers } from '@/api/provider';
+import { ConfirmSheet } from './ConfirmSheet';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, Skeleton, Text } from '@/ui';
 
-/**
- * The offers a customer has received, best match first. Accepting one lands in M4, so the
- * action is disabled here rather than pretending it works.
- */
+/** The offers a customer has received, best match first, with accept and counter. */
 export function OffersList({ jobId, live }: { jobId: string; live: boolean }) {
   const offers = useOffers(jobId, live);
+  const [confirming, setConfirming] = useState<OfferView | null>(null);
+  const counter = useCounterOffer();
 
   if (offers.isPending) {
     return (
@@ -36,14 +38,22 @@ export function OffersList({ jobId, live }: { jobId: string; live: boolean }) {
 
       {offers.data.items.map((o, i) => (
         <Animated.View key={o.id} entering={FadeInDown.delay(i * 70).duration(360)}>
-          <OfferCard offer={o} best={i === 0} />
+          <OfferCard
+            offer={o}
+            best={i === 0}
+            onAccept={() => setConfirming(o)}
+            onCounter={() => counter.mutate({ jobId, bidId: o.id, labourPaise: Math.round(o.labourPaise * 0.85) })}
+            countering={counter.isPending}
+          />
         </Animated.View>
       ))}
+
+      <ConfirmSheet jobId={jobId} offer={confirming} onClose={() => setConfirming(null)} />
     </View>
   );
 }
 
-function OfferCard({ offer, best }: { offer: OfferView; best: boolean }) {
+function OfferCard({ offer, best, onAccept, onCounter, countering }: { offer: OfferView; best: boolean; onAccept: () => void; onCounter: () => void; countering: boolean }) {
   const p = offer.provider;
   return (
     <Card style={[styles.card, best && styles.cardBest]}>
@@ -104,7 +114,10 @@ function OfferCard({ offer, best }: { offer: OfferView; best: boolean }) {
         </Text>
       ) : null}
 
-      <Button title="Accepting offers opens soon" size="sm" variant="secondary" fullWidth disabled onPress={() => undefined} />
+      <View style={styles.actions}>
+        <Button title="Ask for less" size="sm" variant="secondary" style={styles.counterBtn} loading={countering} onPress={onCounter} />
+        <Button title="Accept" size="sm" iconRight="arrow-forward" style={styles.acceptBtn} onPress={onAccept} />
+      </View>
     </Card>
   );
 }
@@ -139,4 +152,7 @@ const styles = StyleSheet.create({
   breakdown: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: 4 },
   splitRow: { flexDirection: 'row', justifyContent: 'space-between' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  actions: { flexDirection: 'row', gap: spacing.sm },
+  counterBtn: { flex: 1 },
+  acceptBtn: { flex: 1.3 },
 });

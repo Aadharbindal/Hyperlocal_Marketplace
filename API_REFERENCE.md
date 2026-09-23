@@ -111,13 +111,36 @@ Errors: `FORBIDDEN` with `details.eligibility` (feed rules), `VALIDATION_ERROR` 
 (`WINDOW_CLOSED`, `DUPLICATE_ACTIVE_BID`, `TOO_MANY_REVISIONS`, `JOB_FULL`, `ETA_OUT_OF_RANGE`),
 `CONFLICT` with `job_not_accepting_offers`.
 
+## Milestone 4 (implemented)
+
+### Negotiation
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/jobs/:id/counter-offer` | job owner | `{ bidId, labourPaise, visitFeePaise?, scopeNotes? }`. Opens or continues a negotiation on one offer, moves the job to `NEGOTIATING`, and supersedes the customer's own pending offer on that bid. Expires after 20 minutes *audited* |
+| POST | `/offers/:id/respond` | the side the offer is waiting on | `{ action: ACCEPT / REJECT / COUNTER, labourPaise?, visitFeePaise?, scopeNotes? }`. `ACCEPT` freezes the offered terms onto the bid, `COUNTER` sends one more round (max 6 rounds per job) *audited* |
+| GET | `/jobs/:id/offer-chain` | job owner or bidding provider | The full back-and-forth for the job, newest first, each item flagged `awaitingYou` |
+
+### Acceptance, booking and payment
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/bids/:id/accept` | job owner | Single transaction: locks a `booking_quote` at the agreed price, marks every other offer `INACTIVE`, cancels pending counter-offers, creates the `job_assignment` and a `PENDING` payment order, and moves the job `PAYMENT_PENDING -> CONFIRMED -> PROVIDER_ASSIGNED` once authorization lands. Exactly one acceptance can win: a second concurrent call gets 409 *audited* |
+| GET | `/jobs/:id/booking` | job owner | The locked quote, the assignment (business, technician, verified badge) and the payment list. Never exposes the provider's phone number or documents |
+| POST | `/payments/:id/mock-complete` | payment owner | **Mock mode only** (`PAYMENT_PROVIDER=mock`). `{ outcome: authorized / failed }`, used by the app and tests to stand in for the gateway checkout |
+| POST | `/payments/webhook` | signature | Gateway callback. The HMAC signature is verified **before** the body is parsed; `provider_event_id` makes replays a no-op; an amount mismatch is refused and recorded. A failed authorization releases the booking back to `BID_RECEIVED` so other offers become live again |
+
+Money is only ever *authorized* at this point - nothing is captured until the customer approves the
+finished work (see `PAYMENT_FLOW.md`).
+
+Errors: `VALIDATION_ERROR` with `details.negotiation` (`OFFER_EXPIRED`, `OFFER_NOT_PENDING`,
+`ROUND_LIMIT_REACHED`, `JOB_NOT_NEGOTIABLE`, `BID_NOT_ACTIVE`) or `details.acceptance`
+(`BID_NOT_ACTIVE`, `BID_EXPIRED`, `JOB_NOT_ACCEPTABLE`), `CONFLICT` with `ALREADY_CONFIRMED`,
+401 `INVALID_SIGNATURE` on the webhook, 404 when the offer or payment is not the caller's.
+
 ## Planned (by milestone)
-- **M4** `POST /jobs/:id/counter-offer`, `POST /offers/:id/respond`, `POST /bids/:id/accept`,
-  `POST /jobs/:id/confirm` (payment authorization)
 - **M5** `POST /jobs/:id/assign-technician`, `POST /jobs/:id/status` (EN_ROUTE/ARRIVED),
   `POST /jobs/:id/start` (OTP), `POST /jobs/:id/price-revision`, `POST /price-revisions/:id/respond`,
   `POST /jobs/:id/complete`, `POST /jobs/:id/approve`, chat routes
 - **M6** `POST /jobs/:id/material-request`, `POST /material-requests/:id/quote`,
   `POST /material-quotes/:id/select`, `POST /material-orders/:id/deliver|confirm|invoice`
-- **M7** `POST /payments/webhook`, `POST /jobs/:id/dispute`, `GET /me/earnings`, refunds, tickets, reviews
+- **M7** `POST /jobs/:id/dispute`, `GET /me/earnings`, refunds, tickets, reviews
 - **M8** `GET /admin/disputes`, `POST /admin/disputes/:id/resolve`, KYC review, reports, overrides

@@ -98,3 +98,11 @@ Refunds are idempotent (`refunds.idempotency_key`) and always write a `REFUND` l
 `PAYMENT_PROVIDER=mock`: orders/payments get deterministic ids, `simulate` hooks let tests
 trigger authorized/failed/duplicate/late webhooks, signatures are HMAC with the local secret.
 The mock never moves real money and logs `[MOCK payment]`.
+
+### Implemented in M4
+
+Booking authorization is live in code (mock gateway): `POST /bids/:id/accept` locks the quote and
+creates the payment order, `POST /payments/:id/mock-complete` stands in for the checkout, and
+`POST /payments/webhook` is the real code path - signature checked before parsing,
+`provider_event_id` deduped, amount mismatch refused, failed authorization releasing the booking
+back to `BID_RECEIVED`. Capture, ledger entries, settlements and refunds are still M7.

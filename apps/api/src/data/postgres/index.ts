@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { createPostgresBidsRepo, createPostgresKycRepo } from './bids';
 import { createPostgresJobsRepo } from './jobs';
+import { createPostgresNegotiationRepo, createPostgresPaymentsRepo } from './negotiation';
 import type {
   AddressRecord,
   AuditLogRecord,
@@ -210,6 +211,8 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     jobs: createPostgresJobsRepo(q),
     bids: createPostgresBidsRepo(q),
     kyc: createPostgresKycRepo(q),
+    negotiation: createPostgresNegotiationRepo(q),
+    payments: createPostgresPaymentsRepo(q),
 
     audit: {
       async append(e) {

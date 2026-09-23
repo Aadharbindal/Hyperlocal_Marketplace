@@ -4,6 +4,94 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Milestone 4: Negotiation and confirmation
+
+**Milestone:** M4 - Negotiation, quote lock, acceptance and payment authorization
+**Date:** 2026-09-23
+**Status:** Complete
+
+**Implemented:**
+- `packages/core`: a negotiation module (20-minute counter-offer TTL, a hard limit of 6 rounds per
+  job, `checkCanRespond` / `checkCanAccept`, counterparty resolution) and the contracts for
+  counter-offers, offer chains, the locked booking quote, the assignment and the payment view.
+  `OFFER_STATUSES` gained `SUPERSEDED` so a sender replacing their own pending offer is a distinct,
+  readable state rather than a cancellation.
+- `supabase/migrations/0004_negotiation.sql`: `offers` (unique partial: one PENDING offer per bid),
+  `booking_quotes` (unique partial: one ACTIVE quote per job), `job_assignments` (one ACTIVE
+  assignment per job + a trigger refusing an unverified technician), `payments` (unique
+  `idempotency_key`, unique partial so a job can never carry two live booking payments) and
+  `payment_events` (unique `provider_event_id`, UPDATE/DELETE revoked).
+- `apps/api` negotiation module: `counter`, `respond` (ACCEPT / REJECT / COUNTER), `accept` and
+  `applyPaymentEvent`. Acceptance is a single transaction that re-reads the bid and the job inside
+  the lock, freezes a `booking_quote`, marks every other offer INACTIVE, cancels pending
+  counter-offers, creates the assignment and the payment order, and walks the job
+  `PAYMENT_PENDING -> CONFIRMED -> PROVIDER_ASSIGNED` as authorization lands. Two concurrent
+  acceptances give exactly one 200 and one 409.
+- Payments: a deterministic mock gateway plus a signed webhook whose HMAC is verified **before**
+  the body is parsed. Replays are a no-op via `provider_event_id`, an amount mismatch is refused and
+  recorded, and a failed authorization releases the booking back to `BID_RECEIVED` so the other
+  offers become live again.
+- `apps/mobile`: the customer offers list now accepts and counters; `ConfirmSheet` runs
+  review -> authorize -> "Booking confirmed" with the exact frozen price; `BookingCard` shows the
+  locked quote, who is coming and what is still owed; the provider gets a counter-offer card on the
+  My offers tab with decline / meet-halfway / accept.
+- Fixed an opaque 400: a request with `content-type: application/json` and an empty body is now
+  parsed as `{}` instead of failing in the JSON parser.
+
+**Changed files:** `packages/core/src/{bidding/negotiation.ts,bidding/negotiation.test.ts,contracts/negotiation.ts,contracts/enums.ts,index.ts}`,
+`supabase/migrations/0004_negotiation.sql`,
+`apps/api/src/{app.ts,modules/negotiation/{service,routes}.ts,data/types.ts,data/memory/{index,negotiation}.ts,data/postgres/{index,negotiation}.ts,test/negotiation.test.ts}`,
+`apps/mobile/src/{api/negotiation.ts,features/customer/{OffersList,ConfirmSheet,BookingCard}.tsx,features/provider/CounterOfferCard.tsx}`,
+`apps/mobile/app/(customer)/job/[id].tsx`, `apps/mobile/app/(provider)/active.tsx`, docs.
+
+**Database changes:** migration `0004_negotiation` (offers, booking_quotes, job_assignments,
+payments, payment_events). `migrate:check` passes with 4 migrations. Forward-only: nothing in
+0001-0003 was touched.
+
+**API changes:** `POST /jobs/:id/counter-offer`, `POST /offers/:id/respond`,
+`GET /jobs/:id/offer-chain`, `POST /bids/:id/accept`, `GET /jobs/:id/booking`,
+`POST /payments/:id/mock-complete` (mock mode only, owner only), `POST /payments/webhook`.
+Documented in `API_REFERENCE.md`.
+
+**Tests added / passed:** 17 new API integration tests (`negotiation.test.ts`) and 10 new core unit
+tests. Totals: **81/81 API**, **63/63 core**. Type check clean in 3/3 workspaces, lint 0 errors,
+API bundle + Expo web export build OK, `migrate:check` OK.
+
+**Manual verification completed:** the whole loop was run twice. Through the API: submit -> bid ->
+customer counters Rs 600 -> provider counters Rs 700 -> customer accepts -> quote locked at
+Rs 847.20 (labour Rs 700) -> payment authorized -> job PROVIDER_ASSIGNED, with the trail
+`DRAFT -> SUBMITTED -> QUALIFYING -> OPEN_FOR_BIDS -> BID_RECEIVED -> NEGOTIATING ->
+PAYMENT_PENDING -> CONFIRMED -> PROVIDER_ASSIGNED`. Through the app (in-app browser, 390x844,
+demo customer +919000000001): a job with two competing offers showed the ranked list with the
+transparent split (Rs 794.25 all-in vs Rs 550.68), accept opened `ConfirmSheet` with the identical
+breakdown, authorize flipped the card to "Confirmed / Authorized / Price locked", the offers list
+disappeared, the timeline gained "Offer accepted / Payment authorized / Provider assigned", and
+every request returned 200 with no console errors.
+
+**Known limitations:** the payment gateway is **mocked** - the booking flow is real end to end but
+no money moves; capture, settlement and refunds arrive in M7. Counter-offer and bid-window expiry
+are checked on read but nothing sweeps them in the background (M9). The app polls rather than using
+realtime. Postgres repositories are written but the suite still runs in memory mode. Full list in
+`KNOWN_LIMITATIONS.md`.
+
+**Security considerations:** the webhook signature is verified before the payload is parsed, so an
+unsigned body is never deserialized; `provider_event_id` makes replays idempotent and an amount
+mismatch is refused rather than trusted. `mock-complete` exists only when `PAYMENT_PROVIDER=mock`
+and only for the payment's own payer. Acceptance is guarded three times - in shared code, again
+inside the transaction after re-reading the row, and by partial unique indexes in SQL - so a race
+cannot double-book a job. The offer chain and booking views expose business name, verified badge,
+distance and price only: never the provider's phone number, address or documents. The word
+"escrow" is used nowhere; the flow is authorization -> hold -> settlement.
+
+**External integrations mocked or live:** ALL MOCKED - SMS, payment, maps, push, storage,
+telephony, monitoring, analytics. Nothing is live.
+
+**Next milestone:** M5 - Execution and completion: technician assignment, EN_ROUTE/ARRIVED,
+the 4-digit start OTP, price-revision requests with customer approval, completion proof, customer
+approval, and in-job chat.
+
+---
+
 ## Milestone 3: Provider workflow
 
 **Milestone:** M3 - Provider workflow

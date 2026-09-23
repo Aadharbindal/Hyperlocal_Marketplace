@@ -9,6 +9,8 @@ import type {
   RoleStatus,
   UserRole,
   MaterialResponsibility,
+  OfferStatus,
+  PaymentStatus as PaymentStatusEnum,
   UserStatus,
   VerificationStatus,
 } from '@hyperlocal/core';
@@ -320,6 +322,98 @@ export interface KycRecord {
   updated_at: Date;
 }
 
+export interface OfferRecord {
+  id: string;
+  job_id: string;
+  bid_id: string;
+  parent_offer_id: string | null;
+  sender_id: string;
+  sender_party: 'CUSTOMER' | 'PROVIDER';
+  receiver_id: string;
+  labour_paise: number;
+  visit_fee_paise: number;
+  eta_minutes: number;
+  warranty_days: number;
+  material_responsibility: MaterialResponsibility;
+  scope_notes: string | null;
+  status: OfferStatus;
+  expires_at: Date;
+  responded_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface BookingQuoteRecord {
+  id: string;
+  job_id: string;
+  bid_id: string;
+  offer_id: string | null;
+  provider_id: string;
+  labour_paise: number;
+  visit_fee_paise: number;
+  material_estimate_paise: number;
+  delivery_paise: number;
+  platform_fee_paise: number;
+  protection_fee_paise: number;
+  tax_paise: number;
+  total_paise: number;
+  provider_payable_paise: number;
+  warranty_days: number;
+  eta_minutes: number;
+  material_responsibility: MaterialResponsibility;
+  status: 'ACTIVE' | 'SUPERSEDED' | 'CANCELLED';
+  locked_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/** `locked_at` defaults in SQL and is set by the memory repo, so callers never pass it. */
+export type NewBookingQuote = Omit<New<BookingQuoteRecord>, 'locked_at'>;
+
+export interface AssignmentRecord {
+  id: string;
+  job_id: string;
+  provider_id: string;
+  technician_id: string | null;
+  contractor_id: string | null;
+  assigned_by: string | null;
+  status: 'ACTIVE' | 'REPLACED' | 'CANCELLED';
+  replaced_by: string | null;
+  reason: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PaymentRecord {
+  id: string;
+  job_id: string;
+  payer_id: string;
+  quote_id: string | null;
+  purpose: 'BOOKING' | 'MATERIAL' | 'MILESTONE' | 'PRICE_REVISION';
+  amount_paise: number;
+  currency: 'INR';
+  provider: string;
+  provider_order_id: string | null;
+  provider_payment_id: string | null;
+  status: PaymentStatusEnum;
+  idempotency_key: string;
+  failure_reason: string | null;
+  authorized_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PaymentEventRecord {
+  id: string;
+  payment_id: string | null;
+  provider_event_id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  signature_valid: boolean;
+  processed_at: Date | null;
+  created_at: Date;
+}
+
 export interface IdempotencyRecord {
   key: string;
   user_id: string;
@@ -442,6 +536,37 @@ export interface KycRepo {
   update(id: string, patch: Partial<KycRecord>): Promise<KycRecord>;
 }
 
+export interface NegotiationRepo {
+  createOffer(o: New<OfferRecord>): Promise<OfferRecord>;
+  getOffer(id: string): Promise<OfferRecord | null>;
+  updateOffer(id: string, patch: Partial<OfferRecord>): Promise<OfferRecord>;
+  listOffersForJob(jobId: string): Promise<OfferRecord[]>;
+  listOffersForBid(bidId: string): Promise<OfferRecord[]>;
+  findPendingForBid(bidId: string): Promise<OfferRecord | null>;
+
+  createQuote(q: NewBookingQuote): Promise<BookingQuoteRecord>;
+  getActiveQuote(jobId: string): Promise<BookingQuoteRecord | null>;
+  getQuote(id: string): Promise<BookingQuoteRecord | null>;
+  updateQuote(id: string, patch: Partial<BookingQuoteRecord>): Promise<BookingQuoteRecord>;
+
+  createAssignment(a: New<AssignmentRecord>): Promise<AssignmentRecord>;
+  getActiveAssignment(jobId: string): Promise<AssignmentRecord | null>;
+  updateAssignment(id: string, patch: Partial<AssignmentRecord>): Promise<AssignmentRecord>;
+}
+
+export interface PaymentsRepo {
+  create(p: New<PaymentRecord>): Promise<PaymentRecord>;
+  get(id: string): Promise<PaymentRecord | null>;
+  findByIdempotencyKey(key: string): Promise<PaymentRecord | null>;
+  findByOrderId(orderId: string): Promise<PaymentRecord | null>;
+  findLiveBooking(jobId: string): Promise<PaymentRecord | null>;
+  update(id: string, patch: Partial<PaymentRecord>): Promise<PaymentRecord>;
+  listForJob(jobId: string): Promise<PaymentRecord[]>;
+
+  /** Returns null when this gateway event was already recorded (replay). */
+  recordEvent(e: New<PaymentEventRecord>): Promise<PaymentEventRecord | null>;
+}
+
 export interface IdempotencyRepo {
   get(key: string, userId: string): Promise<IdempotencyRecord | null>;
   put(rec: IdempotencyRecord): Promise<void>;
@@ -456,6 +581,8 @@ export interface DataStore {
   jobs: JobsRepo;
   bids: BidsRepo;
   kyc: KycRepo;
+  negotiation: NegotiationRepo;
+  payments: PaymentsRepo;
   audit: AuditRepo;
   notifications: NotificationsRepo;
   retention: RetentionRepo;

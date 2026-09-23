@@ -7,6 +7,7 @@ import Animated, { Easing, FadeIn, FadeInDown, useAnimatedStyle, useSharedValue,
 import type { JobStatus } from '@hyperlocal/core';
 import { ApiError, API_URL } from '@/api/client';
 import { useCancelJob, useJob } from '@/api/jobs';
+import { BookingCard } from '@/features/customer/BookingCard';
 import { OffersList } from '@/features/customer/OffersList';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
@@ -177,7 +178,10 @@ export default function JobDetailScreen() {
         </Card>
       </Animated.View>
 
-      {/* offers received */}
+      {/* the confirmed booking, once a quote is locked */}
+      <BookingCard jobId={j.id} enabled={!!j.bidWindowEndsAt || j.status !== 'OPEN_FOR_BIDS'} />
+
+      {/* offers still open for comparison */}
       <OffersList jobId={j.id} live={live} />
 
       {/* request summary */}
