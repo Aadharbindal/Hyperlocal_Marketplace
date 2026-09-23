@@ -9,6 +9,7 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeInLeft,
+  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -41,11 +42,20 @@ interface Feature {
 
 const FEATURES: Feature[] = [
   { icon: 'shield-checkmark', from: '#E6F7EF', to: '#C8EBDC', fg: '#0E8A6A', title: 'Verified', body: 'Professionals' },
-  { icon: 'flash', from: '#FFF6E0', to: '#FFE8B8', fg: '#F0A400', title: 'Quick', body: '& Easy Booking' },
-  { glyph: '₹', from: '#E6F7EF', to: '#C8EBDC', fg: '#0E8A6A', title: 'Affordable', body: '& Transparent Pricing' },
+  { icon: 'flash', from: '#FFF6E0', to: '#FFE8B8', fg: '#F0A400', title: 'Quick', body: 'Easy booking' },
+  { glyph: '₹', from: '#E6F7EF', to: '#C8EBDC', fg: '#0E8A6A', title: 'Affordable', body: 'Clear pricing' },
 ];
 
+// The illustration is anchored bottom-right and its left half is empty, so it can be
+// drawn larger than the hero box. This is how much of the width the copy may use -
+// the rest is the technician's, and the two never meet.
+const COPY_WIDTH = 0.44;
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// react-native-web renders a real <input>, which the browser gives a square focus
+// outline that ignores our rounded field. The halo below replaces it.
+const NO_OUTLINE = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null;
 
 export default function PhoneScreen() {
   const t = useStrings();
@@ -66,13 +76,15 @@ export default function PhoneScreen() {
   const natWidth = heroBox.w || width;
   const natHeight = natWidth * HERO_RATIO;
   const fit = heroBox.h > 0 ? Math.min(1, heroBox.h / natHeight) : 1;
-  // on short handsets pull the art in a little more so the script line clears the copy
-  const scale = Math.max(height < 700 ? fit * 0.92 : fit, 0.7);
+  // the artwork's left half is empty, so drawing it oversized only makes the technician
+  // bigger - it grows into that margin, never into the copy column
+  const grow = compact ? 1.1 : 1.22;
+  const scale = Math.max((height < 700 ? fit * 0.92 : fit) * grow, 0.7);
   const heroWidth = natWidth * scale;
   const heroHeight = natHeight * scale;
-  // the hand-written line baked into the art occupies the bottom third of it - keep the
-  // feature rows above that band so nothing ever crosses the copy
-  const copyBottomInset = Math.min(Math.max(52, heroHeight * 0.33), compact ? 70 : 150);
+  // the copy is laid out top-and-bottom, so this inset is what lifts the feature rows
+  // clear of the card and keeps them sitting with the headline rather than under it
+  const copyBottomInset = Math.min(Math.max(72, heroHeight * 0.26), compact ? 96 : 140);
 
   // continuous gentle float of the whole illustration
   const floatY = useSharedValue(0);
@@ -115,6 +127,19 @@ export default function PhoneScreen() {
   };
 
   const borderColor = error ? palette.danger : focused ? palette.primary : '#E4EDE9';
+  const digits = phone.replace(/\D/g, '');
+  const complete = normaliseIndianPhone(phone) !== null;
+
+  // a focus halo that follows the field's rounded corners, instead of the square
+  // outline a browser draws on the input itself
+  const ring = useSharedValue(0);
+  const ringStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      ring.value,
+      [0, 1],
+      ['rgba(18,136,106,0)', error ? 'rgba(214,69,69,0.12)' : 'rgba(18,136,106,0.13)'],
+    ),
+  }));
 
   return (
     <LinearGradient colors={['#FFFFFF', '#FBFDFD', '#F4FDFA', '#EAF8F1']} locations={[0, 0.35, 0.72, 1]} style={styles.root}>
@@ -167,7 +192,7 @@ export default function PhoneScreen() {
               </Animated.View>
               </View>
 
-              <View style={[styles.features, compact && styles.featuresCompact]}>
+              <View style={[styles.features, compact && styles.featuresCompact, { maxWidth: width * COPY_WIDTH + 40 }]}>
                 {FEATURES.map((f, i) => (
                   <Animated.View key={f.title} entering={FadeInLeft.delay(400 + i * 110).duration(520)} style={styles.feature}>
                     <LinearGradient colors={[f.from, f.to]} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.featureIcon}>
@@ -194,8 +219,9 @@ export default function PhoneScreen() {
             </Text>
             <Text style={styles.fieldLabel}>Mobile number</Text>
 
-            <Animated.View style={[styles.field, compact && styles.fieldCompact, { borderColor }, fieldStyle]}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Country code India +91" style={styles.country}>
+            <Animated.View style={[styles.ring, ringStyle, fieldStyle]}>
+            <View style={[styles.field, compact && styles.fieldCompact, { borderColor }]}>
+              <View accessible accessibilityLabel="Country code India +91" style={styles.country}>
                 <View style={styles.flag}>
                   <View style={[styles.flagBand, { backgroundColor: '#FF9933' }]} />
                   <View style={[styles.flagBand, styles.flagMid]}>
@@ -206,28 +232,43 @@ export default function PhoneScreen() {
                 <Text weight="semibold" style={styles.code}>
                   +91
                 </Text>
-                <Ionicons name="chevron-down" size={16} color="#8FA39B" />
-              </Pressable>
+              </View>
               <View style={styles.divider} />
               <TextInput
-                value={phone}
+                value={digits.length > 5 ? `${digits.slice(0, 5)} ${digits.slice(5)}` : digits}
                 onChangeText={(v) => {
-                  setPhone(v);
+                  setPhone(v.replace(/\D/g, '').slice(0, 10));
                   if (error) setError(null);
                 }}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
+                onFocus={() => {
+                  setFocused(true);
+                  ring.value = withTiming(1, { duration: 190 });
+                }}
+                onBlur={() => {
+                  setFocused(false);
+                  ring.value = withTiming(0, { duration: 190 });
+                }}
                 onSubmitEditing={submit}
                 placeholder="98765 43210"
                 placeholderTextColor="#A9B8B1"
                 keyboardType="phone-pad"
                 textContentType="telephoneNumber"
                 autoComplete="tel"
-                maxLength={12}
+                maxLength={11}
                 returnKeyType="done"
                 accessibilityLabel="Mobile number"
-                style={styles.input}
+                style={[styles.input, NO_OUTLINE]}
               />
+              {complete ? (
+                <Animated.View entering={FadeIn.duration(200)}>
+                  <Ionicons name="checkmark-circle" size={22} color={palette.primary} />
+                </Animated.View>
+              ) : digits.length > 0 ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Clear number" hitSlop={10} onPress={() => setPhone('')}>
+                  <Ionicons name="close-circle" size={20} color="#C2CEC9" />
+                </Pressable>
+              ) : null}
+            </View>
             </Animated.View>
 
             {error ? (
@@ -316,6 +357,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   featureText: { flexShrink: 1 },
+  copyColumn: { alignSelf: 'flex-start' },
   featureCompact: { fontSize: 13, lineHeight: 18.5 },
   featuresCompact: { gap: spacing.md },
   featureTitle: { fontSize: 14.5, lineHeight: 20, color: '#16241F' },
@@ -341,15 +383,16 @@ const styles = StyleSheet.create({
   ctaCompact: { height: 52 },
   cardTitle: { fontSize: 15, lineHeight: 22, letterSpacing: -0.2, color: '#0F1D18' },
   fieldLabel: { fontSize: 12.5, color: '#8C9E97', marginTop: spacing.md + 2, marginBottom: spacing.xs + 2 },
-  field: { flexDirection: 'row', alignItems: 'center', height: 56, borderRadius: 15, borderWidth: 1.5, backgroundColor: '#FFFFFF', paddingHorizontal: spacing.md },
-  country: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingRight: spacing.sm, minHeight: 44 },
+  ring: { borderRadius: 19, padding: 4, marginHorizontal: -4 },
+  field: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 56, borderRadius: 15, borderWidth: 1.5, backgroundColor: '#FFFFFF', paddingHorizontal: spacing.md },
+  country: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44 },
   flag: { width: 28, height: 19, borderRadius: 3, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: '#D9E4DF' },
   flagBand: { flex: 1 },
   flagMid: { backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   chakra: { width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: '#000080' },
   code: { fontSize: 15.5, color: '#16241F' },
-  divider: { width: 1, height: 30, backgroundColor: '#E4EDE9', marginRight: spacing.md },
-  input: { flex: 1, fontSize: 15.5, fontFamily: typography.family.regular, color: '#0F1D18', height: '100%' },
+  divider: { width: 1, height: 28, backgroundColor: '#E4EDE9' },
+  input: { flex: 1, fontSize: 16.5, letterSpacing: 0.4, fontFamily: typography.family.medium, color: '#0F1D18', height: '100%' },
   noteRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: spacing.md },
   note: { fontSize: 12.5, color: '#93A69E', flexShrink: 1 },
 
