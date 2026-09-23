@@ -147,6 +147,10 @@ export function mockPayment(env: Env, log: Logger): PaymentAdapter {
     async refund({ idempotencyKey }) {
       return { providerRefundId: `rfnd_mock_${sha256(idempotencyKey).slice(0, 12)}` };
     },
+    async payout({ idempotencyKey, amountPaise, payeeRef }) {
+      log.info({ mock: true, amountPaise, payeeRef }, '[MOCK payment] payout');
+      return { transferId: `pout_mock_${sha256(idempotencyKey).slice(0, 12)}`, ok: true };
+    },
     verifyWebhookSignature(rawBody, signature) {
       const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
       return expected === signature;

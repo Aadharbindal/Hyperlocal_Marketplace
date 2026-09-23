@@ -35,6 +35,8 @@ export interface MaterialsDeps {
   store: DataStore;
   adapters: Adapters;
   jobs: JobService;
+  /** Confirmed goods are the point at which the vendor's money is actually taken. */
+  onOrderConfirmed?: (order: MaterialOrderRecord) => Promise<void>;
 }
 
 function blocked(code: string, extra: Record<string, unknown> = {}): never {
@@ -483,6 +485,7 @@ export function materialsService(d: MaterialsDeps) {
           confirmed_by: userId,
           confirmed_at: new Date(),
         });
+        await d.onOrderConfirmed?.(confirmed);
         await notify(order.vendor_id, 'material.confirmed', 'Delivery confirmed', 'Upload the invoice to be paid for this order.', job.id);
         adapters.analytics.track('material_confirmed', { userId, jobId: job.id });
         return confirmed;

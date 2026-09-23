@@ -8,11 +8,17 @@ import type {
   PaymentStatus,
   RoleStatus,
   UserRole,
+  DisputeCategory,
+  DisputeResolution,
+  DisputeStatus,
+  LedgerEntryType,
   MaterialOrderStatus,
   MaterialQuoteStatus,
   MaterialRequestStatus,
   MaterialResponsibility,
   QuotedItem as QuotedMaterialItem,
+  SettlementStatus,
+  StrikeSeverity,
   OfferStatus,
   PaymentStatus as PaymentStatusEnum,
   UserStatus,
@@ -559,6 +565,123 @@ export interface MaterialOrderRecord {
   updated_at: Date;
 }
 
+export interface LedgerEntryRecord {
+  id: string;
+  job_id: string | null;
+  payment_id: string | null;
+  entry_type: LedgerEntryType;
+  account_user_id: string | null;
+  amount_paise: number;
+  currency: string;
+  batch_id: string;
+  idempotency_key: string;
+  reference_type: string | null;
+  reference_id: string | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: Date;
+}
+
+export interface SettlementRecord {
+  id: string;
+  job_id: string;
+  payee_id: string;
+  payee_role: UserRole;
+  material_order_id: string | null;
+  amount_paise: number;
+  status: SettlementStatus;
+  attempts: number;
+  failure_reason: string | null;
+  provider_transfer_id: string | null;
+  idempotency_key: string;
+  initiated_at: Date | null;
+  paid_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface RefundRecord {
+  id: string;
+  payment_id: string;
+  job_id: string;
+  amount_paise: number;
+  reason: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  provider_refund_id: string | null;
+  idempotency_key: string;
+  requested_by: string | null;
+  dispute_id: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface DisputeRecord {
+  id: string;
+  job_id: string;
+  raised_by: string;
+  against_user_id: string | null;
+  category: DisputeCategory;
+  description: string;
+  status: DisputeStatus;
+  resolution: DisputeResolution | null;
+  resolution_reason: string | null;
+  refund_paise: number | null;
+  resolved_by: string | null;
+  second_approver_id: string | null;
+  resolved_at: Date | null;
+  reopened_count: number;
+  sla_due_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface DisputeEvidenceRecord {
+  id: string;
+  dispute_id: string;
+  uploaded_by: string;
+  media_id: string | null;
+  note: string | null;
+  created_at: Date;
+}
+
+export interface StrikeRecord {
+  id: string;
+  user_id: string;
+  severity: StrikeSeverity;
+  reason: string;
+  issued_by: string | null;
+  dispute_id: string | null;
+  job_id: string | null;
+  expires_at: Date | null;
+  created_at: Date;
+}
+
+export interface ReviewRecord {
+  id: string;
+  job_id: string;
+  reviewer_id: string;
+  reviewee_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: Date;
+}
+
+export interface SupportTicketRecord {
+  id: string;
+  opened_by: string;
+  job_id: string | null;
+  dispute_id: string | null;
+  category: string;
+  subject: string;
+  body: string;
+  status: 'OPEN' | 'IN_PROGRESS' | 'WAITING' | 'RESOLVED' | 'CLOSED';
+  assigned_to: string | null;
+  priority: number;
+  closed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface IdempotencyRecord {
   key: string;
   user_id: string;
@@ -762,6 +885,46 @@ export interface MaterialsRepo {
   listOrdersForVendor(vendorId: string, limit: number): Promise<MaterialOrderRecord[]>;
 }
 
+export interface FinanceRepo {
+  /** Writes a whole balanced batch or nothing; returns [] when the key was already used. */
+  appendLedger(batch: Array<Omit<New<LedgerEntryRecord>, 'currency'>>): Promise<LedgerEntryRecord[]>;
+  listLedgerForAccount(userId: string, limit: number): Promise<LedgerEntryRecord[]>;
+  listLedgerForJob(jobId: string): Promise<LedgerEntryRecord[]>;
+  ledgerKeyExists(idempotencyKey: string): Promise<boolean>;
+
+  createSettlement(s: New<SettlementRecord>): Promise<SettlementRecord>;
+  getSettlement(id: string): Promise<SettlementRecord | null>;
+  updateSettlement(id: string, patch: Partial<SettlementRecord>): Promise<SettlementRecord>;
+  findSettlement(idempotencyKey: string): Promise<SettlementRecord | null>;
+  listSettlementsForPayee(payeeId: string, limit: number): Promise<SettlementRecord[]>;
+  listSettlementsByStatus(status: SettlementStatus, limit: number): Promise<SettlementRecord[]>;
+
+  createRefund(r: New<RefundRecord>): Promise<RefundRecord>;
+  updateRefund(id: string, patch: Partial<RefundRecord>): Promise<RefundRecord>;
+  findRefund(idempotencyKey: string): Promise<RefundRecord | null>;
+  listRefundsForJob(jobId: string): Promise<RefundRecord[]>;
+
+  createDispute(d: New<DisputeRecord>): Promise<DisputeRecord>;
+  getDispute(id: string): Promise<DisputeRecord | null>;
+  updateDispute(id: string, patch: Partial<DisputeRecord>): Promise<DisputeRecord>;
+  listDisputesForJob(jobId: string): Promise<DisputeRecord[]>;
+  findOpenDispute(jobId: string): Promise<DisputeRecord | null>;
+  listDisputesByStatus(statuses: DisputeStatus[], limit: number): Promise<DisputeRecord[]>;
+  addEvidence(e: New<DisputeEvidenceRecord>): Promise<DisputeEvidenceRecord>;
+  listEvidence(disputeId: string): Promise<DisputeEvidenceRecord[]>;
+
+  addStrike(s: New<StrikeRecord>): Promise<StrikeRecord>;
+  listStrikes(userId: string): Promise<StrikeRecord[]>;
+
+  createReview(r: New<ReviewRecord>): Promise<ReviewRecord>;
+  listReviewsFor(revieweeId: string, limit: number): Promise<ReviewRecord[]>;
+  findReview(jobId: string, reviewerId: string): Promise<ReviewRecord | null>;
+
+  createTicket(t: New<SupportTicketRecord>): Promise<SupportTicketRecord>;
+  listTickets(filter: { status?: string; openedBy?: string; limit: number }): Promise<SupportTicketRecord[]>;
+  updateTicket(id: string, patch: Partial<SupportTicketRecord>): Promise<SupportTicketRecord>;
+}
+
 export interface IdempotencyRepo {
   get(key: string, userId: string): Promise<IdempotencyRecord | null>;
   put(rec: IdempotencyRecord): Promise<void>;
@@ -779,6 +942,7 @@ export interface DataStore {
   negotiation: NegotiationRepo;
   execution: ExecutionRepo;
   materials: MaterialsRepo;
+  finance: FinanceRepo;
   payments: PaymentsRepo;
   audit: AuditRepo;
   notifications: NotificationsRepo;

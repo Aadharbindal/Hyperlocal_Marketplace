@@ -5,18 +5,24 @@ Updated every milestone. **Nothing external is live.** Each row names the produc
 | Area | Status | Current behaviour | Production replacement | Owner milestone |
 | --- | --- | --- | --- | --- |
 | SMS / OTP delivery | **MOCKED** | OTP logged to API console; demo code `123456` | MSG91 or Twilio via `adapters/sms/msg91.ts` | M1 (adapter), live on credentials |
-| Payment gateway | **MOCKED** | deterministic order ids; `POST /payments/:id/mock-complete` and self-signed webhooks stand in for the gateway checkout. The booking flow is real end to end, the *authorization is not* - no money moves | Razorpay Orders + Webhooks (capture, refunds, settlement) | M7 |
+| Payment gateway | **MOCKED** | authorization, capture, refunds and payouts all run through the mock adapter, which always succeeds. The flows, the ledger and every guard are real; **no money moves** | Razorpay Orders, Webhooks and RazorpayX payouts | before launch |
 | Maps / geocoding | **MOCKED** | address hashed to pseudo-coordinates near pilot centre; haversine distance | Google Maps Platform or Mapbox | M2 |
 | Push notifications | **MOCKED** | logged; in-app inbox works | Expo Push / FCM | M2 |
-| Masked calling | **MOCKED** | the customer sees a masked number for the technician, but no call can be placed - the adapter returns a fake virtual number | Exotel / Knowlarity | M7 |
+| Masked calling | **MOCKED** | the customer sees a masked number for the technician, but no call can be placed - the adapter returns a fake virtual number | Exotel / Knowlarity | M9 |
 | Object storage | **MOCKED** | files kept in memory / `apps/api/.data`; fake signed URLs | Supabase Storage / S3 | M2 |
 | Error monitoring | **MOCKED** | logged | Sentry | M1 (adapter) |
 | Analytics | **MOCKED** | logged | PostHog (after privacy review) | M1 (adapter) |
-| Realtime | not started | the app polls the job, offers and booking endpoints | Supabase Realtime | M9 |
+| Realtime | not started | the app polls the job, offers, booking and material endpoints | Supabase Realtime | M9 |
 | Database | memory mode by default | in-process store, resets on restart | Supabase Postgres via migrations (schema written, not yet exercised by tests) | M1 (schema), M2 (postgres repo tests) |
 | Provider verification approval | **manual/mocked** | KYC submission works and sets SUBMITTED; nothing flips a provider to VERIFIED yet (tests and the demo seed set it directly) | admin KYC review queue | M8 |
 | KYC document bytes | **MOCKED** | the upload target is returned but the file is not stored (mock storage); only the last-4 and metadata are persisted | encrypted object storage | M8 |
-| Payment capture and payouts | not started | authorization only; nothing is captured, settled or refunded yet | capture on approval, ledger, settlements, refunds | M7 |
+| Settlement scheduler | **manual** | payouts are due 24 h after capture, but nothing runs on a timer: support calls `POST /admin/settlements/run`. Every guard re-runs per settlement, so this is safe, just not automatic | scheduled job | M9 |
+| Payout failure handling | partial | three failures park a settlement at ON_HOLD with the reason; there is no alerting and no admin retry screen | alerting + admin retry | M8 |
+| Reconciliation with the gateway | not built | PAYMENT_FLOW section 8 calls for polling the gateway when a webhook never arrives; nothing polls yet, so a stuck payment stays PENDING | reconciliation job | M9 |
+| Chargebacks | not built | the DISPUTE_HOLD path exists, but no gateway chargeback event is handled | chargeback webhook + evidence pack | M9 |
+| Dispute queue UI | not built | support resolves disputes through the API; there is no console yet | admin console | M8 |
+| Appeals and reopening | not built | `reopened_count` and the REOPENED status exist in the schema; no endpoint uses them | appeal flow | M8 |
+| Tax treatment | **needs professional review** | 18% GST is applied to platform fees only, as a placeholder; TDS, TCS and vendor GST are not modelled | tax advisor + accounting review | before launch |
 | Counter-offer expiry | not scheduled | a 20-minute TTL is stored and checked on every read and response, but nothing sweeps expired offers in the background | scheduled job | M9 |
 | Bid-window expiry | not scheduled | offers stop being accepted once the window passes, but nothing auto-cancels or expires the job in the background | scheduled job | M9 |
 | Admin MFA | not started | – | TOTP | M8 |
@@ -26,7 +32,7 @@ Updated every milestone. **Nothing external is live.** Each row names the produc
 | Vendor invoice upload (mobile) | not built | the API accepts and validates an invoice against the order total; the vendor app shows what is owed but has no upload screen yet | invoice capture in the vendor app | M8 |
 | Held material orders | **manual** | a reported mismatch parks the order at ON_HOLD and notifies both sides; only an admin can release it, and there is no admin screen yet | dispute queue | M8 |
 | Material substitution | not built | a vendor quotes against the list as given; there is no flow for proposing a different brand mid-order (MAT-05) | substitution approval | M8 |
-| Vendor payouts | not started | a confirmed order with a matching invoice is the evidence a payout needs, but nothing is settled yet | vendor settlement | M7 |
+| Vendor payouts | implemented, **mocked rail** | a confirmed order with a matching invoice produces a PENDING settlement that the payout adapter pays; the adapter is a mock | RazorpayX payouts | before launch |
 | Chat moderation | **flag only** | messages with a phone number, email or UPI handle are stored flagged; nothing reviews or acts on the flag yet | review queue + repeat-offender strikes | M8 |
 | Start-code resend | not built | one code per job for 72 hours; there is no resend or rotation | resend with cooldown (policy already in `START_JOB_OTP_POLICY`) | M9 |
 | Customer approval timeout | not scheduled | `CUSTOMER_APPROVAL_HOURS` is defined but nothing chases or auto-approves a job the customer ignores | scheduled job + reminder | M9 |
@@ -36,4 +42,4 @@ Updated every milestone. **Nothing external is live.** Each row names the produc
 | Mobile dependency pin | workaround | `query-string@7` added to `apps/mobile` because `@react-navigation/native` 7.4 dropped it while `expo-router` 5.1 still imports it | remove when expo-router updates | M2 |
 | Welcome hero artwork | **derived asset** | `apps/mobile/assets/hero-technician.png` is extracted from the reference render the user supplied (text removed, background rebuilt) | final licensed export of the same illustration | before release (D-011) |
 | Home hero artwork | placeholder | vector illustration in the home hero | final design assets | design handoff |
-| Legal/payment structure | **needs professional review** | hold/settlement vocabulary only | – | before launch |
+| Legal/payment structure | **needs professional review** | authorization/hold/settlement vocabulary throughout, no pooled account modelling, no nodal account | payments counsel + RBI guidance review | before launch |

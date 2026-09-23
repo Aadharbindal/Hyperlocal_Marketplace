@@ -10,7 +10,7 @@ import {
   type Language,
 } from '@hyperlocal/core';
 import { z } from 'zod';
-import { notFound } from '../../lib/errors';
+import { forbidden, notFound } from '../../lib/errors';
 import { parse } from '../../lib/validate';
 import { requireAction, requireAuth } from '../../plugins/auth';
 import type { AppContext } from '../../app';
@@ -155,9 +155,33 @@ export async function jobRoutes(app: FastifyInstance, ctx: AppContext) {
     const { id } = parse(IdParam, req.params);
     const { reason } = parse(JobCancelBody, req.body ?? {});
     const job = await jobs.ownedJob(id, auth.userId);
-    const cancelled = await jobs.cancelByCustomer(job, reason, transitionCtx(req));
-    await services.audit.record(req.auditCtx(), { action: 'job.cancelled', entityType: 'job', entityId: job.id, reason });
+    // Cancelling is a money decision once a booking exists, so it goes through finance:
+    // the policy charge is taken, the rest of the hold is released, and both are recorded.
+    const { job: cancelled, chargePaise } = await services.finance.cancelWithMoney(job, auth.userId, reason, 'CUSTOMER', transitionCtx(req));
+    await services.audit.record(req.auditCtx(), {
+      action: 'job.cancelled',
+      entityType: 'job',
+      entityId: job.id,
+      reason,
+      after: { chargePaise },
+    });
     return jobs.toJobView(cancelled, langOf(req), { includeToken: true });
+  });
+
+  /** The provider side backing out. Always free for the customer, always a strike. */
+  app.post('/jobs/:id/cancel-as-provider', async (req) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const { reason } = parse(JobCancelBody, req.body ?? {});
+    const job = await store.jobs.get(id);
+    if (!job) throw notFound('job');
+    const assignment = await store.negotiation.getActiveAssignment(job.id);
+    const onJob = [assignment?.provider_id, assignment?.technician_id].filter(Boolean).includes(auth.userId);
+    if (!onJob) throw forbidden('not the assigned provider');
+
+    const { job: cancelled } = await services.finance.cancelWithMoney(job, auth.userId, reason, 'PROVIDER', transitionCtx(req));
+    await services.audit.record(req.auditCtx(), { action: 'job.cancelled_by_provider', entityType: 'job', entityId: job.id, reason });
+    return { id: cancelled.id, status: cancelled.status };
   });
 
   // ---------------------------------------------------------------- public tracking link

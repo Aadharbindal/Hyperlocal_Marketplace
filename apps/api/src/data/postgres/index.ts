@@ -2,6 +2,7 @@ import pg from 'pg';
 import { createPostgresBidsRepo, createPostgresKycRepo } from './bids';
 import { createPostgresJobsRepo } from './jobs';
 import { createPostgresExecutionRepo } from './execution';
+import { createPostgresFinanceRepo } from './finance';
 import { createPostgresMaterialsRepo } from './materials';
 import { createPostgresNegotiationRepo, createPostgresPaymentsRepo } from './negotiation';
 import type {
@@ -229,6 +230,7 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     negotiation: createPostgresNegotiationRepo(q),
     execution: createPostgresExecutionRepo(q),
     materials: createPostgresMaterialsRepo(q),
+    finance: createPostgresFinanceRepo(q),
     payments: createPostgresPaymentsRepo(q),
 
     audit: {

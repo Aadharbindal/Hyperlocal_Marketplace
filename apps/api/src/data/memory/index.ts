@@ -4,6 +4,7 @@ import { CATEGORY_SEED, SKILL_SEED } from '../catalog';
 import { createMemoryBidsRepo, createMemoryKycRepo } from './bids';
 import { createMemoryJobsRepo } from './jobs';
 import { createMemoryExecutionRepo } from './execution';
+import { createMemoryFinanceRepo } from './finance';
 import { createMemoryMaterialsRepo } from './materials';
 import { createMemoryNegotiationRepo, createMemoryPaymentsRepo } from './negotiation';
 import type {
@@ -53,6 +54,7 @@ export function createMemoryStore(): DataStore {
   const negotiationRepo = createMemoryNegotiationRepo();
   const executionRepo = createMemoryExecutionRepo();
   const materialsRepo = createMemoryMaterialsRepo();
+  const financeRepo = createMemoryFinanceRepo();
   const paymentsRepo = createMemoryPaymentsRepo();
 
   // Serialise "transactions" with a simple promise chain so concurrent acceptances cannot interleave.
@@ -287,6 +289,7 @@ export function createMemoryStore(): DataStore {
     negotiation: negotiationRepo,
     execution: executionRepo,
     materials: materialsRepo,
+    finance: financeRepo,
     payments: paymentsRepo,
 
     audit: {

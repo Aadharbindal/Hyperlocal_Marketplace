@@ -4,10 +4,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image, Pressable, Share, StyleSheet, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
-import type { JobStatus } from '@hyperlocal/core';
+import { formatInr, type JobStatus } from '@hyperlocal/core';
 import { ApiError, API_URL } from '@/api/client';
 import { useCancelJob, useJob } from '@/api/jobs';
+import { useCancellationQuote } from '@/api/finance';
 import { BookingCard } from '@/features/customer/BookingCard';
+import { AfterJobCard } from '@/features/customer/AfterJobCard';
 import { LiveJobPanel } from '@/features/customer/LiveJobPanel';
 import { MaterialPanel } from '@/features/customer/MaterialPanel';
 import { OffersList } from '@/features/customer/OffersList';
@@ -17,7 +19,7 @@ import { Button, Card, ErrorState, IconButton, Screen, Skeleton, Text } from '@/
 import { RealisticIcon } from '@/ui/RealisticIcon';
 
 const LIVE: JobStatus[] = ['SUBMITTED', 'QUALIFYING', 'OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING'];
-const CANCELLABLE: JobStatus[] = ['DRAFT', 'SUBMITTED', 'QUALIFYING', 'OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING', 'PAYMENT_PENDING', 'CONFIRMED'];
+const CANCELLABLE: JobStatus[] = ['DRAFT', 'SUBMITTED', 'QUALIFYING', 'OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING', 'PAYMENT_PENDING', 'CONFIRMED', 'PROVIDER_ASSIGNED', 'EN_ROUTE', 'ARRIVED'];
 
 /** The customer-facing milestones; the server owns the real state machine. */
 const MILESTONES: Array<{ key: string; label: string; statuses: JobStatus[] }> = [
@@ -56,6 +58,7 @@ export default function JobDetailScreen() {
   const [cancelError, setCancelError] = useState<string | null>(null);
   const job = useJob(id, { poll: true });
   const cancel = useCancelJob();
+  const cancelQuote = useCancellationQuote(id, !!job.data && CANCELLABLE.includes(job.data.status));
 
   const status = job.data?.status;
   const live = !!status && LIVE.includes(status);
@@ -188,6 +191,8 @@ export default function JobDetailScreen() {
 
       <MaterialPanel jobId={j.id} status={j.status} />
 
+      <AfterJobCard jobId={j.id} status={j.status} />
+
       <OffersList jobId={j.id} live={live} />
 
       {/* request summary */}
@@ -276,7 +281,18 @@ export default function JobDetailScreen() {
       )}
 
       {CANCELLABLE.includes(j.status) && (
-        <Button title="Cancel this request" variant="danger" size="md" icon="close-circle-outline" style={styles.cancelBtn} loading={cancel.isPending} onPress={onCancel} />
+        <View style={styles.cancelBlock}>
+          {/* What it costs is shown before the button is pressed, never after. */}
+          {cancelQuote.data && cancelQuote.data.chargePaise > 0 && (
+            <View style={styles.notice}>
+              <Ionicons name="information-circle-outline" size={16} color="#B26A00" />
+              <Text variant="caption" style={{ flex: 1, color: '#7A5200' }}>
+                {cancelQuote.data.explanation} You would be charged {formatInr(cancelQuote.data.chargePaise)}.
+              </Text>
+            </View>
+          )}
+          <Button title="Cancel this request" variant="danger" size="md" icon="close-circle-outline" style={styles.cancelBtn} loading={cancel.isPending} onPress={onCancel} />
+        </View>
       )}
 
       {j.trackingUrlToken && (
@@ -331,6 +347,7 @@ const styles = StyleSheet.create({
   eventDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.primary, marginTop: 6 },
 
   cancelError: { marginTop: spacing.md },
+  cancelBlock: { gap: spacing.sm },
   cancelBtn: { alignSelf: 'center', marginTop: spacing.xl },
   shareRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: spacing.lg, minHeight: 40 },
 });

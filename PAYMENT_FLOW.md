@@ -106,3 +106,15 @@ creates the payment order, `POST /payments/:id/mock-complete` stands in for the 
 `POST /payments/webhook` is the real code path - signature checked before parsing,
 `provider_event_id` deduped, amount mismatch refused, failed authorization releasing the booking
 back to `BID_RECEIVED`. Capture, ledger entries, settlements and refunds are still M7.
+
+### Implemented in M7
+
+Capture, the ledger, settlements, refunds and dispute holds are live in code against the mock
+gateway. Labour is captured when the customer approves (`POST /jobs/:id/approve`), materials when
+the customer confirms the delivery. Every movement writes a balanced `batch_id` set to
+`ledger_entries`, which has UPDATE and DELETE revoked - corrections are new `MANUAL_ADJUSTMENT`
+entries, never edits. Payouts wait 24 hours after capture, are blocked outright by an open
+dispute, and park for a human after three failures. Refunds are capped by what the *ledger* says
+was captured, not by what a payment row claims, and are split back across the same lines the
+capture created so the books still balance. What is still missing is listed in
+`KNOWN_LIMITATIONS.md`: no scheduler, no gateway reconciliation, no chargeback handling.

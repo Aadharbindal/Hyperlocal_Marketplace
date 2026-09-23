@@ -4,6 +4,107 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Milestone 7: Payments, settlement and disputes
+
+**Milestone:** M7 - Capture, the ledger, settlements, refunds, disputes and reviews
+**Date:** 2026-09-23
+**Status:** Complete
+
+**Implemented:**
+- `packages/core` finance rules: the ledger builders (`buildCaptureLines`,
+  `buildMaterialCaptureLines`, `buildRefundLines`, `buildDisputeHoldLines`,
+  `buildSettlementLines`, `isBalanced`, `splitRefund`) and the policy checks
+  (`checkCanCapture`, `checkCanSettle`, `checkCanSettleVendor`, `cancellationStage`,
+  `checkCanRaiseDispute`, `refundNeedsTwoPeople`, `shouldSuspend`, `checkCanReview`,
+  `nextRating`). `splitRefund` puts the rounding on the provider line so a split always adds back
+  up to the refund exactly.
+- `supabase/migrations/0007_finance.sql`: `ledger_entries` (batched, append-only, UPDATE/DELETE
+  revoked), `settlements` (with triggers refusing a payout before completion, during an open
+  dispute, or to a vendor without a confirmed order and invoice), `refunds` (trigger capping the
+  running total at what was captured), `disputes` (one open per job, a resolution needs a real
+  reason, a refund over Rs 5,000 needs a different second approver), `dispute_evidence` and
+  `strikes` (both immutable), `reviews` (trigger: finished job, reviewer was on it) and
+  `support_tickets`. `payment_status` gained `RELEASED`.
+- `apps/api` finance module: capture at approval and at delivery confirmation, settlement
+  preparation and the payout run, cancellation with the policy charge, refunds, the dispute
+  lifecycle with holds and strikes, reviews, earnings, the per-job money view and the support
+  ticket endpoints. Capture is **not** an endpoint: execution and materials hand the money moment
+  over through a hook, so no client can ever ask for one.
+- Signs in the ledger are from the platform's point of view - positive is received, negative is
+  owed - and every event writes one `batch_id` that must sum to zero. The service refuses an
+  unbalanced batch rather than writing half of it.
+- Refunds are built from what the *ledger* says was captured, not from the payment row. This came
+  out of a test: a refund larger than the captured quote produced an unbalanced batch, which the
+  balance check caught. Reading the allocation back from the ledger makes the two impossible to
+  disagree.
+- `apps/mobile`: a real earnings screen (paid / clearing / on hold, every payout with its reason),
+  an after-the-job card showing what was actually charged and refunded, a rating sheet and a
+  report-a-problem sheet with the dispute categories in plain words, and a cancellation charge
+  shown *before* the cancel button is pressed.
+
+**Changed files:** `packages/core/src/{finance/ledger.ts,finance/settlement.ts,finance/finance.test.ts,contracts/finance.ts,contracts/enums.ts,index.ts}`,
+`supabase/migrations/0007_finance.sql`,
+`apps/api/src/{modules/finance/{service,routes}.ts,modules/execution/service.ts,modules/materials/service.ts,modules/jobs/routes.ts,adapters/{types,mocks}.ts,data/types.ts,data/memory/{index,finance}.ts,data/postgres/{index,finance}.ts,app.ts,test/finance.test.ts,test/execution.test.ts}`,
+`apps/mobile/src/{api/finance.ts,features/customer/AfterJobCard.tsx}`,
+`apps/mobile/app/(provider)/earnings.tsx`, `apps/mobile/app/(customer)/job/[id].tsx`, docs.
+
+**Database changes:** migration `0007_finance`. `migrate:check` passes with 7 migrations.
+Forward-only: nothing in 0001-0006 was touched; `payment_status` gained a value rather than being
+redefined.
+
+**API changes:** `GET /jobs/:id/money`, `GET /jobs/:id/cancellation-quote`,
+`POST /jobs/:id/cancel-as-provider`, `GET /me/earnings`, `POST /jobs/:id/dispute`,
+`GET /jobs/:id/disputes`, `POST /disputes/:id/evidence`, `POST /jobs/:id/review`,
+`GET /providers/:id/reviews`, `GET /admin/disputes`, `POST /admin/disputes/:id/resolve`,
+`POST /admin/settlements/run`, `GET /admin/settlements`, `POST /admin/jobs/:id/refund`,
+`GET /admin/jobs/:id/ledger`, `POST|GET /support/tickets`. `POST /jobs/:id/cancel` now settles
+money as well as status. Documented in `API_REFERENCE.md`.
+
+**Tests added / passed:** 18 new API integration tests (`finance.test.ts`) and 18 new core unit
+tests. Totals: **135/135 API**, **107/107 core**. Type check clean in 3/3 workspaces, lint 0
+errors, API bundle + Expo web export build OK, `migrate:check` OK.
+
+**Manual verification completed:** the suite carries a job from submission to a paid-out
+settlement and asserts the numbers at each step rather than trusting the flow. Capture writes
+exactly the four lines of the locked quote and the job's ledger nets to zero. A payout is refused
+before the 24-hour hold and succeeds after it, for exactly `providerPayablePaise`. Cancelling
+before the provider sets off leaves the payment `RELEASED` with nothing captured and nothing
+refunded; cancelling after EN_ROUTE captures the visit fee only; cancelling mid-work is refused
+and sent to support. A provider cancellation costs the customer nothing and drops the provider's
+reliability score with a MAJOR strike. Raising a dispute flips the payment to `DISPUTE_HOLD` and a
+settlement run pays nothing even once the hold window has passed. A partial-refund resolution
+refunds Rs 200, leaves the ledger netting to zero, and the REFUND line reads -20000. A Rs 6,000
+refund is refused without a second approver and accepted with one. Refunds are capped at the
+captured amount, across several partial refunds. A review moves the provider's average and cannot
+be left twice or on an unfinished job.
+
+**Known limitations:** the gateway is still the mock adapter, so no money moves anywhere -
+authorization, capture, refund and payout all succeed by construction. There is no scheduler:
+support calls the settlement run. There is no reconciliation poll for a webhook that never
+arrives, and no chargeback handling. Disputes are resolved through the API; the console is M8, as
+are appeals and payout-failure alerting. The GST treatment is a placeholder that needs a tax
+advisor. Full list in `KNOWN_LIMITATIONS.md`.
+
+**Security considerations:** capture cannot be requested by a client at all - it is a server-side
+consequence of the customer approving, and the amount always comes from the locked quote, never
+from a request body. The ledger has UPDATE and DELETE revoked, so history is corrected with new
+entries and never edited; every batch is checked for balance before it is written and refused
+outright otherwise. A refund is bounded by the ledger *and* by a SQL trigger, so even a bug in the
+service cannot refund more than was taken. Payouts are blocked by an open dispute in SQL as well
+as in code, and a suspended account keeps its balance rather than losing it. A refund over
+Rs 5,000 needs a second approver who is not the resolver, enforced in both places. The ledger,
+the settlement queue and the dispute queue are support-only and a customer asking for them gets a
+403. Public reviews carry a first name only.
+
+**External integrations mocked or live:** ALL MOCKED - SMS, payment, maps, push, storage,
+telephony, monitoring, analytics. Nothing is live.
+
+**Next milestone:** M8 - Admin and support console: the dispute queue, KYC review, user and
+provider management, payout retries, reports and overrides, with two-person approval and MFA on
+the admin side.
+
+---
+
 ## Milestone 6: Materials and vendors
 
 **Milestone:** M6 - The material leg: requests, vendor quotes, selection, delivery, invoice

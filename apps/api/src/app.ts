@@ -17,6 +17,8 @@ import { tokenService } from './modules/auth/tokens';
 import { auditService, type AuditService } from './modules/audit/service';
 import { categoryRoutes } from './modules/categories/routes';
 import { executionRoutes } from './modules/execution/routes';
+import { financeRoutes } from './modules/finance/routes';
+import { financeService, type FinanceService } from './modules/finance/service';
 import { executionService, type ExecutionService } from './modules/execution/service';
 import { jobRoutes } from './modules/jobs/routes';
 import { materialRoutes } from './modules/materials/routes';
@@ -41,6 +43,7 @@ export interface AppContext {
     negotiation: NegotiationService;
     execution: ExecutionService;
     materials: MaterialsService;
+    finance: FinanceService;
   };
 }
 
@@ -68,8 +71,23 @@ export async function buildApp(opts: BuildOptions = {}) {
   const auth = authService({ env, store, adapters, audit, tokens });
   const jobs = jobService({ env, store, adapters });
   const provider = providerService({ env, store, adapters });
-  const execution = executionService({ env, store, adapters, jobs });
-  const materials = materialsService({ env, store, adapters, jobs });
+  const finance = financeService({ env, store, adapters, jobs });
+  // Capture, settlement and refunds live in one place: the other modules hand the money
+  // moment over rather than touching payments themselves.
+  const execution = executionService({
+    env,
+    store,
+    adapters,
+    jobs,
+    onJobCompleted: (job, ctx) => finance.captureForJob(job, ctx).then(() => undefined),
+  });
+  const materials = materialsService({
+    env,
+    store,
+    adapters,
+    jobs,
+    onOrderConfirmed: (order) => finance.captureMaterialOrder(order).then(() => undefined),
+  });
   // A material authorization belongs to the material order, not to the booking, so the
   // webhook hands it straight back to the leg that owns it.
   const negotiation = negotiationService({
@@ -83,7 +101,7 @@ export async function buildApp(opts: BuildOptions = {}) {
       }
     },
   });
-  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs, provider, negotiation, execution, materials } };
+  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs, provider, negotiation, execution, materials, finance } };
 
   if (opts.seed ?? (env.DATA_MODE === 'memory' && env.APP_ENV !== 'test')) {
     await seedDemo(store, env);
@@ -203,6 +221,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     await negotiationRoutes(scope, ctx);
     await executionRoutes(scope, ctx);
     await materialRoutes(scope, ctx);
+    await financeRoutes(scope, ctx);
     await adminRoutes(scope, ctx);
   });
 

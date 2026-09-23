@@ -74,6 +74,8 @@ export const PAYMENT_STATUSES = [
   'AUTHORIZED',
   'CAPTURED',
   'SETTLED',
+  /** Authorization let go without ever taking the money. */
+  'RELEASED',
   'FAILED',
   'REFUNDED',
   'PARTIALLY_REFUNDED',

@@ -208,6 +208,50 @@ Errors: `VALIDATION_ERROR` with `details.materials` - `JOB_NOT_ON_SITE`,
 (with `details.orderTotalPaise`), `INVOICE_ALREADY_FILED`; 403 for anyone not on the job or not
 the order's vendor.
 
+## Milestone 7 (implemented)
+
+### Money on a job
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/jobs/:id/money` | any party on the job | What is held, what was captured, what was refunded and the material leg, read from the server's own records |
+| GET | `/jobs/:id/cancellation-quote` | job owner | What cancelling *right now* would cost, and why, before the customer commits to it |
+| POST | `/jobs/:id/cancel` | job owner | Now a money decision: the policy charge is captured, the rest of the authorization is **released** (not refunded - the money never left), and both are recorded. Refused with `CANCELLATION_NEEDS_SUPPORT` once work has started *audited* |
+| POST | `/jobs/:id/cancel-as-provider` | assigned provider side | Always free for the customer, always a MAJOR strike for the provider *audited* |
+
+Capture is not an endpoint. Labour money is taken by the server at `POST /jobs/:id/approve`
+(M5) and material money at `POST /material-orders/:id/confirm` (M6) - the client can never ask
+for a capture, and the amount always comes from the locked quote.
+
+### Earnings, disputes and reviews
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/me/earnings` | PROVIDER, VENDOR | Paid, clearing and on-hold balances, every settlement and the caller's own ledger lines |
+| POST | `/jobs/:id/dispute` | any party on the job | `{ category, description, mediaIds? }`. Freezes the money: the payment goes to `DISPUTE_HOLD`, pending settlements go `ON_HOLD`, and a live job moves to `DISPUTED`. One open dispute per job; 20+ character description required *audited* |
+| GET | `/jobs/:id/disputes` | any party on the job | The job's disputes, flagged `raisedByMe` / `againstMe`, with the SLA deadline |
+| POST | `/disputes/:id/evidence` | any party on the job | `{ mediaIds, note? }`; moves an OPEN dispute to UNDER_REVIEW |
+| POST | `/jobs/:id/review` | any party on a finished job | `{ rating 1-5, comment? }`. One per person per job, within 30 days; updates the provider's running average |
+| GET | `/providers/:id/reviews` | public | Ratings and comments with a **first name only** |
+
+### Support and admin
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/admin/disputes` | ADMIN, SUPPORT | The open queue, soonest SLA first |
+| POST | `/admin/disputes/:id/resolve` | ADMIN, SUPPORT | `{ resolution, reason, refundPaise?, strike?, secondApproverId? }`. Writes the refund, releases or keeps the hold, optionally strikes a party, and moves the job where the decision leaves it. A refund over Rs 5,000 is refused without a **different** second approver *audited* |
+| POST | `/admin/settlements/run?limit=` | ADMIN, SUPPORT | Sends what is due. Every guard re-runs per settlement, so it is safe to call repeatedly; three payout failures park a settlement for a human *audited* |
+| GET | `/admin/settlements?status=` | ADMIN, SUPPORT | The payout queue |
+| POST | `/admin/jobs/:id/refund` | ADMIN, SUPPORT | A refund outside a dispute; needs a reason and can never exceed what was captured *audited* |
+| GET | `/admin/jobs/:id/ledger` | ADMIN, SUPPORT | Every entry on the job plus `netPaise`, which is what the platform still holds for it |
+| POST | `/support/tickets` | any signed-in user | Opens a ticket |
+| GET | `/support/tickets` | own tickets, or all for ADMIN/SUPPORT | |
+
+Errors: `VALIDATION_ERROR` with `details.finance` - `JOB_NOT_COMPLETED`, `NOTHING_AUTHORIZED`,
+`ALREADY_CAPTURED`, `DISPUTE_OPEN`, `CANCELLATION_NEEDS_SUPPORT`, `NOTHING_CAPTURED`,
+`REFUND_EXCEEDS_CAPTURE` (with `details.capturedPaise` and `details.alreadyRefundedPaise`),
+`NOT_ON_JOB`, `ALREADY_OPEN`, `REASON_TOO_SHORT`, `WINDOW_CLOSED`, `JOB_TOO_EARLY`,
+`DISPUTE_CLOSED`, `SECOND_APPROVER_REQUIRED`, `SECOND_APPROVER_MUST_DIFFER`,
+`ALREADY_REVIEWED`, `JOB_NOT_COMPLETE`; `CONFLICT` with `ledger_batch_unbalanced` if a money
+batch would ever fail to sum to zero; 403 for anyone not on the job and for non-support callers
+on `/admin/*`.
+
 ## Planned (by milestone)
-- **M7** `POST /jobs/:id/dispute`, `GET /me/earnings`, refunds, tickets, reviews
 - **M8** `GET /admin/disputes`, `POST /admin/disputes/:id/resolve`, KYC review, reports, overrides

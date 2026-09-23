@@ -374,9 +374,10 @@ describe('completion and approval', () => {
     expect(approved.json().status).toBe('COMPLETED');
     expect(approved.json().completion.approvedAt).not.toBeNull();
 
-    // capture and payout are M7: the money is still only authorized
-    const booking = await app.inject({ method: 'GET', url: `/jobs/${jobId}/booking`, headers: c.headers });
-    expect(booking.json().payments.every((p2: { status: string }) => p2.status !== 'CAPTURED')).toBe(true);
+    // approval is the moment the money is actually taken (M7), and not a paisa before it
+    const money = await app.inject({ method: 'GET', url: `/jobs/${jobId}/money`, headers: c.headers });
+    expect(money.json().capturedPaise).toBeGreaterThan(0);
+    expect(money.json().authorizedPaise).toBe(0);
   });
 
   it('sends the provider back when the customer reports unfinished work', async () => {

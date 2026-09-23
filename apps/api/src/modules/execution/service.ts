@@ -35,6 +35,8 @@ export interface ExecutionDeps {
   store: DataStore;
   adapters: Adapters;
   jobs: JobService;
+  /** Called once the customer approves: capture and settlement belong to the finance module. */
+  onJobCompleted?: (job: JobRecord, ctx: TransitionContext) => Promise<void>;
 }
 
 /** Statuses in which the provider side is allowed to act on a job at all. */
@@ -529,9 +531,11 @@ export function executionService(d: ExecutionDeps) {
       });
       const done = await jobs.transition(job, 'COMPLETED', ctx, {
         reason: 'Customer approved completion',
+        patch: { completed_at: new Date() },
         metadata: { completionId: completion.id, rating: input.rating ?? null },
       });
-      // Capture and payout are M7; the hold stays until then and nothing is released here.
+      // Capture happens here, at the locked quote, and only now that the customer has said yes.
+      await d.onJobCompleted?.(done, ctx);
       const thread = await store.execution.getThread(job.id);
       if (thread) await store.execution.updateThread(thread.id, { closed_at: new Date() });
       await notify(completion.submitted_by, 'job.completed', 'Work approved', 'The customer approved the work. Settlement follows.', job.id);

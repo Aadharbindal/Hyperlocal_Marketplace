@@ -20,7 +20,7 @@ PostgreSQL 15 (Supabase). Conventions:
 | `0004_negotiation` | M4 | offers, booking_quotes, job_assignments, payments, payment_events (+ verified-technician trigger, single-winner partial uniques) |
 | `0005_execution` | M5 | start_otps, price_revision_requests, job_completions, chat_threads, chat_messages (+ revision-actor, chat-sender and message-immutability triggers) |
 | `0006_materials` | M6 | material_requests, material_quotes, material_orders (+ requester, vendor-verified and invoice-match triggers) |
-| `0007_finance` | M7 | ledger_entries, settlements, refunds, disputes, dispute_evidence, strikes, support_tickets, reviews |
+| `0007_finance` | M7 | ledger_entries, settlements, refunds, disputes, dispute_evidence, strikes, reviews, support_tickets (+ payment_status gains RELEASED, and the completion, invoice, refund-cap, two-person and review triggers) |
 
 ## Tables
 
@@ -168,16 +168,35 @@ Booking payments land in M4; material, milestone and revision purposes are used 
 payments `(id, job_id, payer_id, purpose(BOOKING|MATERIAL|MILESTONE|PRICE_REVISION), amount_paise, currency, provider, provider_order_id, provider_payment_id, status(CREATED|AUTHORIZED|CAPTURED|FAILED|REFUNDED|PARTIALLY_REFUNDED|DISPUTE_HOLD), idempotency_key unique, created_at)` - unique partial `(job_id) where purpose='BOOKING' and status in ('CREATED','PENDING','AUTHORIZED','CAPTURED')` so a job can never carry two live booking payments; events `(id, payment_id, provider_event_id unique, type, payload jsonb, signature_valid bool, processed_at)` - UPDATE/DELETE revoked, `provider_event_id` makes webhook replays a no-op.
 
 ### ledger_entries (M7, append-only)
-`(id, job_id, payment_id, entry_type(CUSTOMER_CHARGE|PROVIDER_PAYABLE|VENDOR_PAYABLE|PLATFORM_REVENUE|PROTECTION_RESERVE|REFUND|DISPUTE_HOLD|GATEWAY_FEE|TAX|MANUAL_ADJUSTMENT), account_user_id, amount_paise (signed), currency, idempotency_key unique, reference_type, reference_id, note, created_by, created_at)`.
+`(id, job_id, payment_id, entry_type(CUSTOMER_CHARGE|PROVIDER_PAYABLE|VENDOR_PAYABLE|PLATFORM_REVENUE|PROTECTION_RESERVE|REFUND|DISPUTE_HOLD|GATEWAY_FEE|TAX|MANUAL_ADJUSTMENT), account_user_id, amount_paise (signed), currency, batch_id, idempotency_key unique, reference_type, reference_id, note, created_by, created_at)`.
+Signs are from the platform's point of view: **positive = received, negative = owed**. Every
+event writes one `batch_id`, and a batch must sum to zero - the service refuses to write one that
+does not. UPDATE and DELETE are revoked: a mistake is corrected with a new `MANUAL_ADJUSTMENT`,
+never by editing history. Check: `amount_paise <> 0`.
 
-### settlements / refunds (M7)
-settlements `(id, job_id, payee_id, payee_role, amount_paise, status(PENDING|INITIATED|PAID|FAILED|ON_HOLD), provider_transfer_id, idempotency_key unique, initiated_at, paid_at)` — trigger: job.status ∈ {COMPLETED, SETTLED} and payment CAPTURED. refunds `(id, payment_id, amount_paise, reason, status, provider_refund_id, idempotency_key unique)`.
+### settlements (M7)
+`(id, job_id, payee_id, payee_role, material_order_id, amount_paise, status(PENDING|INITIATED|PAID|FAILED|ON_HOLD), attempts, failure_reason, provider_transfer_id, idempotency_key unique, initiated_at, paid_at)`.
+Trigger `settlements_require_completion`: the job must be COMPLETED or SETTLED **and** have no
+open dispute. Trigger `settlements_vendor_needs_invoice`: a vendor settlement must name a
+CONFIRMED material order that has an invoice on file.
+
+### refunds (M7)
+`(id, payment_id, job_id, amount_paise, reason, status(PENDING|PROCESSING|COMPLETED|FAILED), provider_refund_id, idempotency_key unique, requested_by, dispute_id)`.
+Trigger `refunds_within_capture`: a refund can only be written against a captured payment and
+the running total can never exceed what was captured.
 
 ### reviews (M7)
-`(id, job_id, reviewer_id, reviewee_id, rating int check 1..5, comment, created_at)` — unique `(job_id, reviewer_id)`; trigger: job COMPLETED/SETTLED.
+`(id, job_id, reviewer_id, reviewee_id, rating int check 1..5, comment, created_at)` - unique
+`(job_id, reviewer_id)`. Trigger `reviews_require_completion`: the job must be COMPLETED or
+SETTLED and the reviewer must have been on it.
 
 ### disputes / dispute_evidence / strikes (M7)
-disputes `(id, job_id, raised_by, against_user_id, category dispute_category, description, status(OPEN|UNDER_REVIEW|AWAITING_PARTY|RESOLVED|REJECTED|ESCALATED|REOPENED), resolution jsonb, resolved_by, resolved_at, sla_due_at)`; evidence `(id, dispute_id, uploaded_by, media_id, note)`; strikes `(id, user_id, reason, severity, issued_by, expires_at, dispute_id)`.
+disputes `(id, job_id, raised_by, against_user_id, category, description, status(OPEN|UNDER_REVIEW|AWAITING_PARTY|RESOLVED|REJECTED|ESCALATED|REOPENED), resolution, resolution_reason, refund_paise, resolved_by, second_approver_id, resolved_at, reopened_count, sla_due_at)`.
+Unique partial `(job_id)` while the dispute is open. Checks: a resolution needs a 20+ character
+reason, and a partial refund needs an amount. Trigger `disputes_two_person_refund`: a refund over
+Rs 5,000 needs a `second_approver_id` that is **not** the resolver.
+evidence `(id, dispute_id, uploaded_by, media_id, note)` - UPDATE/DELETE revoked;
+strikes `(id, user_id, severity, reason, issued_by, dispute_id, job_id, expires_at)` - also immutable.
 
 ### kyc_records (M7/M8)
 `(id, user_id, document_type, storage_key_encrypted, doc_number_last4, status verification_status, reviewed_by, reviewed_at, rejection_reason, created_at)` — admin-only access; every read is audited.
@@ -210,4 +229,10 @@ disputes `(id, job_id, raised_by, against_user_id, category dispute_category, de
 | One pending counter-offer per offer thread | partial unique on `offers(bid_id) where status='PENDING'` |
 | One live booking payment per job | partial unique on `payments(job_id) where purpose='BOOKING'` and status is live |
 | Webhook replays are a no-op | unique `payment_events.provider_event_id` |
-| Financial rows immutable | revoke UPDATE/DELETE on ledger_entries, audit_logs, job_status_events, payment_events |
+| Financial rows immutable | revoke UPDATE/DELETE on ledger_entries, audit_logs, job_status_events, payment_events, dispute_evidence, strikes |
+| Every money batch sums to zero | `batch_id` + the service's balance check before any write |
+| No payout before completion, or during a dispute | trigger `settlements_require_completion` |
+| No vendor payout without a confirmed order and invoice | trigger `settlements_vendor_needs_invoice` |
+| A refund can never exceed the capture | trigger `refunds_within_capture` |
+| A large refund needs two people | trigger `disputes_two_person_refund` |
+| One open dispute per job | partial unique on `disputes(job_id)` while open |

@@ -49,6 +49,8 @@ export interface PaymentAdapter extends AdapterMeta {
   createOrder(input: { amountPaise: number; currency: 'INR'; receipt: string; notes?: Record<string, string> }): Promise<{ providerOrderId: string }>;
   capture(input: { providerPaymentId: string; amountPaise: number }): Promise<{ ok: boolean }>;
   refund(input: { providerPaymentId: string; amountPaise: number; idempotencyKey: string }): Promise<{ providerRefundId: string }>;
+  /** Money out to a provider or vendor. Separate from refunds: a payout is not a reversal. */
+  payout(input: { amountPaise: number; payeeRef: string; idempotencyKey: string }): Promise<{ transferId: string; ok: boolean; failureReason?: string }>;
   verifyWebhookSignature(rawBody: string, signature: string): boolean;
 }
 
