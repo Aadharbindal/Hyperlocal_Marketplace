@@ -70,8 +70,18 @@ export function createMemoryKycRepo(): KycRepo {
       records.set(rec.id, rec);
       return rec;
     },
+    async get(id) {
+      return records.get(id) ?? null;
+    },
     async listForUser(userId) {
       return [...records.values()].filter((r) => r.user_id === userId).sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+    },
+    async listByStatus(statuses, limit) {
+      // oldest first: the person who has waited longest is reviewed first
+      return [...records.values()]
+        .filter((r) => statuses.includes(r.status))
+        .sort((a, b) => a.created_at.getTime() - b.created_at.getTime())
+        .slice(0, limit);
     },
     async findOpen(userId, documentType) {
       return [...records.values()].find((r) => r.user_id === userId && r.document_type === documentType && OPEN.includes(r.status)) ?? null;

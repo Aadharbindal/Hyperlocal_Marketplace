@@ -2,6 +2,7 @@ import pg from 'pg';
 import { createPostgresBidsRepo, createPostgresKycRepo } from './bids';
 import { createPostgresJobsRepo } from './jobs';
 import { createPostgresExecutionRepo } from './execution';
+import { createPostgresAdminRepo } from './admin';
 import { createPostgresFinanceRepo } from './finance';
 import { createPostgresMaterialsRepo } from './materials';
 import { createPostgresNegotiationRepo, createPostgresPaymentsRepo } from './negotiation';
@@ -187,6 +188,9 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
           [s.user_id, s.refresh_token_hash, s.device_label, s.user_agent, s.ip, s.expires_at, s.revoked_at, s.rotated_from, s.last_used_at],
         ))!;
       },
+      getSession: (id) => one<SessionRecord>('select * from sessions where id = $1', [id]),
+      markSessionMfa: (id, at) =>
+        one<SessionRecord>('update sessions set mfa_verified_at = $2 where id = $1 returning *', [id, at]),
       findSessionByHash: (hash) => one('select * from sessions where refresh_token_hash = $1', [hash]),
       async revokeSession(id) {
         await q.query('update sessions set revoked_at = now() where id = $1 and revoked_at is null', [id]);
@@ -231,6 +235,7 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     execution: createPostgresExecutionRepo(q),
     materials: createPostgresMaterialsRepo(q),
     finance: createPostgresFinanceRepo(q),
+    admin: createPostgresAdminRepo(q),
     payments: createPostgresPaymentsRepo(q),
 
     audit: {

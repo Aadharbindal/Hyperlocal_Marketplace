@@ -4,6 +4,98 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Milestone 8: Admin and support console
+
+**Milestone:** M8 - The console: a second factor, KYC review, people, queues, payouts, reports
+**Date:** 2026-09-23
+**Status:** Complete
+
+**Implemented:**
+- `packages/core` admin rules: a dependency-free TOTP implementation (base32, RFC 6238 dynamic
+  truncation, one step of drift, single-use codes via `lastUsedStep`, `otpauthUri`,
+  `mfaStillValid`) and the review policy (`checkKycReview`, `kycStatusAfter`, `checkSuspension`,
+  `checkAppeal`, `appealReviewerIsDifferent`, `countSlaBreaches`). The TOTP code is verified
+  against the RFC's own test vectors.
+- `supabase/migrations/0008_admin.sql`: `admin_mfa` (encrypted seed, last used step, failure
+  counter, lock), `kyc_access_log` (append-only, UPDATE/DELETE revoked),
+  `sessions.mfa_verified_at`, dispute queue columns, and a trigger that refuses a suspension
+  without two different people and a 20-character reason.
+- `apps/api` admin module: enrolment, enable, verify and status for the second factor; the KYC
+  queue, a logged document-open and the review decision; a person's full record; two-person
+  suspension; dispute queue moves and appeals; payout retry; and the ops report. Every console
+  route goes through one guard that checks staff **and** a second factor no older than 8 hours.
+- The TOTP seed is AES-256-GCM encrypted with the server key and returned in plaintext exactly
+  once, at enrolment. A code cannot be replayed even inside its drift window, and five wrong
+  codes lock the factor for fifteen minutes.
+- `ADMIN_MFA_REQUIRED` controls the requirement. The API refuses to boot in production with it
+  off, and `/ready` reports it so an operator can see at a glance when it is disabled.
+- `apps/mobile`: a console area for staff with three tabs - Disputes (decide, escalate, with the
+  second-approver field appearing exactly when the refund crosses the threshold), Verify (queue,
+  request the document, approve or send back with a reason) and Money (the ops report, the payout
+  run, held payouts with retry). An `MfaGate` wraps every screen and walks an unenrolled admin
+  through setup.
+
+**Changed files:** `packages/core/src/{admin/mfa.ts,admin/review.ts,admin/admin.test.ts,contracts/admin.ts,index.ts}`,
+`supabase/migrations/0008_admin.sql`,
+`apps/api/src/{modules/admin/{service,console}.ts,modules/auth/service.ts,modules/finance/service.ts,config/env.ts,lib/crypto.ts,data/types.ts,data/memory/{index,admin,bids}.ts,data/postgres/{index,admin,bids,finance}.ts,app.ts,test/admin.test.ts}`,
+`apps/mobile/src/{api/admin.ts,features/admin/MfaGate.tsx}`,
+`apps/mobile/app/(admin)/{_layout,queue,verify,money}.tsx`, `apps/mobile/app/_layout.tsx`,
+`.env.example`, docs.
+
+**Database changes:** migration `0008_admin`. `migrate:check` passes with 8 migrations.
+Forward-only: `sessions`, `disputes` and `users` gained columns rather than being redefined.
+
+**API changes:** `POST /admin/mfa/setup|enable|verify`, `GET /admin/mfa`, `GET /admin/kyc`,
+`POST /admin/kyc/:id/open`, `POST /admin/kyc/:id/review`, `GET /admin/users/:id`,
+`POST /admin/users/:id/suspend-approved`, `POST /admin/disputes/:id/move`,
+`POST /disputes/:id/appeal`, `POST /admin/settlements/:id/retry`,
+`GET /admin/reports/overview`. Documented in `API_REFERENCE.md`.
+
+**Tests added / passed:** 13 new API integration tests (`admin.test.ts`) and 15 new core unit
+tests. Totals: **148/148 API**, **122/122 core**. Type check clean in 3/3 workspaces, lint 0
+errors, API bundle + Expo web export build OK, `migrate:check` OK.
+
+**Manual verification completed:** the suite drives the console the way a shift would. An admin
+enrols, is refused with a wrong code, enables the factor, is refused when replaying the enrolment
+code, and succeeds with the next one; five wrong codes lock the factor and the lock is reported
+rather than silently swallowed. A customer gets 403 on every console route including enrolment.
+The KYC queue is checked for what it does *not* contain: the document number `123456789012`
+appears nowhere in the queue payload or in the audit log after a decision, the queue carries no
+document URL, and the phone number is masked. Requesting the document returns a link and writes
+exactly one `kyc_access_log` row naming the reviewer. Approving flips the provider profile from
+unverified to VERIFIED. A suspension is refused with one approver, with the actor as approver,
+against the actor themselves, and with a non-staff approver; with two staff it suspends the
+account and the provider can no longer act. Support sees a masked number on a user record where
+an admin sees the full one.
+
+**Known limitations:** there are no MFA recovery codes, so a lost phone currently needs a
+database fix. The ops report walks the store rather than querying aggregates - fine at pilot
+size, not at scale. An appeal reopens a dispute and clears the assignee, but nothing yet enforces
+that the second reviewer differs from the first. Payout failures park for a human but nobody is
+alerted. Flagged chat messages and held material orders have no console screen yet. Documents are
+not envelope-encrypted and mock storage holds no bytes, so a document link opens nothing in demo
+mode. Full list in `KNOWN_LIMITATIONS.md`.
+
+**Security considerations:** the console is the one place where a person can read identity
+documents, move money and stop someone earning, so it is gated twice: staff role *and* a second
+factor that expires after 8 hours. The factor is real TOTP, verified against the RFC's test
+vectors, with single-use codes and a failure lock. The seed is encrypted at rest and shown once.
+Reading an identity document is not a side effect of loading a list - it is a separate call that
+writes an append-only access log naming the reviewer, and the document number itself is never
+stored, never returned and never written to the audit trail. Suspension needs two different staff
+and a written reason, in code and in a SQL trigger, and the suspended account keeps its balance.
+Nobody may verify their own submission or suspend themselves. Support sees masked numbers where
+an admin sees full ones.
+
+**External integrations mocked or live:** ALL MOCKED - SMS, payment, maps, push, storage,
+telephony, monitoring, analytics. Nothing is live.
+
+**Next milestone:** M9 - Hardening and launch readiness: scheduled jobs (bid and offer expiry,
+settlement runs, gateway reconciliation), realtime instead of polling, the security pass against
+`SECURITY_CHECKLIST.md`, load and failure testing, and the final documentation sweep.
+
+---
+
 ## Milestone 7: Payments, settlement and disputes
 
 **Milestone:** M7 - Capture, the ledger, settlements, refunds, disputes and reviews

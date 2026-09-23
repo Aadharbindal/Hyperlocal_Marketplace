@@ -88,10 +88,12 @@ export function createPostgresFinanceRepo(q: Queryable): FinanceRepo {
     async createDispute(d) {
       return (await one<DisputeRecord>(
         `insert into disputes (job_id, raised_by, against_user_id, category, description, status, resolution,
-           resolution_reason, refund_paise, resolved_by, second_approver_id, resolved_at, reopened_count, sla_due_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning *`,
+           resolution_reason, refund_paise, resolved_by, second_approver_id, resolved_at, reopened_count, sla_due_at,
+           assigned_to, queue_note)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) returning *`,
         [d.job_id, d.raised_by, d.against_user_id, d.category, d.description, d.status, d.resolution,
-          d.resolution_reason, d.refund_paise, d.resolved_by, d.second_approver_id, d.resolved_at, d.reopened_count, d.sla_due_at],
+          d.resolution_reason, d.refund_paise, d.resolved_by, d.second_approver_id, d.resolved_at, d.reopened_count,
+          d.sla_due_at, d.assigned_to, d.queue_note],
       ))!;
     },
     getDispute: (id) => one<DisputeRecord>('select * from disputes where id = $1', [id]),

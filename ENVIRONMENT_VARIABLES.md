@@ -20,6 +20,7 @@ values and, in `production`, refuses `mock` adapters for SMS and payments unless
 | `API_JWT_ISSUER` | hyperlocal-api | JWT issuer claim |
 | `API_ACCESS_TOKEN_TTL_SECONDS` | 3600 | access token lifetime |
 | `API_REFRESH_TOKEN_TTL_SECONDS` | 2592000 | refresh token lifetime (30 d) |
+| `ADMIN_MFA_REQUIRED` | false | second factor for the support console. **Boot fails in production if this is false**; the TOTP seed is encrypted with `API_JWT_SECRET` |
 | `API_CORS_ORIGINS` | localhost dev origins | comma-separated |
 | `API_LOG_LEVEL` | info | pino level |
 | `DATA_MODE` | memory | `memory` (demo/tests) or `postgres` |

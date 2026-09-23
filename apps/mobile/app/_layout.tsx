@@ -51,12 +51,21 @@ function AuthGate() {
       return;
     }
     const target =
-      activeRole === 'VENDOR'
-        ? '(vendor)'
-        : activeRole === 'PROVIDER' || activeRole === 'CONTRACTOR' || activeRole === 'TECHNICIAN'
-          ? '(provider)'
-          : '(customer)';
-    const home = target === '(vendor)' ? '/(vendor)/requests' : target === '(provider)' ? '/(provider)/jobs' : '/(customer)/home';
+      activeRole === 'ADMIN' || activeRole === 'SUPPORT'
+        ? '(admin)'
+        : activeRole === 'VENDOR'
+          ? '(vendor)'
+          : activeRole === 'PROVIDER' || activeRole === 'CONTRACTOR' || activeRole === 'TECHNICIAN'
+            ? '(provider)'
+            : '(customer)';
+    const home =
+      target === '(admin)'
+        ? '/(admin)/queue'
+        : target === '(vendor)'
+          ? '/(vendor)/requests'
+          : target === '(provider)'
+            ? '/(provider)/jobs'
+            : '/(customer)/home';
     if (group !== target) router.replace(home as never);
   }, [hydrated, token, user, activeRole, segments, router]);
 

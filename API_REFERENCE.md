@@ -253,5 +253,53 @@ Errors: `VALIDATION_ERROR` with `details.finance` - `JOB_NOT_COMPLETED`, `NOTHIN
 batch would ever fail to sum to zero; 403 for anyone not on the job and for non-support callers
 on `/admin/*`.
 
+## Milestone 8 (implemented)
+
+### Console sign-in (second factor)
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/admin/mfa/setup` | ADMIN, SUPPORT | Starts enrolment. The TOTP secret is returned **exactly once**, here; afterwards only its encrypted form exists *audited* |
+| POST | `/admin/mfa/enable` | ADMIN, SUPPORT | `{ code }` proves the authenticator works before the factor is switched on *audited* |
+| POST | `/admin/mfa/verify` | ADMIN, SUPPORT | `{ code }` marks **this session** as satisfied for 8 hours. A code can never be replayed, and five wrong ones lock the factor for 15 minutes |
+| GET | `/admin/mfa` | ADMIN, SUPPORT | Whether the account is enrolled, whether this session is verified, and whether the factor is required at all |
+
+Every other console route below is refused unless the caller is staff **and** their session
+satisfied the factor within the last 8 hours. `ADMIN_MFA_REQUIRED` gates the requirement; the API
+refuses to boot in production with it off, and `/ready` reports it.
+
+### Verification queue
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/admin/kyc?limit=` | staff + MFA | Submissions nobody has decided, **longest wait first**. Carries the document *type* and its last four characters only - never the number, never the file |
+| POST | `/admin/kyc/:id/open` | staff + MFA | Issues a 5-minute signed link to the document and writes a `kyc_access_log` row naming the reviewer. Opening a document is a separate, recorded act *audited* |
+| POST | `/admin/kyc/:id/review` | staff + MFA | `{ decision: APPROVE / REJECT / NEEDS_MORE, reason? }`. Anything but an approval needs a usable reason. Approving flips the provider, technician or vendor profile to VERIFIED, which is what actually lets someone work. Nobody may review their own submission *audited* |
+
+### People
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/admin/users/:id` | staff + MFA | One person: roles, verification, reliability, strikes and what they are still owed. Support sees a masked number, an admin sees the whole one *audited* |
+| POST | `/admin/users/:id/suspend-approved` | staff + MFA | `{ reason (20+ chars), secondApproverId, untilIso? }`. **Two different staff** are required, the approver must be staff, nobody may suspend themselves, and every session of theirs is revoked. What they have already earned stays theirs *audited* |
+
+### Dispute queue and appeals
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/admin/disputes/:id/move` | staff + MFA | `{ to: UNDER_REVIEW / AWAITING_PARTY / ESCALATED, note? }`; assigns it to the caller *audited* |
+| POST | `/disputes/:id/appeal` | either party | `{ reason (20+ chars) }`. One appeal per dispute, within 7 days of the decision; reopens it and clears the assignee so a different person picks it up *audited* |
+
+### Payouts and reports
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/admin/settlements/:id/retry` | staff + MFA | Puts a failed or held payout back in the queue. Refused while a dispute is open, or once it is already paid *audited* |
+| GET | `/admin/reports/overview` | staff + MFA | Jobs by status, charged, refunded, platform fee, payouts owed and paid, open disputes, disputes past SLA, KYC waiting |
+
+Errors: `VALIDATION_ERROR` with `details.admin` - `MFA_ALREADY_ENROLLED`, `MFA_NOT_STARTED`,
+`MFA_NOT_ENROLLED`, `MFA_LOCKED` (with `details.until`), `WRONG_CODE` (with
+`details.attemptsLeft`), `CODE_REUSED`, `CANNOT_REVIEW_OWN`, `ALREADY_DECIDED`,
+`REASON_REQUIRED`, `CANNOT_SUSPEND_SELF`, `SECOND_APPROVER_REQUIRED`,
+`SECOND_APPROVER_MUST_DIFFER`, `SECOND_APPROVER_NOT_STAFF`, `NOT_ON_DISPUTE`, `NOT_RESOLVED`,
+`ALREADY_REOPENED`, `APPEAL_WINDOW_CLOSED`, `ALREADY_PAID`, `DISPUTE_OPEN`; 403 with
+`details.reason` of `mfa_enrolment_required` or `mfa_verification_required` when the second
+factor is missing or stale, and for any non-staff caller.
+
 ## Planned (by milestone)
-- **M8** `GET /admin/disputes`, `POST /admin/disputes/:id/resolve`, KYC review, reports, overrides
+- **M9** hardening: scheduled jobs (bid/offer expiry, settlement runs, reconciliation), realtime, rate-limit sweeps and the load pass

@@ -62,6 +62,9 @@ export function createPostgresKycRepo(q: Queryable): KycRepo {
         [k.user_id, k.document_type, k.storage_key_encrypted, k.doc_number_last4, k.status],
       ))!;
     },
+    get: (id) => one<KycRecord>('select * from kyc_records where id = $1', [id]),
+    listByStatus: (statuses, limit) =>
+      many<KycRecord>('select * from kyc_records where status = any($1) order by created_at limit $2', [statuses, limit]),
     listForUser: (userId) => many<KycRecord>('select * from kyc_records where user_id = $1 order by created_at desc', [userId]),
     findOpen: (userId, documentType) =>
       one<KycRecord>(

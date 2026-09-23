@@ -8,14 +8,14 @@ Status: `[x]` implemented · `[~]` partial · `[ ]` planned (milestone in bracke
 - [x] JWT access token (HS256, 1 h) + rotating refresh token (hash stored, 30 d) [M1]
 - [x] Session revocation (single + all) [M1]
 - [x] Suspended users rejected at auth time and on every request [M1]
-- [ ] Admin MFA (TOTP) [M8]
+- [x] Admin MFA (TOTP): enrolment, single-use codes, 8-hour session freshness, 5-failure lock; `ADMIN_MFA_REQUIRED` and the API refuses to boot in production without it [M8]
 - [ ] Login abuse detection (new device / impossible travel) [M9]
 
 ## Authorization
 - [x] Role-based route guards; explicit role list per route [M1]
 - [x] Resource ownership checks via `core/permissions` [M1, extended per module]
 - [ ] Row-level security policies on every table [M1 SQL, extended per migration]
-- [ ] Two-person approval for high-risk admin actions (refund > threshold, suspension) [M8]
+- [x] Two-person approval for high-risk admin actions: refunds over Rs 5,000 [M7] and every suspension [M8], enforced in code and by SQL trigger, with the approver required to be staff and not the actor
 
 ## Input & API
 - [x] zod validation on params/query/body; unknown keys stripped [M1]
@@ -27,7 +27,7 @@ Status: `[x]` implemented · `[~]` partial · `[ ]` planned (milestone in bracke
 
 ## Data protection
 - [x] Money as integer paise [M1]
-- [~] KYC: only the last four characters of a document number are stored, never the number itself; submissions are audited without the number [M3]. Envelope encryption of the file and admin-only signed URLs still to come [M8]
+- [~] KYC: only the last four characters of a document number are stored, never the number itself; submissions are audited without the number [M3]. Reviewer access is now a separate, logged act with a 5-minute signed URL and an append-only `kyc_access_log` [M8]. Envelope encryption of the file itself still to come [M9]
 - [x] No secrets in mobile bundle (`EXPO_PUBLIC_*` only) [M1]
 - [x] Secrets via env; `.env` gitignored; `.env.example` placeholders only [M0]
 - [x] No phone numbers/OTP codes in logs (redaction in logger) [M1]

@@ -46,6 +46,8 @@ export function authService(d: AuthDeps) {
       revoked_at: null,
       rotated_from: meta.rotatedFrom ?? null,
       last_used_at: null,
+      // A new session starts without a second factor, even for an admin rotating their token.
+      mfa_verified_at: null,
     });
     const accessToken = await d.tokens.signAccess({ sub: user.id, roles: activeRoles, sid: session.id });
     return {
@@ -183,6 +185,7 @@ export function authService(d: AuthDeps) {
       revoked_at: null,
       rotated_from: null,
       last_used_at: null,
+      mfa_verified_at: null,
     });
     const accessToken = await d.tokens.signAccess({ sub: user.id, roles: activeRoles, sid: session.id });
     return { accessToken, refreshToken, expiresIn: env.API_ACCESS_TOKEN_TTL_SECONDS, tokenType: 'Bearer' as const, user: toUserView(user, roles) };

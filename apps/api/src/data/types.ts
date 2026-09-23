@@ -77,6 +77,8 @@ export interface SessionRecord {
   revoked_at: Date | null;
   rotated_from: string | null;
   last_used_at: Date | null;
+  /** When this session last satisfied a second factor (admin routes check its age). */
+  mfa_verified_at: Date | null;
   created_at: Date;
 }
 
@@ -631,6 +633,8 @@ export interface DisputeRecord {
   resolved_at: Date | null;
   reopened_count: number;
   sla_due_at: Date;
+  assigned_to: string | null;
+  queue_note: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -680,6 +684,26 @@ export interface SupportTicketRecord {
   closed_at: Date | null;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface AdminMfaRecord {
+  user_id: string;
+  secret_encrypted: string;
+  enabled_at: Date | null;
+  last_used_step: number | null;
+  failed_attempts: number;
+  locked_until: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface KycAccessLogRecord {
+  id: string;
+  kyc_record_id: string;
+  viewed_by: string;
+  purpose: string;
+  ip: string | null;
+  created_at: Date;
 }
 
 export interface IdempotencyRecord {
@@ -737,6 +761,9 @@ export interface AuthRepo {
 
   createSession(s: New<SessionRecord>): Promise<SessionRecord>;
   findSessionByHash(hash: string): Promise<SessionRecord | null>;
+  getSession(id: string): Promise<SessionRecord | null>;
+  /** Stamps the moment this session satisfied a second factor. */
+  markSessionMfa(id: string, at: Date): Promise<SessionRecord | null>;
   revokeSession(id: string): Promise<void>;
   revokeAllSessions(userId: string): Promise<number>;
   touchSession(id: string): Promise<void>;
@@ -802,6 +829,9 @@ export interface BidsRepo {
 
 export interface KycRepo {
   submit(k: New<KycRecord>): Promise<KycRecord>;
+  get(id: string): Promise<KycRecord | null>;
+  /** The review queue: submissions nobody has decided yet, oldest first. */
+  listByStatus(statuses: VerificationStatus[], limit: number): Promise<KycRecord[]>;
   listForUser(userId: string): Promise<KycRecord[]>;
   findOpen(userId: string, documentType: string): Promise<KycRecord | null>;
   update(id: string, patch: Partial<KycRecord>): Promise<KycRecord>;
@@ -925,6 +955,15 @@ export interface FinanceRepo {
   updateTicket(id: string, patch: Partial<SupportTicketRecord>): Promise<SupportTicketRecord>;
 }
 
+export interface AdminRepo {
+  getMfa(userId: string): Promise<AdminMfaRecord | null>;
+  upsertMfa(m: AdminMfaRecord): Promise<AdminMfaRecord>;
+  updateMfa(userId: string, patch: Partial<AdminMfaRecord>): Promise<AdminMfaRecord>;
+
+  logKycAccess(entry: New<KycAccessLogRecord>): Promise<KycAccessLogRecord>;
+  listKycAccess(kycRecordId: string, limit: number): Promise<KycAccessLogRecord[]>;
+}
+
 export interface IdempotencyRepo {
   get(key: string, userId: string): Promise<IdempotencyRecord | null>;
   put(rec: IdempotencyRecord): Promise<void>;
@@ -943,6 +982,7 @@ export interface DataStore {
   execution: ExecutionRepo;
   materials: MaterialsRepo;
   finance: FinanceRepo;
+  admin: AdminRepo;
   payments: PaymentsRepo;
   audit: AuditRepo;
   notifications: NotificationsRepo;

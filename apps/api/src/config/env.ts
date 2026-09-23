@@ -40,6 +40,8 @@ const EnvSchema = z.object({
   PAYMENT_KEY_ID: z.string().optional(),
   PAYMENT_KEY_SECRET: z.string().optional(),
   PAYMENT_WEBHOOK_SECRET: z.string().optional(),
+  /** Admin MFA is mandatory in production; it can be turned off for a local demo. */
+  ADMIN_MFA_REQUIRED: z.coerce.boolean().default(false),
   MAPS_PROVIDER: Provider(['mock', 'google', 'mapbox']),
   MAPS_API_KEY: z.string().optional(),
   PUSH_PROVIDER: Provider(['mock', 'expo', 'fcm']),
@@ -84,6 +86,8 @@ export function loadEnv(overrides: Partial<Record<keyof Env, string>> = {}): Env
     const mocked = (['SMS_PROVIDER', 'PAYMENT_PROVIDER'] as const).filter((k) => env[k] === 'mock');
     if (mocked.length) throw new Error(`Refusing to start in production with mock adapters: ${mocked.join(', ')}`);
     if (env.DATA_MODE !== 'postgres') throw new Error('DATA_MODE must be postgres in production');
+    // The console can see identity documents and move money; a second factor is not optional.
+    if (!env.ADMIN_MFA_REQUIRED) throw new Error('ADMIN_MFA_REQUIRED must be true in production');
   }
   if (env.DATA_MODE === 'postgres' && !env.DATABASE_URL) {
     throw new Error('DATABASE_URL is required when DATA_MODE=postgres');

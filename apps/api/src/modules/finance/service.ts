@@ -510,6 +510,8 @@ export function financeService(d: FinanceDeps) {
         resolved_at: null,
         reopened_count: 0,
         sla_due_at: new Date(Date.now() + slaHours * 3600_000),
+        assigned_to: null,
+        queue_note: null,
       });
 
       for (const mediaId of input.mediaIds ?? []) {

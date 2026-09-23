@@ -9,7 +9,9 @@ import { seedDemo } from './data/seed';
 import { newId } from './lib/crypto';
 import { AppError } from './lib/errors';
 import { createLogger } from './lib/logger';
+import { adminConsoleRoutes } from './modules/admin/console';
 import { adminRoutes } from './modules/admin/routes';
+import { adminService, type AdminService } from './modules/admin/service';
 import { addressRoutes } from './modules/addresses/routes';
 import { authRoutes } from './modules/auth/routes';
 import { authService, type AuthService } from './modules/auth/service';
@@ -44,6 +46,7 @@ export interface AppContext {
     execution: ExecutionService;
     materials: MaterialsService;
     finance: FinanceService;
+    admin: AdminService;
   };
 }
 
@@ -72,6 +75,7 @@ export async function buildApp(opts: BuildOptions = {}) {
   const jobs = jobService({ env, store, adapters });
   const provider = providerService({ env, store, adapters });
   const finance = financeService({ env, store, adapters, jobs });
+  const adminSvc = adminService({ env, store, adapters });
   // Capture, settlement and refunds live in one place: the other modules hand the money
   // moment over rather than touching payments themselves.
   const execution = executionService({
@@ -101,7 +105,7 @@ export async function buildApp(opts: BuildOptions = {}) {
       }
     },
   });
-  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs, provider, negotiation, execution, materials, finance } };
+  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs, provider, negotiation, execution, materials, finance, admin: adminSvc } };
 
   if (opts.seed ?? (env.DATA_MODE === 'memory' && env.APP_ENV !== 'test')) {
     await seedDemo(store, env);
@@ -208,6 +212,8 @@ export async function buildApp(opts: BuildOptions = {}) {
       db,
       adapters: adapterStatus,
       mockedAdapters: adapterStatus.filter((a) => a.isMock).map((a) => a.name),
+      // An operator should be able to see at a glance that the console's second factor is off.
+      adminMfaRequired: env.ADMIN_MFA_REQUIRED,
     });
   });
 
@@ -223,6 +229,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     await materialRoutes(scope, ctx);
     await financeRoutes(scope, ctx);
     await adminRoutes(scope, ctx);
+    await adminConsoleRoutes(scope, ctx);
   });
 
   app.addHook('onClose', async () => {

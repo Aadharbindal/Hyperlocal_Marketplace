@@ -20,6 +20,7 @@ PostgreSQL 15 (Supabase). Conventions:
 | `0004_negotiation` | M4 | offers, booking_quotes, job_assignments, payments, payment_events (+ verified-technician trigger, single-winner partial uniques) |
 | `0005_execution` | M5 | start_otps, price_revision_requests, job_completions, chat_threads, chat_messages (+ revision-actor, chat-sender and message-immutability triggers) |
 | `0006_materials` | M6 | material_requests, material_quotes, material_orders (+ requester, vendor-verified and invoice-match triggers) |
+| `0008_admin` | M8 | admin_mfa, kyc_access_log (+ sessions.mfa_verified_at, dispute queue columns, the two-person suspension trigger) |
 | `0007_finance` | M7 | ledger_entries, settlements, refunds, disputes, dispute_evidence, strikes, reviews, support_tickets (+ payment_status gains RELEASED, and the completion, invoice, refund-cap, two-person and review triggers) |
 
 ## Tables
@@ -201,6 +202,21 @@ strikes `(id, user_id, severity, reason, issued_by, dispute_id, job_id, expires_
 ### kyc_records (M7/M8)
 `(id, user_id, document_type, storage_key_encrypted, doc_number_last4, status verification_status, reviewed_by, reviewed_at, rejection_reason, created_at)` — admin-only access; every read is audited.
 
+### admin_mfa (M8)
+`(user_id pk, secret_encrypted, enabled_at, last_used_step, failed_attempts, locked_until)`.
+The TOTP seed is AES-256-GCM encrypted with the server key and returned in plaintext exactly
+once, at enrolment. `last_used_step` is what makes a code single-use: a code from a step at or
+before it is refused even if it is still inside the drift window.
+
+### kyc_access_log (M8, append-only)
+`(id, kyc_record_id, viewed_by, purpose, ip, created_at)`. Written every time a reviewer asks
+for a document. UPDATE and DELETE are revoked: this log is the evidence that access was
+legitimate.
+
+### sessions (M8 addition)
+`mfa_verified_at timestamptz` - when this session last satisfied a second factor. Console routes
+check its age (8 hours) rather than trusting a role claim alone.
+
 ### support_tickets (M7)
 `(id, opened_by, job_id, category, subject, body, status, assigned_to, priority, closed_at)`.
 
@@ -236,3 +252,6 @@ strikes `(id, user_id, severity, reason, issued_by, dispute_id, job_id, expires_
 | A refund can never exceed the capture | trigger `refunds_within_capture` |
 | A large refund needs two people | trigger `disputes_two_person_refund` |
 | One open dispute per job | partial unique on `disputes(job_id)` while open |
+| A suspension needs two different people | trigger `users_suspension_needs_two` |
+| A suspension must carry a reason | same trigger, 20 character minimum |
+| Identity-document access is never silent | `kyc_access_log`, UPDATE/DELETE revoked |

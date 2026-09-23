@@ -4,6 +4,7 @@ import { CATEGORY_SEED, SKILL_SEED } from '../catalog';
 import { createMemoryBidsRepo, createMemoryKycRepo } from './bids';
 import { createMemoryJobsRepo } from './jobs';
 import { createMemoryExecutionRepo } from './execution';
+import { createMemoryAdminRepo } from './admin';
 import { createMemoryFinanceRepo } from './finance';
 import { createMemoryMaterialsRepo } from './materials';
 import { createMemoryNegotiationRepo, createMemoryPaymentsRepo } from './negotiation';
@@ -55,6 +56,7 @@ export function createMemoryStore(): DataStore {
   const executionRepo = createMemoryExecutionRepo();
   const materialsRepo = createMemoryMaterialsRepo();
   const financeRepo = createMemoryFinanceRepo();
+  const adminRepo = createMemoryAdminRepo();
   const paymentsRepo = createMemoryPaymentsRepo();
 
   // Serialise "transactions" with a simple promise chain so concurrent acceptances cannot interleave.
@@ -230,6 +232,16 @@ export function createMemoryStore(): DataStore {
         for (const s of sessions.values()) if (s.refresh_token_hash === hash) return s;
         return null;
       },
+      async getSession(id) {
+        return sessions.get(id) ?? null;
+      },
+      async markSessionMfa(id, at) {
+        const s = sessions.get(id);
+        if (!s) return null;
+        const next = { ...s, mfa_verified_at: at };
+        sessions.set(id, next);
+        return next;
+      },
       async revokeSession(id) {
         const s = sessions.get(id);
         if (s && !s.revoked_at) s.revoked_at = now();
@@ -290,6 +302,7 @@ export function createMemoryStore(): DataStore {
     execution: executionRepo,
     materials: materialsRepo,
     finance: financeRepo,
+    admin: adminRepo,
     payments: paymentsRepo,
 
     audit: {
