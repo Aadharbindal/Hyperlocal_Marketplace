@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { createPostgresBidsRepo, createPostgresKycRepo } from './bids';
 import { createPostgresJobsRepo } from './jobs';
+import { createPostgresExecutionRepo } from './execution';
 import { createPostgresNegotiationRepo, createPostgresPaymentsRepo } from './negotiation';
 import type {
   AddressRecord,
@@ -98,6 +99,19 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
         );
         return p;
       },
+      getTechnicianProfile: (id) => one('select * from technician_profiles where user_id = $1', [id]),
+      async upsertTechnicianProfile(p) {
+        await q.query(
+          `insert into technician_profiles (user_id, contractor_id, full_name, verification_status, skills, active)
+           values ($1,$2,$3,$4,$5,$6)
+           on conflict (user_id) do update set contractor_id = excluded.contractor_id, full_name = excluded.full_name,
+             verification_status = excluded.verification_status, skills = excluded.skills, active = excluded.active`,
+          [p.user_id, p.contractor_id, p.full_name, p.verification_status, p.skills, p.active],
+        );
+        return p;
+      },
+      listTechniciansFor: (contractorId) =>
+        many('select * from technician_profiles where contractor_id = $1 and active order by full_name', [contractorId]),
       getContractorProfile: (id) => one('select * from contractor_profiles where user_id = $1', [id]),
       async upsertContractorProfile(p) {
         await q.query(
@@ -212,6 +226,7 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     bids: createPostgresBidsRepo(q),
     kyc: createPostgresKycRepo(q),
     negotiation: createPostgresNegotiationRepo(q),
+    execution: createPostgresExecutionRepo(q),
     payments: createPostgresPaymentsRepo(q),
 
     audit: {

@@ -75,6 +75,18 @@ export async function seedDemo(store: DataStore, env: Env): Promise<void> {
         suspended_until: null,
       });
     }
+    if (acc.roles.includes('TECHNICIAN') && !(await store.users.getTechnicianProfile(user.id))) {
+      // Ravi works for the demo plumbing provider, so the technician handoff is demoable.
+      const employer = await store.users.findByPhone('+919000000002');
+      await store.users.upsertTechnicianProfile({
+        user_id: user.id,
+        contractor_id: employer?.id ?? user.id,
+        full_name: acc.name,
+        verification_status: 'VERIFIED',
+        skills: [],
+        active: true,
+      });
+    }
     if (acc.roles.includes('CONTRACTOR') && !(await store.users.getContractorProfile(user.id))) {
       await store.users.upsertContractorProfile({
         user_id: user.id,

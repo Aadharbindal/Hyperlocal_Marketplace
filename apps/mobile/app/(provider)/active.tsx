@@ -7,10 +7,23 @@ import { ApiError } from '@/api/client';
 import { useOfferChain } from '@/api/negotiation';
 import { useMyBids, useWithdrawBid, type ProviderBidItem } from '@/api/provider';
 import { CounterOfferCard } from '@/features/provider/CounterOfferCard';
+import { JobRunner } from '@/features/provider/JobRunner';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
 import { RealisticIcon } from '@/ui/RealisticIcon';
+
+/** The statuses in which the provider actually has work in hand. */
+const RUNNING: JobStatus[] = [
+  'PROVIDER_ASSIGNED',
+  'EN_ROUTE',
+  'ARRIVED',
+  'STARTED',
+  'IN_PROGRESS',
+  'PRICE_REVISION_PENDING',
+  'COMPLETION_PENDING',
+  'CUSTOMER_APPROVAL_PENDING',
+];
 
 const STATUS_TONE: Record<string, 'primary' | 'success' | 'neutral' | 'danger'> = {
   ACTIVE: 'primary',
@@ -28,7 +41,9 @@ export default function ProviderActiveScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const live = bids.data?.items.filter((b) => b.status === 'ACTIVE') ?? [];
-  const closed = bids.data?.items.filter((b) => b.status !== 'ACTIVE') ?? [];
+  // A won job is no longer an offer to chase - it is work to run.
+  const running = bids.data?.items.filter((b) => b.status === 'ACCEPTED' && RUNNING.includes(b.job.status as JobStatus)) ?? [];
+  const closed = bids.data?.items.filter((b) => b.status !== 'ACTIVE' && !running.includes(b)) ?? [];
 
   async function onWithdraw(bidId: string) {
     setError(null);
@@ -65,6 +80,20 @@ export default function ProviderActiveScreen() {
             <Text variant="caption" tone="danger" center style={styles.error}>
               {error}
             </Text>
+          )}
+          {running.length > 0 && (
+            <>
+              <Text weight="semibold" style={styles.section}>
+                Working now
+              </Text>
+              <View style={styles.list}>
+                {running.map((b, i) => (
+                  <Animated.View key={b.id} entering={FadeInDown.delay(i * 60).duration(360)}>
+                    <JobRunner jobId={b.job.id} status={b.job.status as JobStatus} categoryName={b.job.categoryName} />
+                  </Animated.View>
+                ))}
+              </View>
+            </>
           )}
           {live.length > 0 && (
             <>

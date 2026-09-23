@@ -24,3 +24,14 @@ export function safeEqualHex(a: string, b: string): boolean {
   if (ba.length !== bb.length) return false;
   return timingSafeEqual(ba, bb);
 }
+
+/**
+ * A job's start code. Derived from the server secret plus the code record's id, so the
+ * plaintext never has to be stored and the customer's app can be shown it again on demand,
+ * while a database dump alone reveals nothing.
+ */
+export function deriveOtpDigits(secret: string, scope: string, length: number): string {
+  const digest = createHmac('sha256', secret).update(scope).digest();
+  const n = digest.readUInt32BE(0) % 10 ** length;
+  return String(n).padStart(length, '0');
+}

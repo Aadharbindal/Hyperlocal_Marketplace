@@ -322,6 +322,15 @@ export interface KycRecord {
   updated_at: Date;
 }
 
+export interface TechnicianProfileRecord {
+  user_id: string;
+  contractor_id: string;
+  full_name: string | null;
+  verification_status: VerificationStatus;
+  skills: string[];
+  active: boolean;
+}
+
 export interface OfferRecord {
   id: string;
   job_id: string;
@@ -414,6 +423,81 @@ export interface PaymentEventRecord {
   created_at: Date;
 }
 
+export interface StartOtpRecord {
+  id: string;
+  job_id: string;
+  code_hash: string;
+  attempts: number;
+  max_attempts: number;
+  expires_at: Date;
+  verified_at: Date | null;
+  verified_by: string | null;
+  overridden_by: string | null;
+  override_reason: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export type PriceRevisionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CLARIFICATION' | 'CANCELLED' | 'SUPPORT';
+
+export interface PriceRevisionRecord {
+  id: string;
+  job_id: string;
+  quote_id: string;
+  requested_by: string;
+  reason: string;
+  extra_labour_paise: number;
+  extra_material_paise: number;
+  extra_time_minutes: number;
+  original_total_paise: number;
+  revised_total_paise: number;
+  explanation: string;
+  media_ids: string[];
+  status: PriceRevisionStatus;
+  responded_by: string | null;
+  responded_at: Date | null;
+  response_message: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CompletionRecord {
+  id: string;
+  job_id: string;
+  submitted_by: string;
+  summary: string;
+  warranty_note: string | null;
+  media_ids: string[];
+  submitted_at: Date;
+  approved_by: string | null;
+  approved_at: Date | null;
+  rejection_reason: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ChatThreadRecord {
+  id: string;
+  job_id: string;
+  participant_ids: string[];
+  closed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ChatMessageRecord {
+  id: string;
+  thread_id: string;
+  sender_id: string;
+  sender_party: 'CUSTOMER' | 'PROVIDER' | 'TECHNICIAN' | 'SUPPORT';
+  body: string;
+  media_id: string | null;
+  flagged: boolean;
+  flag_reason: string | null;
+  read_at: Date | null;
+  created_at: Date;
+}
+
 export interface IdempotencyRecord {
   key: string;
   user_id: string;
@@ -443,6 +527,9 @@ export interface UsersRepo {
   getCustomerProfile(userId: string): Promise<CustomerProfileRecord | null>;
   upsertCustomerProfile(p: CustomerProfileRecord): Promise<CustomerProfileRecord>;
   getProviderProfile(userId: string): Promise<ProviderProfileRecord | null>;
+  getTechnicianProfile(userId: string): Promise<TechnicianProfileRecord | null>;
+  upsertTechnicianProfile(p: TechnicianProfileRecord): Promise<TechnicianProfileRecord>;
+  listTechniciansFor(contractorId: string): Promise<TechnicianProfileRecord[]>;
   upsertProviderProfile(p: ProviderProfileRecord): Promise<ProviderProfileRecord>;
   getContractorProfile(userId: string): Promise<ContractorProfileRecord | null>;
   upsertContractorProfile(p: ContractorProfileRecord): Promise<ContractorProfileRecord>;
@@ -567,6 +654,30 @@ export interface PaymentsRepo {
   recordEvent(e: New<PaymentEventRecord>): Promise<PaymentEventRecord | null>;
 }
 
+export interface ExecutionRepo {
+  createStartOtp(o: Omit<New<StartOtpRecord>, 'updated_at'>): Promise<StartOtpRecord>;
+  getStartOtp(jobId: string): Promise<StartOtpRecord | null>;
+  updateStartOtp(id: string, patch: Partial<StartOtpRecord>): Promise<StartOtpRecord>;
+
+  createRevision(r: New<PriceRevisionRecord>): Promise<PriceRevisionRecord>;
+  getRevision(id: string): Promise<PriceRevisionRecord | null>;
+  updateRevision(id: string, patch: Partial<PriceRevisionRecord>): Promise<PriceRevisionRecord>;
+  listRevisions(jobId: string): Promise<PriceRevisionRecord[]>;
+  findOpenRevision(jobId: string): Promise<PriceRevisionRecord | null>;
+
+  createCompletion(c: Omit<New<CompletionRecord>, 'submitted_at'>): Promise<CompletionRecord>;
+  updateCompletion(id: string, patch: Partial<CompletionRecord>): Promise<CompletionRecord>;
+  latestCompletion(jobId: string): Promise<CompletionRecord | null>;
+
+  ensureThread(jobId: string, participantIds: string[]): Promise<ChatThreadRecord>;
+  getThread(jobId: string): Promise<ChatThreadRecord | null>;
+  updateThread(id: string, patch: Partial<ChatThreadRecord>): Promise<ChatThreadRecord>;
+  addMessage(m: New<ChatMessageRecord>): Promise<ChatMessageRecord>;
+  listMessages(threadId: string, limit: number): Promise<ChatMessageRecord[]>;
+  markRead(threadId: string, readerId: string): Promise<number>;
+  unreadCount(threadId: string, readerId: string): Promise<number>;
+}
+
 export interface IdempotencyRepo {
   get(key: string, userId: string): Promise<IdempotencyRecord | null>;
   put(rec: IdempotencyRecord): Promise<void>;
@@ -582,6 +693,7 @@ export interface DataStore {
   bids: BidsRepo;
   kyc: KycRepo;
   negotiation: NegotiationRepo;
+  execution: ExecutionRepo;
   payments: PaymentsRepo;
   audit: AuditRepo;
   notifications: NotificationsRepo;

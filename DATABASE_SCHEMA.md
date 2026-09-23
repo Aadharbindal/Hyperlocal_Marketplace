@@ -18,7 +18,7 @@ PostgreSQL 15 (Supabase). Conventions:
 | `0002_jobs` | M2 | jobs, job_media, job_status_events (+ enums, submission and media-phase triggers) |
 | `0003_bidding` | M3 | kyc_records, bids, bid_revisions (+ eligibility and open-job triggers) |
 | `0004_negotiation` | M4 | offers, booking_quotes, job_assignments, payments, payment_events (+ verified-technician trigger, single-winner partial uniques) |
-| `0005_execution` | M5 | start_otps, price_revision_requests, chat_threads, chat_messages |
+| `0005_execution` | M5 | start_otps, price_revision_requests, job_completions, chat_threads, chat_messages (+ revision-actor, chat-sender and message-immutability triggers) |
 | `0006_materials` | M6 | material_requests, material_quotes, material_orders |
 | `0007_finance` | M7 | ledger_entries, settlements, refunds, disputes, dispute_evidence, strikes, support_tickets, reviews |
 
@@ -120,13 +120,28 @@ Unique partial `(job_id) where status='ACTIVE'`.
 Unique partial `(job_id) where status='ACTIVE'`. Trigger: technician must be VERIFIED.
 
 ### start_otps (M5)
-`(id, job_id fk unique, code_hash, attempts, max_attempts 5, verified_at, verified_by, overridden_by, override_reason, created_at)`.
+`(id, job_id fk unique, code_hash, attempts, max_attempts 5, expires_at, verified_at, verified_by, overridden_by, override_reason, created_at)`.
+Only the HMAC is stored; the four digits are re-derived from the server secret and this row's id,
+so a database dump alone never yields a working code. Check: an override must carry a reason of at
+least 10 characters.
 
 ### price_revision_requests (M5)
-`(id, job_id fk, requested_by, reason, extra_labour_paise, extra_material_paise, extra_time_minutes, revised_total_paise, explanation, status(PENDING|APPROVED|REJECTED|CLARIFICATION|CANCELLED|SUPPORT), responded_by, responded_at, created_at)`.
+`(id, job_id fk, quote_id fk, requested_by, reason, extra_labour_paise, extra_material_paise, extra_time_minutes, original_total_paise, revised_total_paise, explanation, media_ids uuid[], status(PENDING|APPROVED|REJECTED|CLARIFICATION|CANCELLED|SUPPORT), responded_by, responded_at, response_message, created_at)`.
+Unique partial `(job_id) where status in ('PENDING','CLARIFICATION')` - a customer is never asked
+two money questions at once. Checks: the request must add something and must cost more than the
+locked quote. Trigger `price_revision_actors_valid`: the customer can never raise one, only the
+customer (or an admin) may answer, and the job must have an active assignment.
+
+### job_completions (M5)
+`(id, job_id fk, submitted_by, summary, warranty_note, media_ids uuid[], submitted_at, approved_by, approved_at, rejection_reason)`.
+Unique partial `(job_id) where approved_at is null`, check: at least one media id. This is the
+evidence a settlement is later built on.
 
 ### chat_threads / chat_messages (M5)
-threads `(id, job_id fk unique, participant_ids uuid[])`; messages `(id, thread_id fk, sender_id, body, media_id, flagged bool, flag_reason, created_at)`.
+threads `(id, job_id fk unique, participant_ids uuid[], closed_at)`; messages `(id, thread_id fk, sender_id, sender_party, body, media_id, flagged bool, flag_reason, read_at, created_at)`.
+Trigger `chat_sender_on_thread`: only a participant may write. DELETE is revoked and
+`chat_messages_immutable` refuses any edit to the body, sender, thread or timestamp - only the read
+receipt may change.
 
 ### material_requests / material_quotes / material_orders (M6)
 requests `(id, job_id, requested_by, items jsonb, needed_by, status)`; quotes `(id, request_id, vendor_id, items jsonb, subtotal_paise, delivery_paise, eta_minutes, status, expires_at)`; orders `(id, quote_id, selected_by, status(PENDING_PAYMENT|PREPARING|OUT_FOR_DELIVERY|DELIVERED|CONFIRMED|CANCELLED), delivered_at, confirmed_by, invoice_media_id, settlement_id)`.
@@ -163,6 +178,11 @@ disputes `(id, job_id, raised_by, against_user_id, category dispute_category, de
 | No vendor payout without approved order | trigger on settlements where payee_role='VENDOR' |
 | No review before completion | trigger `reviews_require_completion` |
 | No technician assignment without verification | trigger `assignment_requires_verified_technician` |
+| One open price revision per job | partial unique on `price_revision_requests(job_id) where status in ('PENDING','CLARIFICATION')` |
+| A revision must cost more and add something | checks `price_revision_is_higher`, `price_revision_adds_something` |
+| Only the customer answers a revision | trigger `price_revision_actors_valid` |
+| Completion needs evidence | check `job_completion_needs_evidence` |
+| Chat is participants-only and immutable | triggers `chat_sender_on_thread`, `chat_messages_immutable` |
 | No bid from suspended provider | trigger `bids_require_active_provider` |
 | No duplicate settlement/payment/refund | unique `idempotency_key` |
 | One pending counter-offer per offer thread | partial unique on `offers(bid_id) where status='PENDING'` |

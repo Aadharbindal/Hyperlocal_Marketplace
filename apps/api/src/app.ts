@@ -16,6 +16,8 @@ import { authService, type AuthService } from './modules/auth/service';
 import { tokenService } from './modules/auth/tokens';
 import { auditService, type AuditService } from './modules/audit/service';
 import { categoryRoutes } from './modules/categories/routes';
+import { executionRoutes } from './modules/execution/routes';
+import { executionService, type ExecutionService } from './modules/execution/service';
 import { jobRoutes } from './modules/jobs/routes';
 import { jobService, type JobService } from './modules/jobs/service';
 import { negotiationRoutes } from './modules/negotiation/routes';
@@ -29,7 +31,14 @@ export interface AppContext {
   env: Env;
   store: DataStore;
   adapters: Adapters;
-  services: { auth: AuthService; audit: AuditService; jobs: JobService; provider: ProviderService; negotiation: NegotiationService };
+  services: {
+    auth: AuthService;
+    audit: AuditService;
+    jobs: JobService;
+    provider: ProviderService;
+    negotiation: NegotiationService;
+    execution: ExecutionService;
+  };
 }
 
 export interface BuildOptions {
@@ -57,7 +66,8 @@ export async function buildApp(opts: BuildOptions = {}) {
   const jobs = jobService({ env, store, adapters });
   const provider = providerService({ env, store, adapters });
   const negotiation = negotiationService({ env, store, adapters, jobs });
-  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs, provider, negotiation } };
+  const execution = executionService({ env, store, adapters, jobs });
+  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs, provider, negotiation, execution } };
 
   if (opts.seed ?? (env.DATA_MODE === 'memory' && env.APP_ENV !== 'test')) {
     await seedDemo(store, env);
@@ -175,6 +185,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     await jobRoutes(scope, ctx);
     await providerRoutes(scope, ctx);
     await negotiationRoutes(scope, ctx);
+    await executionRoutes(scope, ctx);
     await adminRoutes(scope, ctx);
   });
 

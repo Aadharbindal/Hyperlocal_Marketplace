@@ -7,6 +7,7 @@ import {
   detectHazards,
   isLikelyDuplicate,
   maskPhone,
+  mediaPhaseFor,
   type Actor,
   type JobListItem,
   type JobMediaView,
@@ -323,11 +324,19 @@ export function jobService(d: JobDeps) {
       lng?: number;
       uploaderId: string;
       uploaderRole: UserRole;
+      /** Defaults to the request phase; execution evidence passes PROGRESS/COMPLETION/PRICE_REVISION. */
+      phase?: JobMediaRecord['phase'];
     }) {
-      if (!['DRAFT', 'SUBMITTED', 'QUALIFYING'].includes(job.status)) {
-        throw new AppError('CONFLICT', { details: { reason: 'media_phase_closed', status: job.status } });
+      // The phase a job can receive depends on where it is, and mirrors
+      // job_media_phase_allowed() in 0002.
+      const phase = input.phase ?? 'REQUEST';
+      if (mediaPhaseFor(job.status) !== phase) {
+        throw new AppError('CONFLICT', { details: { reason: 'media_phase_closed', status: job.status, phase } });
       }
-      const existing = await store.jobs.listMedia(job.id, 'REQUEST');
+      const existing = await store.jobs.listMedia(job.id, phase);
+      if (phase !== 'REQUEST' && existing.length >= 8) {
+        throw new AppError('VALIDATION_ERROR', { details: { media: ['TOO_MANY_FILES'] } });
+      }
       const errors = checkMedia({
         kind: MEDIA_KIND_FOR_CHECK[input.kind],
         mime: input.mime,
@@ -337,14 +346,14 @@ export function jobService(d: JobDeps) {
       });
       if (errors.length) throw new AppError('VALIDATION_ERROR', { details: { media: errors } });
 
-      const storageKey = `jobs/${job.id}/request/${newId()}`;
+      const storageKey = `jobs/${job.id}/${phase.toLowerCase()}/${newId()}`;
       const target = await adapters.storage.createUploadUrl({ key: storageKey, mime: input.mime, maxBytes: input.sizeBytes });
       const media = await store.jobs.addMedia({
         job_id: job.id,
         uploader_id: input.uploaderId,
         uploader_role: input.uploaderRole,
         kind: input.kind,
-        phase: 'REQUEST',
+        phase,
         storage_key: storageKey,
         mime: input.mime,
         size_bytes: input.sizeBytes,

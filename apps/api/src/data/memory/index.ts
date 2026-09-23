@@ -3,6 +3,7 @@ import { conflict } from '../../lib/errors';
 import { CATEGORY_SEED, SKILL_SEED } from '../catalog';
 import { createMemoryBidsRepo, createMemoryKycRepo } from './bids';
 import { createMemoryJobsRepo } from './jobs';
+import { createMemoryExecutionRepo } from './execution';
 import { createMemoryNegotiationRepo, createMemoryPaymentsRepo } from './negotiation';
 import type {
   AddressRecord,
@@ -15,6 +16,7 @@ import type {
   NotificationRecord,
   OtpChallengeRecord,
   ProviderProfileRecord,
+  TechnicianProfileRecord,
   RetentionEventRecord,
   SessionRecord,
   UserRecord,
@@ -34,6 +36,7 @@ export function createMemoryStore(): DataStore {
   const sessions = new Map<string, SessionRecord>();
   const customerProfiles = new Map<string, CustomerProfileRecord>();
   const providerProfiles = new Map<string, ProviderProfileRecord>();
+  const technicianProfiles = new Map<string, TechnicianProfileRecord>();
   const contractorProfiles = new Map<string, ContractorProfileRecord>();
   const vendorProfiles = new Map<string, VendorProfileRecord>();
   const addresses = new Map<string, AddressRecord>();
@@ -47,6 +50,7 @@ export function createMemoryStore(): DataStore {
   const bidsRepo = createMemoryBidsRepo();
   const kycRepo = createMemoryKycRepo();
   const negotiationRepo = createMemoryNegotiationRepo();
+  const executionRepo = createMemoryExecutionRepo();
   const paymentsRepo = createMemoryPaymentsRepo();
 
   // Serialise "transactions" with a simple promise chain so concurrent acceptances cannot interleave.
@@ -139,6 +143,16 @@ export function createMemoryStore(): DataStore {
       async upsertProviderProfile(p) {
         providerProfiles.set(p.user_id, p);
         return p;
+      },
+      async getTechnicianProfile(id) {
+        return technicianProfiles.get(id) ?? null;
+      },
+      async upsertTechnicianProfile(p) {
+        technicianProfiles.set(p.user_id, p);
+        return p;
+      },
+      async listTechniciansFor(contractorId) {
+        return [...technicianProfiles.values()].filter((t) => t.contractor_id === contractorId && t.active);
       },
       async getContractorProfile(id) {
         return contractorProfiles.get(id) ?? null;
@@ -269,6 +283,7 @@ export function createMemoryStore(): DataStore {
     bids: bidsRepo,
     kyc: kycRepo,
     negotiation: negotiationRepo,
+    execution: executionRepo,
     payments: paymentsRepo,
 
     audit: {

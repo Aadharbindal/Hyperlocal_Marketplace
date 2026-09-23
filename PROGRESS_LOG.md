@@ -4,6 +4,94 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Milestone 5: Execution and completion
+
+**Milestone:** M5 - Doorstep to done: arrival, the start code, price revisions, completion
+**Date:** 2026-09-23
+**Status:** Complete
+
+**Implemented:**
+- `packages/core` execution rules: `checkCanStart` (ARRIVED only, spent/expired/locked codes),
+  `checkCanOverrideStart` (admin or support, reason of 10+ characters), `checkRevisionRequest`
+  (one open at a time, max 3 per job, explanation and evidence required), `revisionNeedsSupport`
+  (a jump past 1.5x the locked total is routed to support, not a one-tap approval),
+  `checkCompletion`, `mediaPhaseFor` and `flagChatMessage`.
+- `supabase/migrations/0005_execution.sql`: `start_otps` (one per job, attempt-capped, an override
+  must carry a reason), `price_revision_requests` (one open per job, must add something and must
+  cost more than the locked quote, plus a trigger that refuses a revision raised by the customer or
+  answered by anyone but the customer), `job_completions` (evidence required), `chat_threads` and
+  `chat_messages` (participants-only trigger, DELETE revoked, an immutability trigger so only the
+  read receipt can ever change).
+- `apps/api` execution module: technician handoff (verified, and only the provider's own people),
+  EN_ROUTE/ARRIVED, start-code verification in constant time with the attempt counter, the admin
+  override, price-revision request and response, completion and customer approval, the shared
+  execution panel, phase-derived evidence upload, and in-job chat.
+- The start code is never stored in plaintext: only its HMAC is kept, and the four digits are
+  re-derived from the server secret plus the row's id, so the customer's app can show it again
+  while a database dump alone yields nothing.
+- Approving a revision supersedes the locked quote inside one transaction and opens a **separate**
+  `PRICE_REVISION` authorization for the difference. The original hold is never silently increased,
+  and a rejection leaves the original quote byte-for-byte unchanged.
+- `apps/mobile`: the customer's live panel (start code, technician with a masked number, the
+  approve/decline card for extra work with the full before/after split, the completion sign-off),
+  the provider's job runner (on my way, arrived, start-code entry with attempts left, extra-work
+  request, mark done), and a shared chat sheet that shows the off-platform flag inline.
+
+**Changed files:** `packages/core/src/{execution/execution.ts,execution/execution.test.ts,contracts/execution.ts,index.ts}`,
+`supabase/migrations/0005_execution.sql`,
+`apps/api/src/{modules/execution/{service,routes}.ts,modules/jobs/service.ts,data/types.ts,data/memory/{index,execution}.ts,data/postgres/{index,execution}.ts,data/seed.ts,lib/crypto.ts,app.ts,test/execution.test.ts}`,
+`apps/mobile/src/{api/execution.ts,features/customer/LiveJobPanel.tsx,features/provider/JobRunner.tsx,features/shared/ChatSheet.tsx}`,
+`apps/mobile/app/(customer)/job/[id].tsx`, `apps/mobile/app/(provider)/active.tsx`, docs.
+
+**Database changes:** migration `0005_execution`. `migrate:check` passes with 5 migrations.
+Forward-only: nothing in 0001-0004 was touched. `technician_profiles` (created back in 0001) got
+its first repository methods.
+
+**API changes:** `POST /jobs/:id/technician`, `POST /jobs/:id/progress`, `POST /jobs/:id/start`,
+`GET /jobs/:id/execution`, `POST /jobs/:id/evidence`, `POST /jobs/:id/price-revision`,
+`POST /price-revisions/:id/respond`, `POST /jobs/:id/complete`, `POST /jobs/:id/approve`,
+`GET|POST /jobs/:id/chat`. Documented in `API_REFERENCE.md`.
+
+**Tests added / passed:** 20 new API integration tests (`execution.test.ts`) and 12 new core unit
+tests. Totals: **101/101 API**, **75/75 core**. Type check clean in 3/3 workspaces, lint 0 errors,
+API bundle + Expo web export build OK, `migrate:check` OK.
+
+**Manual verification completed:** the integration suite drives the whole milestone end to end:
+a job is taken from submission through offer, acceptance and authorization, then
+`PROVIDER_ASSIGNED -> EN_ROUTE -> ARRIVED -> STARTED -> IN_PROGRESS`, a price revision is raised
+with evidence, approved, and the quote and the extra authorization are re-read to prove the numbers
+moved together, then completion is submitted and approved to `COMPLETED`. The privacy and safety
+claims are asserted rather than assumed: the provider's own view of the panel returns
+`startCode: null`, a second provider holding the correct code gets a 403, five wrong codes lock the
+job in ARRIVED, a provider override is refused while an admin override with a reason succeeds and
+is flagged on the job, and a stranger cannot read the chat.
+
+**Known limitations:** the mobile evidence flow sends fixed image metadata instead of opening the
+camera, because mock storage has nowhere to put the bytes. Chat flags are recorded but nothing
+reviews them. There is no start-code resend, no chase or auto-approval when a customer ignores a
+finished job, and masked calling still cannot place a call. Capture, settlement and refunds remain
+M7 - approving completion moves the job to COMPLETED and releases nothing. Full list in
+`KNOWN_LIMITATIONS.md`.
+
+**Security considerations:** the start code exists only as an HMAC plus a derivation from the
+server secret, is shown exclusively to the customer, is compared in constant time, and is spent on
+first use; every wrong attempt is counted and analytics-tracked. The code never enters the audit
+log - only the fact of the start does. An admin override cannot be silent: it needs a reason, is
+stored on the row, and surfaces as `startWasOverridden` in both parties' views so a later
+settlement can weigh it. Media phase is derived from the job's status, never chosen by the caller,
+so a provider cannot backdate "completion" evidence onto a job that has not started. Chat is
+participants-only in SQL as well as in code, messages are immutable, and contact details are
+flagged rather than silently dropped. The customer's view of a technician carries a masked number.
+
+**External integrations mocked or live:** ALL MOCKED - SMS, payment, maps, push, storage,
+telephony, monitoring, analytics. Nothing is live.
+
+**Next milestone:** M6 - Materials and vendors: material requests, vendor quotes, selection,
+delivery confirmation and invoices, with the material leg priced and approved separately from
+labour.
+
+---
+
 ## Milestone 4: Negotiation and confirmation
 
 **Milestone:** M4 - Negotiation, quote lock, acceptance and payment authorization

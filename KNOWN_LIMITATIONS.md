@@ -8,7 +8,7 @@ Updated every milestone. **Nothing external is live.** Each row names the produc
 | Payment gateway | **MOCKED** | deterministic order ids; `POST /payments/:id/mock-complete` and self-signed webhooks stand in for the gateway checkout. The booking flow is real end to end, the *authorization is not* - no money moves | Razorpay Orders + Webhooks (capture, refunds, settlement) | M7 |
 | Maps / geocoding | **MOCKED** | address hashed to pseudo-coordinates near pilot centre; haversine distance | Google Maps Platform or Mapbox | M2 |
 | Push notifications | **MOCKED** | logged; in-app inbox works | Expo Push / FCM | M2 |
-| Masked calling | **MOCKED** | returns fake virtual number | Exotel / Knowlarity | M5 |
+| Masked calling | **MOCKED** | the customer sees a masked number for the technician, but no call can be placed - the adapter returns a fake virtual number | Exotel / Knowlarity | M7 |
 | Object storage | **MOCKED** | files kept in memory / `apps/api/.data`; fake signed URLs | Supabase Storage / S3 | M2 |
 | Error monitoring | **MOCKED** | logged | Sentry | M1 (adapter) |
 | Analytics | **MOCKED** | logged | PostHog (after privacy review) | M1 (adapter) |
@@ -21,7 +21,11 @@ Updated every milestone. **Nothing external is live.** Each row names the produc
 | Bid-window expiry | not scheduled | offers stop being accepted once the window passes, but nothing auto-cancels or expires the job in the background | scheduled job | M9 |
 | Admin MFA | not started | – | TOTP | M8 |
 | KYC encryption | not started | – | envelope encryption | M8 |
-| Voice-note recording (mobile) | not started | the API accepts voice notes (60 s cap enforced); the app only attaches photos so far | expo-audio recorder in the booking flow | M3 |
+| Voice-note recording (mobile) | not started | the API accepts voice notes (60 s cap enforced); the app only attaches photos so far | expo-audio recorder in the booking flow | M6 |
+| Completion and revision photos (mobile) | **stand-in** | the app calls the evidence endpoint with fixed image metadata instead of opening the camera, because mock storage has nowhere to put the bytes | camera capture + signed upload | M6 |
+| Chat moderation | **flag only** | messages with a phone number, email or UPI handle are stored flagged; nothing reviews or acts on the flag yet | review queue + repeat-offender strikes | M8 |
+| Start-code resend | not built | one code per job for 72 hours; there is no resend or rotation | resend with cooldown (policy already in `START_JOB_OTP_POLICY`) | M9 |
+| Customer approval timeout | not scheduled | `CUSTOMER_APPROVAL_HOURS` is defined but nothing chases or auto-approves a job the customer ignores | scheduled job + reminder | M9 |
 | Media bytes in mock mode | **MOCKED** | `/jobs/:id/media` returns `upload.required: false` and marks the row uploaded; no bytes are stored, so photo thumbnails fall back to an icon | Supabase Storage / S3 signed PUT | M6 |
 | Voice-note transcription | deferred | none | Phase 2 | – |
 | Regional voice UI, AI categorisation, AI damage assessment | deferred by spec §31 | – | – | – |

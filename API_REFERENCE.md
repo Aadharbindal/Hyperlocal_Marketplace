@@ -136,10 +136,43 @@ Errors: `VALIDATION_ERROR` with `details.negotiation` (`OFFER_EXPIRED`, `OFFER_N
 (`BID_NOT_ACTIVE`, `BID_EXPIRED`, `JOB_NOT_ACCEPTABLE`), `CONFLICT` with `ALREADY_CONFIRMED`,
 401 `INVALID_SIGNATURE` on the webhook, 404 when the offer or payment is not the caller's.
 
+## Milestone 5 (implemented)
+
+### Execution
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/jobs/:id/technician` | booked provider | `{ technicianId }`. The technician must be VERIFIED and belong to this provider, mirroring `assignment_requires_verified_technician` *audited* |
+| POST | `/jobs/:id/progress` | provider side | `{ to: EN_ROUTE / ARRIVED, etaMinutes? }`. Moving to EN_ROUTE is what tells the customer their start code matters *audited* |
+| POST | `/jobs/:id/start` | provider side, or ADMIN/SUPPORT with `override` | `{ code }` verifies the 4-digit start code in constant time and walks the job `ARRIVED -> STARTED -> IN_PROGRESS`. Five wrong attempts lock the code. `{ override: true, reason }` starts without it - admin only, reason of 10+ characters, recorded on the job forever *audited* |
+| GET | `/jobs/:id/execution` | any party on the job | The live panel: start code (**customer only**, and only until it is used), attempts left, technician with a *masked* number, the open price revision, every past revision, the completion and the unread chat count |
+| POST | `/jobs/:id/evidence` | provider side | Creates a media row and upload target. The phase is derived from the job's status (PROGRESS / PRICE_REVISION / COMPLETION) and can never be chosen by the caller |
+
+### Price revision
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/jobs/:id/price-revision` | provider side | `{ reason, extraLabourPaise, extraMaterialPaise, extraTimeMinutes, explanation, mediaIds }`. Needs a real explanation (20+ chars) and at least one photo. Moves the job to `PRICE_REVISION_PENDING`; max 3 per job, one open at a time *audited* |
+| POST | `/price-revisions/:id/respond` | job owner | `{ action: APPROVE / REJECT / CLARIFY, message? }`. APPROVE supersedes the locked quote with a new ACTIVE one and opens a **separate** `PRICE_REVISION` payment for the difference - the original hold is never silently increased. REJECT keeps the original quote exactly as it was. Either way the job returns to `IN_PROGRESS` *audited* |
+
+### Completion
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/jobs/:id/complete` | provider side | `{ summary, mediaIds, warrantyNote? }`. At least one photo and a 10+ character summary; refused while a revision is still open. Walks `IN_PROGRESS -> COMPLETION_PENDING -> CUSTOMER_APPROVAL_PENDING` *audited* |
+| POST | `/jobs/:id/approve` | job owner | `{ approved, reason?, rating? }`. Approving moves the job to `COMPLETED` and closes the chat; rejecting sends it back to `IN_PROGRESS` with the reason attached. **Nothing is captured here** - settlement is M7 *audited* |
+
+### Chat
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/jobs/:id/chat` | any party on the job | The thread, oldest first, and marks the caller's unread messages read |
+| POST | `/jobs/:id/chat` | any party on the job | `{ body }`. Open only while the job is live; messages containing a phone number, email or UPI handle are stored `flagged` for review rather than blocked |
+
+Errors: `VALIDATION_ERROR` with `details.execution` - `JOB_NOT_ARRIVED`, `WRONG_CODE` (with
+`details.attemptsLeft`), `TOO_MANY_ATTEMPTS`, `CODE_EXPIRED`, `CODE_ALREADY_USED`,
+`OVERRIDE_NOT_ALLOWED`, `OVERRIDE_NEEDS_REASON`, `NOT_A_TECHNICIAN`, `TECHNICIAN_NOT_VERIFIED`,
+`TECHNICIAN_NOT_YOURS`, `JOB_NOT_IN_PROGRESS`, `REVISION_ALREADY_OPEN`, `REVISION_LIMIT_REACHED`,
+`NOTHING_EXTRA`, `EXPLANATION_TOO_SHORT`, `EVIDENCE_REQUIRED`, `PHOTOS_REQUIRED`,
+`SUMMARY_TOO_SHORT`, `NOT_AWAITING_APPROVAL`, `CHAT_CLOSED`; 403 for anyone not on the job.
+
 ## Planned (by milestone)
-- **M5** `POST /jobs/:id/assign-technician`, `POST /jobs/:id/status` (EN_ROUTE/ARRIVED),
-  `POST /jobs/:id/start` (OTP), `POST /jobs/:id/price-revision`, `POST /price-revisions/:id/respond`,
-  `POST /jobs/:id/complete`, `POST /jobs/:id/approve`, chat routes
 - **M6** `POST /jobs/:id/material-request`, `POST /material-requests/:id/quote`,
   `POST /material-quotes/:id/select`, `POST /material-orders/:id/deliver|confirm|invoice`
 - **M7** `POST /jobs/:id/dispute`, `GET /me/earnings`, refunds, tickets, reviews
