@@ -50,8 +50,14 @@ function AuthGate() {
       if (segments[1] !== 'role') router.replace('/(auth)/role');
       return;
     }
-    const target = activeRole === 'PROVIDER' || activeRole === 'CONTRACTOR' || activeRole === 'TECHNICIAN' ? '(provider)' : '(customer)';
-    if (group !== target) router.replace(target === '(provider)' ? '/(provider)/jobs' : '/(customer)/home');
+    const target =
+      activeRole === 'VENDOR'
+        ? '(vendor)'
+        : activeRole === 'PROVIDER' || activeRole === 'CONTRACTOR' || activeRole === 'TECHNICIAN'
+          ? '(provider)'
+          : '(customer)';
+    const home = target === '(vendor)' ? '/(vendor)/requests' : target === '(provider)' ? '/(provider)/jobs' : '/(customer)/home';
+    if (group !== target) router.replace(home as never);
   }, [hydrated, token, user, activeRole, segments, router]);
 
   if (!hydrated || (token && !user && me.isPending)) {

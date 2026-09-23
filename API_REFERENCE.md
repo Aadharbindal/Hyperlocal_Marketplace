@@ -172,8 +172,42 @@ Errors: `VALIDATION_ERROR` with `details.execution` - `JOB_NOT_ARRIVED`, `WRONG_
 `NOTHING_EXTRA`, `EXPLANATION_TOO_SHORT`, `EVIDENCE_REQUIRED`, `PHOTOS_REQUIRED`,
 `SUMMARY_TOO_SHORT`, `NOT_AWAITING_APPROVAL`, `CHAT_CLOSED`; 403 for anyone not on the job.
 
+## Milestone 6 (implemented)
+
+### Materials - provider side
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/jobs/:id/material-request` | provider side | `{ items[], neededByMinutes?, note? }`. Only from ARRIVED/STARTED/IN_PROGRESS, never by the customer, never when the booking says the customer supplies materials. One open request per job, max 3 per job, 15 items. Vendors have 45 minutes to answer *audited* |
+| GET | `/jobs/:id/materials` | any party on the job | The whole material leg: the request, the ranked quotes, the live order and the history |
+
+### Materials - vendor side
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/vendor/profile` | VENDOR | Shop name, verification, delivery radius and whether deliveries are on |
+| POST | `/vendor/availability` | VENDOR | `{ deliveryAvailable }`. MAT-10: a closed shop stops receiving requests. Refused with `verification_pending` until the shop is verified *audited* |
+| GET | `/vendor/material-requests?limit=` | VENDOR | Open requests inside the delivery radius. Returns `{ items, blockers }`; the item list and the **area** only - never the customer's address |
+| POST | `/material-requests/:id/quote` | verified VENDOR | `{ items[], deliveryPaise, etaMinutes, note? }`. The quote must answer the whole list so quotes are comparable; each line carries a brand and a stock flag, and an out-of-stock line is never charged for. One live quote per vendor per request, valid 120 minutes *audited* |
+| GET | `/vendor/material-orders?limit=` | VENDOR | The vendor's own orders with their payment status |
+
+### Selection, delivery and invoice
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/material-quotes/:id/select` | job owner | One transaction: freezes the quote, rejects the others, creates the order and opens a **separate `MATERIAL` authorization**. The labour hold is never touched. The vendor is asked to prepare only once that authorization lands *audited* |
+| POST | `/material-orders/:id/status` | order's vendor, or ADMIN | `{ to: OUT_FOR_DELIVERY / DELIVERED / CANCELLED, reason? }`, checked against the order state machine - nothing ships before the money is authorized *audited* |
+| POST | `/material-orders/:id/confirm` | customer or provider side | `{ ok, issue?, note?, mediaIds? }`. `ok` confirms receipt; anything else parks the order at `ON_HOLD` with the reason (MAT-02/03/12) so the vendor is not paid while it is disputed *audited* |
+| POST | `/material-orders/:id/invoice` | order's vendor | `{ mediaId, amountPaise, invoiceNumber? }`. Only against a CONFIRMED order, only once, and the amount must equal the order total to the paisa (MAT-07) *audited* |
+
+Materials are always a separate leg of money from labour, and the platform takes no margin on
+them in the pilot: what the customer authorizes is what the vendor is owed (DECISIONS D-013).
+
+Errors: `VALIDATION_ERROR` with `details.materials` - `JOB_NOT_ON_SITE`,
+`CUSTOMER_SUPPLIES_MATERIAL`, `REQUEST_ALREADY_OPEN`, `REQUEST_LIMIT_REACHED`, `NO_ITEMS`,
+`TOO_MANY_ITEMS`, `VENDOR_NOT_VERIFIED`, `VENDOR_UNAVAILABLE`, `WINDOW_CLOSED`, `ALREADY_QUOTED`,
+`ITEM_COUNT_MISMATCH`, `NOTHING_IN_STOCK`, `QUOTE_EXPIRED`, `QUOTE_NOT_ACTIVE`, `ALREADY_ORDERED`,
+`INVALID_ORDER_TRANSITION`, `ORDER_NOT_DELIVERED`, `ORDER_NOT_CONFIRMED`, `AMOUNT_MISMATCH`
+(with `details.orderTotalPaise`), `INVOICE_ALREADY_FILED`; 403 for anyone not on the job or not
+the order's vendor.
+
 ## Planned (by milestone)
-- **M6** `POST /jobs/:id/material-request`, `POST /material-requests/:id/quote`,
-  `POST /material-quotes/:id/select`, `POST /material-orders/:id/deliver|confirm|invoice`
 - **M7** `POST /jobs/:id/dispute`, `GET /me/earnings`, refunds, tickets, reviews
 - **M8** `GET /admin/disputes`, `POST /admin/disputes/:id/resolve`, KYC review, reports, overrides

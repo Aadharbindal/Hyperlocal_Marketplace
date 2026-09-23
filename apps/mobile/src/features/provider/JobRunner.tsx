@@ -6,6 +6,7 @@ import { formatInr, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useAddEvidence, useCompleteJob, useExecution, useProgress, useRequestRevision, useStartJob } from '@/api/execution';
 import { ChatSheet } from '@/features/shared/ChatSheet';
+import { MaterialRequestForm } from '@/features/provider/MaterialRequestForm';
 import { palette, radius, spacing, typography } from '@/theme';
 import { Badge, Button, Card, Text } from '@/ui';
 
@@ -161,7 +162,7 @@ function InProgressActions({ jobId }: { jobId: string }) {
   const evidence = useAddEvidence();
   const revision = useRequestRevision();
   const complete = useCompleteJob();
-  const [mode, setMode] = useState<'none' | 'revision' | 'complete'>('none');
+  const [mode, setMode] = useState<'none' | 'revision' | 'complete' | 'materials'>('none');
   const [amount, setAmount] = useState('');
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -185,12 +186,17 @@ function InProgressActions({ jobId }: { jobId: string }) {
 
   if (mode === 'none') {
     return (
-      <View style={styles.actions}>
-        <Button title="Extra work" size="sm" variant="secondary" style={styles.action} icon="add-circle-outline" onPress={() => setMode('revision')} />
-        <Button title="Mark done" size="sm" style={styles.action} icon="checkmark" onPress={() => setMode('complete')} />
+      <View style={styles.stack}>
+        <Button title="Need materials" size="sm" variant="secondary" fullWidth icon="cube-outline" onPress={() => setMode('materials')} />
+        <View style={styles.actions}>
+          <Button title="Extra work" size="sm" variant="secondary" style={styles.action} icon="add-circle-outline" onPress={() => setMode('revision')} />
+          <Button title="Mark done" size="sm" style={styles.action} icon="checkmark" onPress={() => setMode('complete')} />
+        </View>
       </View>
     );
   }
+
+  if (mode === 'materials') return <MaterialRequestForm jobId={jobId} onDone={() => setMode('none')} />;
 
   const isRevision = mode === 'revision';
   return (
@@ -306,6 +312,7 @@ const styles = StyleSheet.create({
   },
   multiline: { minHeight: 72, textAlignVertical: 'top' },
 
+  stack: { gap: spacing.sm },
   actions: { flexDirection: 'row', gap: spacing.sm },
   action: { flex: 1 },
   chatBtn: {

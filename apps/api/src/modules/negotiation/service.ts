@@ -31,6 +31,12 @@ export interface NegotiationDeps {
   store: DataStore;
   adapters: Adapters;
   jobs: JobService;
+  /**
+   * Material and price-revision authorizations are separate legs of the same job. The webhook
+   * arrives here either way, so the owner of that leg is called back rather than reaching into
+   * the booking flow.
+   */
+  onSideLegSettled?: (payment: PaymentRecord) => Promise<void>;
 }
 
 /** Job statuses in which the two sides may still move the terms. */
@@ -457,6 +463,20 @@ export function negotiationService(d: NegotiationDeps) {
 
       const job = await store.jobs.get(payment.job_id);
       if (!job) throw notFound('job');
+
+      // Only the booking leg moves the job's own status. Material and revision legs carry
+      // their own record and their own owner.
+      if (payment.purpose !== 'BOOKING') {
+        const settled = await store.payments.update(payment.id, {
+          status: input.type === 'payment.authorized' ? 'AUTHORIZED' : 'FAILED',
+          provider_payment_id: input.paymentId,
+          failure_reason: input.type === 'payment.failed' ? (input.failureReason ?? 'gateway_failure') : null,
+          authorized_at: input.type === 'payment.authorized' ? new Date() : null,
+        });
+        await d.onSideLegSettled?.(settled);
+        adapters.analytics.track('side_payment_settled', { userId: payment.payer_id, jobId: job.id, purpose: payment.purpose });
+        return { replayed: false, payment: settled };
+      }
 
       if (input.type === 'payment.failed') {
         await store.payments.update(payment.id, { status: 'FAILED', failure_reason: input.failureReason ?? 'gateway_failure', provider_payment_id: input.paymentId });

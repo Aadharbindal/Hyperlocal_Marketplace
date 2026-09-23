@@ -4,6 +4,98 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Milestone 6: Materials and vendors
+
+**Milestone:** M6 - The material leg: requests, vendor quotes, selection, delivery, invoice
+**Date:** 2026-09-23
+**Status:** Complete
+
+**Implemented:**
+- `packages/core` material rules: `checkMaterialRequest` (only from a job someone is on, never
+  from the customer, never when the customer said they would supply the material, one open
+  request and max 3 per job), `checkMaterialQuote` (verified and available vendor, whole list
+  answered, window open, one quote each), `materialSubtotal` / `materialTotals` (out-of-stock
+  lines are never charged for; `vendorPayable = total`), `checkCanSelect`, the material order
+  state machine with actor restrictions, `checkInvoice` and `materialQuoteScore`.
+- `supabase/migrations/0006_materials.sql`: `material_requests` (one open per job, 1-15 items,
+  a trigger that refuses a request raised by the customer or on a job with no active assignment),
+  `material_quotes` (one live quote per vendor per list, totals must add up, a trigger that
+  refuses an unverified vendor), `material_orders` (bought once, an on-hold order must name the
+  issue, and a trigger that refuses an invoice unless the order is CONFIRMED and the amount
+  matches to the paisa).
+- `apps/api` materials module: the provider's request, the vendor feed (area and distance only,
+  never the address), quoting, the customer's ranked quote list, selection in one transaction,
+  fulfilment, delivery confirmation with a mismatch path, and the invoice. Plus
+  `GET /vendor/profile` and `POST /vendor/availability` so a closed shop stops receiving requests
+  (MAT-10).
+- Selection creates a **separate `MATERIAL` authorization**; the labour hold is untouched and the
+  vendor is only asked to prepare once that authorization lands. The booking webhook now hands a
+  non-booking leg back to its owner through `onSideLegSettled` instead of moving the job.
+- `apps/mobile`: a new vendor area (`Requests`, `Orders`, `Shop` tabs) with a per-line price sheet
+  that has an in-stock switch and shows the customer total live; the customer's material panel
+  with the ranked quotes, the transparent line-by-line split, authorization and the
+  received / something's-wrong buttons; and a "Need materials" form on the provider's job runner.
+
+**Changed files:** `packages/core/src/{materials/materials.ts,materials/materials.test.ts,contracts/materials.ts,index.ts}`,
+`supabase/migrations/0006_materials.sql`,
+`apps/api/src/{modules/materials/{service,routes}.ts,modules/negotiation/service.ts,data/types.ts,data/memory/{index,materials}.ts,data/postgres/{index,materials}.ts,app.ts,test/materials.test.ts}`,
+`apps/mobile/src/{api/materials.ts,features/customer/MaterialPanel.tsx,features/provider/MaterialRequestForm.tsx,features/provider/JobRunner.tsx}`,
+`apps/mobile/app/(vendor)/{_layout,requests,orders,shop}.tsx`, `apps/mobile/app/_layout.tsx`,
+`apps/mobile/app/(customer)/job/[id].tsx`, `apps/mobile/src/i18n/index.ts`, docs.
+
+**Database changes:** migration `0006_materials`. `migrate:check` passes with 6 migrations.
+Forward-only: nothing in 0001-0005 was touched.
+
+**API changes:** `POST /jobs/:id/material-request`, `GET /jobs/:id/materials`,
+`GET /vendor/profile`, `POST /vendor/availability`, `GET /vendor/material-requests`,
+`POST /material-requests/:id/quote`, `GET /vendor/material-orders`,
+`POST /material-quotes/:id/select`, `POST /material-orders/:id/status`,
+`POST /material-orders/:id/confirm`, `POST /material-orders/:id/invoice`. Documented in
+`API_REFERENCE.md`.
+
+**Tests added / passed:** 16 new API integration tests (`materials.test.ts`) and 14 new core unit
+tests. Totals: **117/117 API**, **89/89 core**. Type check clean in 3/3 workspaces, lint 0 errors,
+API bundle + Expo web export build OK, `migrate:check` OK.
+
+**Manual verification completed:** the suite runs the whole leg against a job that is genuinely
+under way - submitted, quoted, accepted, authorized, started with the code - then a request for
+two items, a vendor quote of Rs 390 plus Rs 40 delivery, a second dearer quote, selection,
+authorization, out for delivery, delivered, confirmed and invoiced. The claims that matter are
+asserted rather than assumed: the vendor feed contains the area but not the street address, the
+labour quote total is re-read after selection and is unchanged, the order sits at PENDING_PAYMENT
+until the material authorization lands and only then becomes PREPARING, the job itself stays
+IN_PROGRESS throughout, a second selection is refused, an expired quote is refused, a partial or
+duplicate quote is refused, an unverified vendor is refused and told why, a reported mismatch
+parks the order at ON_HOLD where it cannot be invoiced, and an invoice that is Rs 1 off is refused
+with the order total in the error.
+
+**Known limitations:** the vendor app has no invoice upload screen yet, so the endpoint is
+exercised by tests rather than by a person. A held order can only be released by an admin and
+there is no admin screen until M8. Substitution (MAT-05) is not built: a vendor quotes the list as
+given. Photos everywhere are still fixed metadata rather than camera captures because mock storage
+has nowhere to put bytes. Vendor payouts are M7 - a confirmed order with a matching invoice is the
+evidence a payout will need, but nothing is settled yet. Full list in `KNOWN_LIMITATIONS.md`.
+
+**Security considerations:** the vendor feed exposes the item list, the area and a distance, and
+nothing else - no address, no phone, no customer name, and a test greps the payload to prove it.
+Only a verified vendor may quote, in SQL as well as in code. Selection re-reads the quote inside
+the transaction and the partial unique index makes a double order impossible; the same transaction
+rejects every other quote so a stale price cannot be revived. Material money never touches the
+labour hold, and the vendor is asked to spend money on stock only after the authorization exists.
+Delivery confirmation is a record, so a mismatch parks the order rather than accepting it, and an
+invoice must match the order exactly - the payout evidence cannot be inflated after the fact. The
+new decision D-013 records that the platform takes no margin on materials, so the price the
+customer sees is the shop's price.
+
+**External integrations mocked or live:** ALL MOCKED - SMS, payment, maps, push, storage,
+telephony, monitoring, analytics. Nothing is live.
+
+**Next milestone:** M7 - Payments, settlement and disputes: capture on approval, the append-only
+ledger, provider and vendor settlements, refunds and cancellation charges, the dispute flow and
+reviews.
+
+---
+
 ## Milestone 5: Execution and completion
 
 **Milestone:** M5 - Doorstep to done: arrival, the start code, price revisions, completion

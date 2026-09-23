@@ -8,7 +8,11 @@ import type {
   PaymentStatus,
   RoleStatus,
   UserRole,
+  MaterialOrderStatus,
+  MaterialQuoteStatus,
+  MaterialRequestStatus,
   MaterialResponsibility,
+  QuotedItem as QuotedMaterialItem,
   OfferStatus,
   PaymentStatus as PaymentStatusEnum,
   UserStatus,
@@ -498,6 +502,63 @@ export interface ChatMessageRecord {
   created_at: Date;
 }
 
+export interface MaterialRequestRecord {
+  id: string;
+  job_id: string;
+  requested_by: string;
+  items: Array<{ name: string; quantity: number; unit: string; brandPreference?: string | null }>;
+  note: string | null;
+  needed_by: Date | null;
+  quote_window_ends_at: Date;
+  status: MaterialRequestStatus;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface MaterialQuoteRecord {
+  id: string;
+  request_id: string;
+  vendor_id: string;
+  items: QuotedMaterialItem[];
+  subtotal_paise: number;
+  delivery_paise: number;
+  total_paise: number;
+  eta_minutes: number;
+  note: string | null;
+  status: MaterialQuoteStatus;
+  expires_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface MaterialOrderRecord {
+  id: string;
+  request_id: string;
+  quote_id: string;
+  job_id: string;
+  vendor_id: string;
+  selected_by: string;
+  items: QuotedMaterialItem[];
+  subtotal_paise: number;
+  delivery_paise: number;
+  total_paise: number;
+  vendor_payable_paise: number;
+  eta_minutes: number;
+  status: MaterialOrderStatus;
+  delivered_at: Date | null;
+  confirmed_by: string | null;
+  confirmed_at: Date | null;
+  issue: string | null;
+  issue_note: string | null;
+  issue_media_ids: string[];
+  cancel_reason: string | null;
+  invoice_media_id: string | null;
+  invoice_number: string | null;
+  invoice_amount_paise: number | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface IdempotencyRecord {
   key: string;
   user_id: string;
@@ -678,6 +739,29 @@ export interface ExecutionRepo {
   unreadCount(threadId: string, readerId: string): Promise<number>;
 }
 
+export interface MaterialsRepo {
+  createRequest(r: New<MaterialRequestRecord>): Promise<MaterialRequestRecord>;
+  getRequest(id: string): Promise<MaterialRequestRecord | null>;
+  updateRequest(id: string, patch: Partial<MaterialRequestRecord>): Promise<MaterialRequestRecord>;
+  listRequestsForJob(jobId: string): Promise<MaterialRequestRecord[]>;
+  findOpenRequest(jobId: string): Promise<MaterialRequestRecord | null>;
+  /** Requests still inside their quote window, newest first; distance is filtered by the caller. */
+  listOpenRequests(limit: number): Promise<MaterialRequestRecord[]>;
+
+  createQuote(q: New<MaterialQuoteRecord>): Promise<MaterialQuoteRecord>;
+  getQuote(id: string): Promise<MaterialQuoteRecord | null>;
+  updateQuote(id: string, patch: Partial<MaterialQuoteRecord>): Promise<MaterialQuoteRecord>;
+  listQuotes(requestId: string): Promise<MaterialQuoteRecord[]>;
+  findVendorQuote(requestId: string, vendorId: string): Promise<MaterialQuoteRecord | null>;
+
+  createOrder(o: New<MaterialOrderRecord>): Promise<MaterialOrderRecord>;
+  getOrder(id: string): Promise<MaterialOrderRecord | null>;
+  updateOrder(id: string, patch: Partial<MaterialOrderRecord>): Promise<MaterialOrderRecord>;
+  findLiveOrder(requestId: string): Promise<MaterialOrderRecord | null>;
+  listOrdersForJob(jobId: string): Promise<MaterialOrderRecord[]>;
+  listOrdersForVendor(vendorId: string, limit: number): Promise<MaterialOrderRecord[]>;
+}
+
 export interface IdempotencyRepo {
   get(key: string, userId: string): Promise<IdempotencyRecord | null>;
   put(rec: IdempotencyRecord): Promise<void>;
@@ -694,6 +778,7 @@ export interface DataStore {
   kyc: KycRepo;
   negotiation: NegotiationRepo;
   execution: ExecutionRepo;
+  materials: MaterialsRepo;
   payments: PaymentsRepo;
   audit: AuditRepo;
   notifications: NotificationsRepo;

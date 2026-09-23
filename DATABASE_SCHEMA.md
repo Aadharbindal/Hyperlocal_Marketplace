@@ -19,7 +19,7 @@ PostgreSQL 15 (Supabase). Conventions:
 | `0003_bidding` | M3 | kyc_records, bids, bid_revisions (+ eligibility and open-job triggers) |
 | `0004_negotiation` | M4 | offers, booking_quotes, job_assignments, payments, payment_events (+ verified-technician trigger, single-winner partial uniques) |
 | `0005_execution` | M5 | start_otps, price_revision_requests, job_completions, chat_threads, chat_messages (+ revision-actor, chat-sender and message-immutability triggers) |
-| `0006_materials` | M6 | material_requests, material_quotes, material_orders |
+| `0006_materials` | M6 | material_requests, material_quotes, material_orders (+ requester, vendor-verified and invoice-match triggers) |
 | `0007_finance` | M7 | ledger_entries, settlements, refunds, disputes, dispute_evidence, strikes, support_tickets, reviews |
 
 ## Tables
@@ -143,8 +143,25 @@ Trigger `chat_sender_on_thread`: only a participant may write. DELETE is revoked
 `chat_messages_immutable` refuses any edit to the body, sender, thread or timestamp - only the read
 receipt may change.
 
-### material_requests / material_quotes / material_orders (M6)
-requests `(id, job_id, requested_by, items jsonb, needed_by, status)`; quotes `(id, request_id, vendor_id, items jsonb, subtotal_paise, delivery_paise, eta_minutes, status, expires_at)`; orders `(id, quote_id, selected_by, status(PENDING_PAYMENT|PREPARING|OUT_FOR_DELIVERY|DELIVERED|CONFIRMED|CANCELLED), delivered_at, confirmed_by, invoice_media_id, settlement_id)`.
+### material_requests (M6)
+`(id, job_id fk, requested_by, items jsonb, note, needed_by, quote_window_ends_at, status(OPEN|QUOTED|ORDERED|CANCELLED|EXPIRED), created_at)`.
+Unique partial `(job_id) where status in ('OPEN','QUOTED')` - one material list in play per job.
+Check: 1-15 items. Trigger `material_request_actor_valid`: the customer can never raise one, and
+the job must have an active assignment.
+
+### material_quotes (M6)
+`(id, request_id fk, vendor_id fk, items jsonb, subtotal_paise, delivery_paise, total_paise, eta_minutes, note, status(ACTIVE|SELECTED|REJECTED|EXPIRED|CANCELLED), expires_at, created_at)`.
+Unique partial `(request_id, vendor_id) where status in ('ACTIVE','SELECTED')`. Check:
+`total = subtotal + delivery`. Trigger `material_quote_vendor_verified`: only a verified vendor
+may price a list.
+
+### material_orders (M6)
+`(id, request_id fk, quote_id fk, job_id fk, vendor_id, selected_by, items jsonb, subtotal_paise, delivery_paise, total_paise, vendor_payable_paise, eta_minutes, status(PENDING_PAYMENT|PREPARING|OUT_FOR_DELIVERY|DELIVERED|CONFIRMED|ON_HOLD|CANCELLED), delivered_at, confirmed_by, confirmed_at, issue, issue_note, issue_media_ids uuid[], cancel_reason, invoice_media_id, invoice_number, invoice_amount_paise)`.
+Unique partial `(request_id) where status <> 'CANCELLED'` - a list is bought once. Checks:
+totals add up, and an order on hold must name the issue. `vendor_payable_paise = total_paise`:
+the platform takes no margin on materials in the pilot (DECISIONS D-013). Trigger
+`material_invoice_matches_order`: an invoice may only be filed against a CONFIRMED order and must
+equal its total to the paisa.
 
 ### payments / payment_events (M4)
 Booking payments land in M4; material, milestone and revision purposes are used from M6/M7 on.
@@ -176,6 +193,11 @@ disputes `(id, job_id, raised_by, against_user_id, category dispute_category, de
 | One active booking quote per job | partial unique on `booking_quotes(job_id) where status='ACTIVE'` |
 | No settlement before valid completion | trigger `settlements_require_completion` |
 | No vendor payout without approved order | trigger on settlements where payee_role='VENDOR' |
+| One material list in play per job | partial unique on `material_requests(job_id) where status in ('OPEN','QUOTED')` |
+| One live quote per vendor per list | partial unique on `material_quotes(request_id, vendor_id)` |
+| A material list is bought once | partial unique on `material_orders(request_id) where status <> 'CANCELLED'` |
+| Only a verified vendor may quote | trigger `material_quote_vendor_verified` |
+| An invoice must match its order | trigger `material_invoice_matches_order` |
 | No review before completion | trigger `reviews_require_completion` |
 | No technician assignment without verification | trigger `assignment_requires_verified_technician` |
 | One open price revision per job | partial unique on `price_revision_requests(job_id) where status in ('PENDING','CLARIFICATION')` |

@@ -2,6 +2,7 @@ import pg from 'pg';
 import { createPostgresBidsRepo, createPostgresKycRepo } from './bids';
 import { createPostgresJobsRepo } from './jobs';
 import { createPostgresExecutionRepo } from './execution';
+import { createPostgresMaterialsRepo } from './materials';
 import { createPostgresNegotiationRepo, createPostgresPaymentsRepo } from './negotiation';
 import type {
   AddressRecord,
@@ -227,6 +228,7 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     kyc: createPostgresKycRepo(q),
     negotiation: createPostgresNegotiationRepo(q),
     execution: createPostgresExecutionRepo(q),
+    materials: createPostgresMaterialsRepo(q),
     payments: createPostgresPaymentsRepo(q),
 
     audit: {

@@ -82,3 +82,20 @@ weight name to a font file and `ui/Text` sets `fontFamily` instead of `fontWeigh
 platform synthesises a fake bold.
 **Consequences.** First paint waits for the font (a spinner holds it) so text never reflows.
 Poppins is wider than the system face, so the type scale was re-tuned.
+
+## D-013: No platform margin on materials in the pilot
+
+**Context.** A job's material leg is bought from a local vendor at a price that vendor sets. We
+could add a percentage on top, the way the labour leg carries a platform fee.
+
+**Decision.** In the pilot the platform takes nothing on materials: the customer's material
+authorization equals the vendor's payable (`vendor_payable_paise = total_paise` in
+`material_orders`). Material money stays a separate authorization from the labour hold and is
+never folded into the job's quote.
+
+**Consequences.** The customer sees exactly the shop's price, which is the honest claim to make
+and the easiest to defend when a customer compares it with the shop across the road. Revenue in
+the pilot comes only from the labour platform fee. If a margin is introduced later it must appear
+as its own line in the breakdown, never as a silent mark-up on the vendor's price, and the
+migration will have to split `vendor_payable_paise` away from `total_paise` rather than assume
+they are equal.

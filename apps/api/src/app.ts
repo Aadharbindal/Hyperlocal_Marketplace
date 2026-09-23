@@ -19,6 +19,8 @@ import { categoryRoutes } from './modules/categories/routes';
 import { executionRoutes } from './modules/execution/routes';
 import { executionService, type ExecutionService } from './modules/execution/service';
 import { jobRoutes } from './modules/jobs/routes';
+import { materialRoutes } from './modules/materials/routes';
+import { materialsService, type MaterialsService } from './modules/materials/service';
 import { jobService, type JobService } from './modules/jobs/service';
 import { negotiationRoutes } from './modules/negotiation/routes';
 import { negotiationService, type NegotiationService } from './modules/negotiation/service';
@@ -38,6 +40,7 @@ export interface AppContext {
     provider: ProviderService;
     negotiation: NegotiationService;
     execution: ExecutionService;
+    materials: MaterialsService;
   };
 }
 
@@ -65,9 +68,22 @@ export async function buildApp(opts: BuildOptions = {}) {
   const auth = authService({ env, store, adapters, audit, tokens });
   const jobs = jobService({ env, store, adapters });
   const provider = providerService({ env, store, adapters });
-  const negotiation = negotiationService({ env, store, adapters, jobs });
   const execution = executionService({ env, store, adapters, jobs });
-  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs, provider, negotiation, execution } };
+  const materials = materialsService({ env, store, adapters, jobs });
+  // A material authorization belongs to the material order, not to the booking, so the
+  // webhook hands it straight back to the leg that owns it.
+  const negotiation = negotiationService({
+    env,
+    store,
+    adapters,
+    jobs,
+    onSideLegSettled: async (payment) => {
+      if (payment.purpose === 'MATERIAL' && payment.status === 'AUTHORIZED') {
+        await materials.onMaterialAuthorized(payment.idempotency_key.replace(/^mat_/, ''));
+      }
+    },
+  });
+  const ctx: AppContext = { env, store, adapters, services: { auth, audit, jobs, provider, negotiation, execution, materials } };
 
   if (opts.seed ?? (env.DATA_MODE === 'memory' && env.APP_ENV !== 'test')) {
     await seedDemo(store, env);
@@ -186,6 +202,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     await providerRoutes(scope, ctx);
     await negotiationRoutes(scope, ctx);
     await executionRoutes(scope, ctx);
+    await materialRoutes(scope, ctx);
     await adminRoutes(scope, ctx);
   });
 

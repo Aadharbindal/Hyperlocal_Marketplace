@@ -21,12 +21,16 @@ Updated every milestone. **Nothing external is live.** Each row names the produc
 | Bid-window expiry | not scheduled | offers stop being accepted once the window passes, but nothing auto-cancels or expires the job in the background | scheduled job | M9 |
 | Admin MFA | not started | – | TOTP | M8 |
 | KYC encryption | not started | – | envelope encryption | M8 |
-| Voice-note recording (mobile) | not started | the API accepts voice notes (60 s cap enforced); the app only attaches photos so far | expo-audio recorder in the booking flow | M6 |
-| Completion and revision photos (mobile) | **stand-in** | the app calls the evidence endpoint with fixed image metadata instead of opening the camera, because mock storage has nowhere to put the bytes | camera capture + signed upload | M6 |
+| Voice-note recording (mobile) | not started | the API accepts voice notes (60 s cap enforced); the app only attaches photos so far | expo-audio recorder in the booking flow | M9 |
+| Completion, revision and delivery photos (mobile) | **stand-in** | the app calls the evidence endpoint with fixed image metadata instead of opening the camera, because mock storage has nowhere to put the bytes | camera capture + signed upload | M9 |
+| Vendor invoice upload (mobile) | not built | the API accepts and validates an invoice against the order total; the vendor app shows what is owed but has no upload screen yet | invoice capture in the vendor app | M8 |
+| Held material orders | **manual** | a reported mismatch parks the order at ON_HOLD and notifies both sides; only an admin can release it, and there is no admin screen yet | dispute queue | M8 |
+| Material substitution | not built | a vendor quotes against the list as given; there is no flow for proposing a different brand mid-order (MAT-05) | substitution approval | M8 |
+| Vendor payouts | not started | a confirmed order with a matching invoice is the evidence a payout needs, but nothing is settled yet | vendor settlement | M7 |
 | Chat moderation | **flag only** | messages with a phone number, email or UPI handle are stored flagged; nothing reviews or acts on the flag yet | review queue + repeat-offender strikes | M8 |
 | Start-code resend | not built | one code per job for 72 hours; there is no resend or rotation | resend with cooldown (policy already in `START_JOB_OTP_POLICY`) | M9 |
 | Customer approval timeout | not scheduled | `CUSTOMER_APPROVAL_HOURS` is defined but nothing chases or auto-approves a job the customer ignores | scheduled job + reminder | M9 |
-| Media bytes in mock mode | **MOCKED** | `/jobs/:id/media` returns `upload.required: false` and marks the row uploaded; no bytes are stored, so photo thumbnails fall back to an icon | Supabase Storage / S3 signed PUT | M6 |
+| Media bytes in mock mode | **MOCKED** | `/jobs/:id/media` returns `upload.required: false` and marks the row uploaded; no bytes are stored, so photo thumbnails fall back to an icon | Supabase Storage / S3 signed PUT | M9 |
 | Voice-note transcription | deferred | none | Phase 2 | – |
 | Regional voice UI, AI categorisation, AI damage assessment | deferred by spec §31 | – | – | – |
 | Mobile dependency pin | workaround | `query-string@7` added to `apps/mobile` because `@react-navigation/native` 7.4 dropped it while `expo-router` 5.1 still imports it | remove when expo-router updates | M2 |

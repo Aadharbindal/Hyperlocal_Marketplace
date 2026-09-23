@@ -9,6 +9,7 @@ import { ApiError, API_URL } from '@/api/client';
 import { useCancelJob, useJob } from '@/api/jobs';
 import { BookingCard } from '@/features/customer/BookingCard';
 import { LiveJobPanel } from '@/features/customer/LiveJobPanel';
+import { MaterialPanel } from '@/features/customer/MaterialPanel';
 import { OffersList } from '@/features/customer/OffersList';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
@@ -184,6 +185,8 @@ export default function JobDetailScreen() {
 
       {/* offers still open for comparison */}
       <LiveJobPanel jobId={j.id} status={j.status} />
+
+      <MaterialPanel jobId={j.id} status={j.status} />
 
       <OffersList jobId={j.id} live={live} />
 
