@@ -41,3 +41,6 @@ coverage/
 
 # local data for demo mode
 apps/api/.data/
+
+# Local editor/tooling config
+.claude/
