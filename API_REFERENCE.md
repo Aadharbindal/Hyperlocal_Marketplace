@@ -87,9 +87,31 @@ Errors: `JOB_INVALID_TRANSITION` (422) for an illegal state change; `VALIDATION_
 `details.blockers` (submission) or `details.media` (uploads); 403 for a job or address that is
 not the caller's.
 
+## Milestone 3 (implemented)
+
+### Provider profile and verification
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/provider/profile` | PROVIDER, CONTRACTOR | Profile, skills, KYC records (last four characters only) and `blockers` explaining why the feed may be empty |
+| PUT | `/provider/profile` | PROVIDER, CONTRACTOR | Business name, bio, experience, service radius, base address (must be the caller's), skill ids *audited* |
+| POST | `/provider/availability` | PROVIDER, CONTRACTOR | `{ isAvailable }`; refused with `verification_pending` until the provider is VERIFIED *audited* |
+| POST | `/provider/kyc` | PROVIDER, CONTRACTOR, TECHNICIAN, VENDOR | Submits one document. Only the last four characters are stored; the number is never persisted or logged. One open submission per document type (409 otherwise) *audited* |
+
+### Feed and offers
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/provider/jobs/nearby?limit=` | PROVIDER, CONTRACTOR | Eligible open jobs, nearest first. Eligibility = verified + available + in radius + category and skill match + reliability + not suspended. Returns `{ items, blockers }`; the exact address is never included, only distance and area |
+| POST | `/jobs/:id/bids` | PROVIDER, CONTRACTOR | Places an offer; re-checks eligibility, one live offer per provider per job, bid window and the job status. The first offer moves the job to `BID_RECEIVED` and notifies the customer *audited* |
+| POST | `/bids/:id/revise` | offer owner | Up to two revisions (`TOO_MANY_REVISIONS` after that); every price is kept in `bid_revisions` *audited* |
+| POST | `/bids/:id/withdraw` | offer owner | `{ reason }` required; frees the provider to bid again *audited* |
+| GET | `/provider/bids` | PROVIDER, CONTRACTOR | The provider's own offers with job context |
+| GET | `/jobs/:id/offers` | job owner | Ranked offers for the customer: total, breakdown, ETA, warranty, and limited provider identity (business name, verified badge, rating, jobs done, distance). No phone numbers or addresses. Ranking uses skill, distance, ETA, experience, reliability, rating and price - never price alone |
+
+Errors: `FORBIDDEN` with `details.eligibility` (feed rules), `VALIDATION_ERROR` with `details.bid`
+(`WINDOW_CLOSED`, `DUPLICATE_ACTIVE_BID`, `TOO_MANY_REVISIONS`, `JOB_FULL`, `ETA_OUT_OF_RANGE`),
+`CONFLICT` with `job_not_accepting_offers`.
+
 ## Planned (by milestone)
-- **M3** `PUT /provider/profile`, `POST /provider/kyc`, `GET /provider/jobs/nearby`,
-  `POST /jobs/:id/bids`, `POST /bids/:id/revise`, `POST /bids/:id/withdraw`, `GET /provider/jobs`
 - **M4** `POST /jobs/:id/counter-offer`, `POST /offers/:id/respond`, `POST /bids/:id/accept`,
   `POST /jobs/:id/confirm` (payment authorization)
 - **M5** `POST /jobs/:id/assign-technician`, `POST /jobs/:id/status` (EN_ROUTE/ARRIVED),

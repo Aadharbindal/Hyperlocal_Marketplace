@@ -80,6 +80,13 @@ export function createMemoryJobsRepo(): JobsRepo & { _events: JobStatusEventReco
     async findDraft(customerId, categoryId, addressId) {
       return liveDraft(customerId, categoryId, addressId);
     },
+    async listOpenForFeed({ categoryIds, limit }) {
+      const open: JobStatus[] = ['OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING'];
+      return [...jobs.values()]
+        .filter((j) => !j.deleted_at && open.includes(j.status) && categoryIds.includes(j.category_id))
+        .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
+        .slice(0, limit);
+    },
 
     async addMedia(m) {
       // mirrors job_media_job_hash_idx: the same file twice on one job is a retry

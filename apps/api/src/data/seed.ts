@@ -1,4 +1,5 @@
 import { geohash, type UserRole } from '@hyperlocal/core';
+import { CATEGORY_SEED, SKILL_SEED } from './catalog';
 import type { Env } from '../config/env';
 import type { DataStore } from './types';
 
@@ -52,6 +53,9 @@ export async function seedDemo(store: DataStore, env: Env): Promise<void> {
       await store.users.upsertCustomerProfile({ user_id: user.id, full_name: acc.name, email: null, default_address_id: addr.id, marketing_opt_in: false });
     }
     if (acc.roles.includes('PROVIDER') && !(await store.users.getProviderProfile(user.id))) {
+      // Demo providers are verified and skilled so the nearby feed works out of the box.
+      const demoCategories = CATEGORY_SEED.filter((c) => c.is_enabled).map((c) => c.id);
+      await store.users.setProviderSkills(user.id, SKILL_SEED.filter((s2) => demoCategories.includes(s2.category_id)).map((s2) => s2.id));
       await store.users.upsertProviderProfile({
         user_id: user.id,
         business_name: acc.name,

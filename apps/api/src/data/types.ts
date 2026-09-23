@@ -1,4 +1,5 @@
 import type {
+  BidStatus,
   ConsentType,
   JobPriority,
   JobRequestType,
@@ -7,6 +8,7 @@ import type {
   PaymentStatus,
   RoleStatus,
   UserRole,
+  MaterialResponsibility,
   UserStatus,
   VerificationStatus,
 } from '@hyperlocal/core';
@@ -273,6 +275,51 @@ export interface JobStatusEventRecord {
   created_at: Date;
 }
 
+export interface BidRecord {
+  id: string;
+  job_id: string;
+  provider_id: string;
+  contractor_id: string | null;
+  labour_paise: number;
+  visit_fee_paise: number;
+  eta_minutes: number;
+  warranty_days: number;
+  material_responsibility: MaterialResponsibility;
+  notes: string | null;
+  revision_no: number;
+  status: BidStatus;
+  expires_at: Date;
+  withdrawn_reason: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface BidRevisionRecord {
+  id: string;
+  bid_id: string;
+  revision_no: number;
+  labour_paise: number;
+  visit_fee_paise: number;
+  eta_minutes: number;
+  warranty_days: number;
+  notes: string | null;
+  created_at: Date;
+}
+
+export interface KycRecord {
+  id: string;
+  user_id: string;
+  document_type: string;
+  storage_key_encrypted: string;
+  doc_number_last4: string | null;
+  status: VerificationStatus;
+  reviewed_by: string | null;
+  reviewed_at: Date | null;
+  rejection_reason: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface IdempotencyRecord {
   key: string;
   user_id: string;
@@ -307,6 +354,9 @@ export interface UsersRepo {
   upsertContractorProfile(p: ContractorProfileRecord): Promise<ContractorProfileRecord>;
   getVendorProfile(userId: string): Promise<VendorProfileRecord | null>;
   upsertVendorProfile(p: VendorProfileRecord): Promise<VendorProfileRecord>;
+
+  listProviderSkills(providerId: string): Promise<string[]>;
+  setProviderSkills(providerId: string, skillIds: string[]): Promise<void>;
 
   listConsents(userId: string): Promise<ConsentRecord[]>;
   addConsent(c: New<ConsentRecord>): Promise<ConsentRecord>;
@@ -362,6 +412,8 @@ export interface JobsRepo {
   listForCustomer(customerId: string, opts: { statuses?: JobStatus[]; limit: number }): Promise<JobRecord[]>;
   findOpenForTarget(customerId: string, categoryId: string, addressId: string | null): Promise<JobRecord[]>;
   findDraft(customerId: string, categoryId: string, addressId: string | null): Promise<JobRecord | null>;
+  /** Open jobs a provider could quote on; distance is filtered by the caller. */
+  listOpenForFeed(opts: { categoryIds: string[]; limit: number }): Promise<JobRecord[]>;
 
   addMedia(m: New<JobMediaRecord>): Promise<JobMediaRecord>;
   listMedia(jobId: string, phase?: JobMediaRecord['phase']): Promise<JobMediaRecord[]>;
@@ -370,6 +422,24 @@ export interface JobsRepo {
 
   appendEvent(e: New<JobStatusEventRecord>): Promise<JobStatusEventRecord>;
   listEvents(jobId: string): Promise<JobStatusEventRecord[]>;
+}
+
+export interface BidsRepo {
+  create(b: New<BidRecord>): Promise<BidRecord>;
+  get(id: string): Promise<BidRecord | null>;
+  update(id: string, patch: Partial<BidRecord>): Promise<BidRecord>;
+  listForJob(jobId: string, statuses?: BidStatus[]): Promise<BidRecord[]>;
+  listForProvider(providerId: string, statuses?: BidStatus[]): Promise<BidRecord[]>;
+  findActive(jobId: string, providerId: string): Promise<BidRecord | null>;
+  addRevision(r: New<BidRevisionRecord>): Promise<BidRevisionRecord>;
+  listRevisions(bidId: string): Promise<BidRevisionRecord[]>;
+}
+
+export interface KycRepo {
+  submit(k: New<KycRecord>): Promise<KycRecord>;
+  listForUser(userId: string): Promise<KycRecord[]>;
+  findOpen(userId: string, documentType: string): Promise<KycRecord | null>;
+  update(id: string, patch: Partial<KycRecord>): Promise<KycRecord>;
 }
 
 export interface IdempotencyRepo {
@@ -384,6 +454,8 @@ export interface DataStore {
   addresses: AddressesRepo;
   categories: CategoriesRepo;
   jobs: JobsRepo;
+  bids: BidsRepo;
+  kyc: KycRepo;
   audit: AuditRepo;
   notifications: NotificationsRepo;
   retention: RetentionRepo;

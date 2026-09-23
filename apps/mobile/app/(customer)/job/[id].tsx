@@ -7,6 +7,7 @@ import Animated, { Easing, FadeIn, FadeInDown, useAnimatedStyle, useSharedValue,
 import type { JobStatus } from '@hyperlocal/core';
 import { ApiError, API_URL } from '@/api/client';
 import { useCancelJob, useJob } from '@/api/jobs';
+import { OffersList } from '@/features/customer/OffersList';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
 import { Button, Card, ErrorState, IconButton, Screen, Skeleton, Text } from '@/ui';
@@ -175,6 +176,9 @@ export default function JobDetailScreen() {
           })}
         </Card>
       </Animated.View>
+
+      {/* offers received */}
+      <OffersList jobId={j.id} live={live} />
 
       {/* request summary */}
       <Animated.View entering={FadeInDown.delay(160).duration(420)}>

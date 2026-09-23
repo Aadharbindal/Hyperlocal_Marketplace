@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { createPostgresBidsRepo, createPostgresKycRepo } from './bids';
 import { createPostgresJobsRepo } from './jobs';
 import type {
   AddressRecord,
@@ -118,6 +119,19 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
         );
         return p;
       },
+      async listProviderSkills(providerId) {
+        const rows = await many<{ skill_id: string }>('select skill_id from provider_skills where provider_id = $1', [providerId]);
+        return rows.map((r) => r.skill_id);
+      },
+      async setProviderSkills(providerId, skillIds) {
+        await q.query('delete from provider_skills where provider_id = $1', [providerId]);
+        if (skillIds.length) {
+          await q.query(
+            'insert into provider_skills (provider_id, skill_id) select $1, unnest($2::uuid[]) on conflict do nothing',
+            [providerId, skillIds],
+          );
+        }
+      },
       listConsents: (userId) => many<ConsentRecord>('select * from consents where user_id = $1 order by created_at', [userId]),
       async addConsent(c) {
         return (await one<ConsentRecord>(
@@ -194,6 +208,8 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     },
 
     jobs: createPostgresJobsRepo(q),
+    bids: createPostgresBidsRepo(q),
+    kyc: createPostgresKycRepo(q),
 
     audit: {
       async append(e) {

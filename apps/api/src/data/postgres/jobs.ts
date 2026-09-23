@@ -46,6 +46,15 @@ export function createPostgresJobsRepo(q: Queryable): JobsRepo {
            and status not in ('CANCELLED_BY_CUSTOMER','CANCELLED_BY_PROVIDER','AUTO_CANCELLED','REFUNDED','ABANDONED','SETTLED','DISPUTED')`,
         [customerId, categoryId, addressId],
       ),
+    listOpenForFeed: ({ categoryIds, limit }) =>
+      many<JobRecord>(
+        `select * from jobs
+          where deleted_at is null
+            and status in ('OPEN_FOR_BIDS','BID_RECEIVED','NEGOTIATING')
+            and category_id = any($1::uuid[])
+          order by created_at desc limit $2`,
+        [categoryIds, limit],
+      ),
     findDraft: (customerId, categoryId, addressId) =>
       one<JobRecord>(
         `select * from jobs where customer_id = $1 and category_id = $2

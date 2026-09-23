@@ -1,6 +1,7 @@
 import { newId } from '../../lib/crypto';
 import { conflict } from '../../lib/errors';
 import { CATEGORY_SEED, SKILL_SEED } from '../catalog';
+import { createMemoryBidsRepo, createMemoryKycRepo } from './bids';
 import { createMemoryJobsRepo } from './jobs';
 import type {
   AddressRecord,
@@ -35,12 +36,15 @@ export function createMemoryStore(): DataStore {
   const contractorProfiles = new Map<string, ContractorProfileRecord>();
   const vendorProfiles = new Map<string, VendorProfileRecord>();
   const addresses = new Map<string, AddressRecord>();
+  const providerSkills = new Map<string, string[]>();
   const consents: ConsentRecord[] = [];
   const audit: AuditLogRecord[] = [];
   const notifications: NotificationRecord[] = [];
   const retention: RetentionEventRecord[] = [];
   const idem = new Map<string, IdempotencyRecord>();
   const jobsRepo = createMemoryJobsRepo();
+  const bidsRepo = createMemoryBidsRepo();
+  const kycRepo = createMemoryKycRepo();
 
   // Serialise "transactions" with a simple promise chain so concurrent acceptances cannot interleave.
   let chain: Promise<unknown> = Promise.resolve();
@@ -146,6 +150,12 @@ export function createMemoryStore(): DataStore {
       async upsertVendorProfile(p) {
         vendorProfiles.set(p.user_id, p);
         return p;
+      },
+      async listProviderSkills(providerId) {
+        return providerSkills.get(providerId) ?? [];
+      },
+      async setProviderSkills(providerId, skillIds) {
+        providerSkills.set(providerId, [...new Set(skillIds)]);
       },
       async listConsents(userId) {
         return consents.filter((c) => c.user_id === userId);
@@ -253,6 +263,8 @@ export function createMemoryStore(): DataStore {
     },
 
     jobs: jobsRepo,
+    bids: bidsRepo,
+    kyc: kycRepo,
 
     audit: {
       async append(entry) {

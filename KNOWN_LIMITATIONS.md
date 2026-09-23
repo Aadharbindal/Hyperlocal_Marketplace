@@ -14,6 +14,10 @@ Updated every milestone. **Nothing external is live.** Each row names the produc
 | Analytics | **MOCKED** | logged | PostHog (after privacy review) | M1 (adapter) |
 | Realtime | not started | polling | Supabase Realtime | M4 |
 | Database | memory mode by default | in-process store, resets on restart | Supabase Postgres via migrations (schema written, not yet exercised by tests) | M1 (schema), M2 (postgres repo tests) |
+| Provider verification approval | **manual/mocked** | KYC submission works and sets SUBMITTED; nothing flips a provider to VERIFIED yet (tests and the demo seed set it directly) | admin KYC review queue | M8 |
+| KYC document bytes | **MOCKED** | the upload target is returned but the file is not stored (mock storage); only the last-4 and metadata are persisted | encrypted object storage | M8 |
+| Offer acceptance | not started | the customer can see ranked offers; the accept button is disabled | counter-offers, quote lock, acceptance transaction | M4 |
+| Bid-window expiry | not scheduled | offers stop being accepted once the window passes, but nothing auto-cancels or expires the job in the background | scheduled job | M4 |
 | Admin MFA | not started | – | TOTP | M8 |
 | KYC encryption | not started | – | envelope encryption | M8 |
 | Voice-note recording (mobile) | not started | the API accepts voice notes (60 s cap enforced); the app only attaches photos so far | expo-audio recorder in the booking flow | M3 |

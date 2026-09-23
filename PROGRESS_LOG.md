@@ -4,6 +4,90 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Milestone 3: Provider workflow
+
+**Milestone:** M3 - Provider workflow
+**Date:** 2026-09-23
+**Status:** Complete
+
+**Implemented:**
+- `packages/core`: contracts for the provider profile, KYC submission, the nearby feed item, and
+  bids/offers. The bidding rules (windows, eligibility, validation, non-price-only ranking) were
+  already written in M1 and are now wired up for real.
+- `supabase/migrations/0003_bidding.sql`: `kyc_records` (one open submission per document type),
+  `bids` (one live offer per provider per job, revisions capped at two, labour or visit fee must be
+  positive) and `bid_revisions` (every price ever offered). Triggers refuse an offer from a provider
+  who is not active and verified, and refuse an offer on a job that is not accepting them.
+- `apps/api` provider module: profile update with base location and skills, availability toggle
+  that refuses to switch on before verification, KYC submission that stores only the last four
+  characters of a document number, an eligibility-filtered nearby feed that exposes distance and
+  area but never the address, bid place/revise/withdraw, the provider's own offer list, and the
+  customer-facing ranked offer list.
+- `apps/mobile`: provider Jobs tab (availability switch, verification banner, live offer-window
+  countdown per job, blocker-aware empty states), a quick-bid sheet with a live fee breakdown
+  showing exactly what the customer pays and what the provider receives, the My offers tab with
+  withdraw, a provider profile screen (verification, document submission, radius, skills), and an
+  offers card on the customer's job screen with the transparent split and a best-match badge.
+- Demo seed now gives demo providers their skills so the nearby feed works out of the box.
+
+**Changed files:** `packages/core/src/{contracts/provider.ts,index.ts}`,
+`supabase/migrations/0003_bidding.sql`,
+`apps/api/src/{data/types.ts,data/memory/{index,jobs,bids}.ts,data/postgres/{index,jobs,bids}.ts,modules/provider/{service,routes}.ts,app.ts,data/seed.ts,test/provider.test.ts}`,
+`apps/mobile/src/{api/{provider.ts,client.ts},features/provider/BidSheet.tsx,features/customer/OffersList.tsx}`,
+`apps/mobile/app/(provider)/{jobs,active,profile}.tsx`, `apps/mobile/app/(customer)/job/[id].tsx`, docs.
+
+**Database changes:** migration `0003_bidding`. `migrate:check` passes with 3 migrations.
+
+**API changes:** `GET/PUT /provider/profile`, `POST /provider/availability`, `POST /provider/kyc`,
+`GET /provider/jobs/nearby`, `POST /jobs/:id/bids`, `POST /bids/:id/revise`,
+`POST /bids/:id/withdraw`, `GET /provider/bids`, `GET /jobs/:id/offers`. See `API_REFERENCE.md`.
+
+**Tests added:** 21 integration tests - unverified provider cannot go available and is told why;
+profile, skills and base location persist; KYC stores only the last four characters and the number
+never reaches the response or the audit log; duplicate KYC refused; feed shows an in-radius matching
+job and hides the street address; feed hides other categories and out-of-radius jobs; empty feed
+returns blockers; a customer cannot read the provider feed; placing an offer moves the job to
+BID_RECEIVED and notifies the customer; duplicate live offer refused; unverified and
+category-mismatched offers refused; terms validated; offers refused on a cancelled job; two
+revisions allowed and the third refused; withdraw frees the provider to bid again and cannot be
+repeated; provider offer list carries job context; ranking does not simply pick the cheapest;
+cross-customer and cross-provider access refused; a customer cannot place an offer.
+
+**Tests passed:** 117/117 (53 unit + 64 integration). Type check clean across 3 workspaces.
+Lint clean. Migration check OK.
+
+**Manual verification completed:** seeded an open plumbing job through the API, then in the browser
+at 390x844 signed in as the demo provider - the Jobs tab showed the job at 1.4 km with a live 28:43
+window, the bid sheet computed labour 650, platform fee 32.50, tax 5.85, customer pays 688.35 and
+"you receive 650", and sending it flipped the card to "1 offer so far - 650 - Edit". Signing back in
+as the customer, the job showed "Offers received", the milestone timeline advanced, and the offer
+card rendered with the verified badge, 4.7 stars, 120 jobs, 1.4 km, the split and a BEST MATCH
+badge. The API confirmed the offer payload contains no phone number.
+
+**A bug the tests caught:** a provider could place an offer on a cancelled job. The SQL trigger
+blocked it in Postgres but the service did not, so the memory store accepted it. The service now
+checks the job status before anything else, mirroring `bids_require_open_job`.
+
+**Known limitations:** nothing flips a provider to VERIFIED yet - the admin review queue is M8, so
+tests and the demo seed set it directly; KYC document bytes are not stored (mock storage); accepting
+an offer is M4, so the accept button is deliberately disabled; nothing expires the bid window in the
+background yet. Full list in `KNOWN_LIMITATIONS.md`.
+
+**Security considerations:** eligibility is re-checked on every bid, not just when building the
+feed, so a provider cannot quote on something they were never shown; the feed and the offer list
+expose distance and area but never the address, phone number or media; offer ownership is enforced
+on revise and withdraw; a customer cannot place an offer and a provider cannot create a job; the
+KYC document number is never stored, returned or logged (asserted by a test that greps the audit
+log); bids from suspended or unverified providers are refused in both the service and SQL.
+
+**External integrations mocked or live:** ALL MOCKED - storage (KYC and job media), SMS, payment,
+maps, push, telephony, monitoring, analytics.
+
+**Next milestone:** M4 - Negotiation and confirmation (counter-offers, offer expiry, quote locking,
+the single-winner acceptance transaction, and payment authorization through the mock gateway).
+
+---
+
 ## Milestone 2: Customer job flow
 
 **Milestone:** M2 - Customer job flow

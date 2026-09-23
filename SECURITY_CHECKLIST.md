@@ -27,7 +27,7 @@ Status: `[x]` implemented · `[~]` partial · `[ ]` planned (milestone in bracke
 
 ## Data protection
 - [x] Money as integer paise [M1]
-- [ ] KYC documents encrypted at rest (envelope key from env), admin-only signed URLs (5 min), every access audited [M8]
+- [~] KYC: only the last four characters of a document number are stored, never the number itself; submissions are audited without the number [M3]. Envelope encryption of the file and admin-only signed URLs still to come [M8]
 - [x] No secrets in mobile bundle (`EXPO_PUBLIC_*` only) [M1]
 - [x] Secrets via env; `.env` gitignored; `.env.example` placeholders only [M0]
 - [x] No phone numbers/OTP codes in logs (redaction in logger) [M1]
