@@ -4,6 +4,96 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Reaching people: push, masked calling, and moving a booking
+
+**Milestone:** post-M9 - three things a real app has to do that this one could not
+**Date:** 2026-09-23
+**Status:** Complete
+
+**Why this exists:** a feature review against `PRODUCT_SPEC` found things that were specified,
+half-built, and quietly inert. The push adapter had nowhere to send to, because a device token
+was never stored anywhere - so every "notification" lived only inside the app's own list. The
+telephony adapter had no route to reach it, so the anti-leakage promise in section 17 was one
+the product could not keep. And section 4 says "cancel/**reschedule**"; only cancel existed, so
+a customer who could not be home on Tuesday had to throw away the price they had agreed.
+
+**Implemented:**
+
+*Notifications that arrive.* Device tokens are registered on every launch, not only the first,
+because the operating system rotates them and a stale token is somebody who quietly stops
+hearing from us. Every in-app notification is now also a push - wired at the single point where
+notifications are already created, so the whole app was covered by one change. Three categories
+can be switched off; money and account alerts deliberately cannot, because finding out a payout
+failed by noticing the money never arrived is worse for somebody than an alert they did not ask
+for. The settings screen says that out loud rather than leaving anyone to wonder.
+
+A push preview is checked before it leaves. A lock screen is read by whoever is holding the
+phone, so a body containing an amount, an address or a phone number is replaced with "Open the
+app to see the details".
+
+A token registered on a second account **moves** to it: a resold handset must not keep notifying
+the person who sold it.
+
+*Talking without swapping numbers.* `POST /jobs/:id/call` puts the telephony provider's number
+in the middle. Neither real number appears in the response, in either direction. Ten calls per
+job per day, because somebody ringing twenty times is harassment rather than a connection
+problem. The masked line stops working when the job ends - one that kept working would be a leak
+with extra steps.
+
+Calling hours (07:00-22:00) turned out to need a rule change while testing: they exist so a
+booking three days out cannot be used to ring somebody at 2am, and they have no business applying
+to a job already under way. A burst pipe at eleven at night is exactly when two people need to
+talk. They also never apply to a job in dispute.
+
+The call is logged - who rang whom, when, how long - because in an argument about what was agreed
+on the phone, "there was a call at 4pm" is evidence. What was *said* is not recorded: a recording
+is a privacy liability with no consent behind it and no process to handle it.
+
+*Moving a booking instead of losing it.* Two moves per booking, then it has to be cancelled and
+made again - which is honest about the fact that the original agreement no longer holds. Nothing
+within two hours of a booked slot, because the provider may already be travelling. The provider
+who blocked the time is told. Every refusal carries a plain-English sentence alongside its code,
+so the app never has to invent wording for a rule it does not own.
+
+**A mistake worth recording:** the first version of these guards used status names I had assumed
+rather than checked - `AWAITING_APPROVAL`, `CLOSED`, `CANCELLED`. None exist. Typed as `string`
+they compiled perfectly and would have silently never matched: calls refused on live jobs,
+rescheduling allowed on finished ones. Typing them as `JobStatus` turned four invisible bugs into
+four compiler errors. Every status list in this codebase should be typed, not stringly-typed.
+
+**Changed files:** `packages/core/src/{ops/reach.ts,ops/reach.test.ts,contracts/reach.ts,permissions/permissions.ts,index.ts}`,
+`supabase/migrations/0010_delivery_and_reach.sql`,
+`apps/api/src/{app.ts,data/types.ts,data/memory/index.ts,data/postgres/index.ts,modules/users/routes.ts,modules/execution/{service,routes}.ts,modules/jobs/{service,routes}.ts,test/reach.test.ts}`,
+`apps/mobile/{app/notifications.tsx,app/notification-settings.tsx,app/_layout.tsx,app/(customer)/home.tsx,app/(customer)/job/[id].tsx,src/api/{push,reach}.ts,src/features/customer/ContactAndTimeCard.tsx}`.
+
+**Database changes:** `0010_delivery_and_reach` - `device_tokens` (one row per token, whoever it
+belongs to now), `masked_calls` (metadata only, delete revoked), `job_reschedules` (append-only),
+the three notification switches on `users`, and `jobs.reschedule_count`. Forward-only.
+`migrate:check` reports 10 valid migrations, and all 10 apply to a real cluster.
+
+**API changes:** `POST/GET /me/devices`, `DELETE /me/devices/:id`, `POST /me/notifications/read`,
+`GET/PATCH /me/notification-settings`, `POST /jobs/:id/call`, `POST /jobs/:id/reschedule`.
+`GET /me/notifications` gained `unread` and a per-item `category`. Documented in `API_REFERENCE.md`.
+
+**Tests added / passed:** 17 new API tests and 18 new core tests. Totals: **201/201 API in memory
+mode**, **201/201 API against real Postgres**, **147/147 core**. Type check clean in 3/3
+workspaces, lint 0 errors, `migrate:check` OK.
+
+**A second real bug, found by the Postgres run:** two customers accepting the same offer at once
+gave the loser a 500 - "something went wrong on our side" - instead of 409. The database wins
+that race by design, and its constraint violations were not being translated. They are now, in
+and out of transactions, so a double-tapped "accept" says "somebody already booked this".
+
+**Known limitations:** the Expo push service and Exotel have still never been called for real, so
+in demo mode a push goes nowhere and the masked number is a fixed mock. There is no
+provider-initiated reschedule: a provider who cannot make it cancels, which is honest about what
+happened. Calling hours use the server clock, which is correct for a one-city pilot and will need
+the job's own timezone when that stops being true. The contractor and technician role still has
+no mobile app at all - the API supports it fully, which is now stated in `KNOWN_LIMITATIONS.md`
+rather than left implied.
+
+---
+
 ## Launch readiness: real Postgres, real adapters, and where the money goes
 
 **Milestone:** post-M9 - the first run against a real database, live integrations, and payout accounts

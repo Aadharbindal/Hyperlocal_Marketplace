@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useCategories } from '@/api/hooks';
+import { useNotifications } from '@/api/reach';
 import { useStrings } from '@/i18n';
 import { useSession } from '@/store/session';
 import { layout, palette, radius, spacing } from '@/theme';
@@ -22,6 +23,9 @@ export default function HomeScreen() {
   const firstName = user?.displayName?.split(' ')[0] ?? '';
   const router = useRouter();
   const comingSoon = () => setNotice(t('home.comingSoon'));
+  // The dot is only worth showing when there is genuinely something unread; a permanent one
+  // teaches people to ignore it.
+  const notifications = useNotifications();
   const book = (categoryId?: string) => router.push({ pathname: '/(customer)/book', params: categoryId ? { categoryId } : {} });
 
   return (
@@ -41,7 +45,15 @@ export default function HomeScreen() {
           </Text>
           <Ionicons name="chevron-down" size={16} color={palette.textSecondary} />
         </Pressable>
-        <IconButton icon="notifications-outline" tone="plain" badge accessibilityLabel="Notifications" onPress={comingSoon} />
+        <IconButton
+          icon="notifications-outline"
+          tone="plain"
+          badge={(notifications.data?.unread ?? 0) > 0}
+          accessibilityLabel={
+            (notifications.data?.unread ?? 0) > 0 ? `Updates, ${notifications.data?.unread} unread` : 'Updates'
+          }
+          onPress={() => router.push('/notifications')}
+        />
         <Avatar name={user?.displayName} />
       </View>
 

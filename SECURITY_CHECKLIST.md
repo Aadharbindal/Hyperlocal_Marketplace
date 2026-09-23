@@ -46,6 +46,15 @@ migration proves it; anything half-done says so and says what is missing.
 - [x] A settlement cannot be *sent* to a payee with no verified payout account - enforced in the service, in the memory repo and by a SQL trigger - while what is owed is still recorded, so money is never quietly dropped [post-M9]
 - [ ] The name on a payout account is not verified against the payee's KYC name; a penny-drop or name-match check is still to be wired (KNOWN_LIMITATIONS)
 
+## Reaching people
+- [x] A push preview never carries an amount, an address or a phone number: a body that does is replaced before it leaves, because a lock screen is read by whoever is holding the phone [post-M9]
+- [x] A device token is never returned by any endpoint; it is a handle to somebody's phone, and the device list exists to recognise a device, not to use it [post-M9]
+- [x] A push token registered on a second account moves to it, so a resold or handed-down phone stops receiving the previous owner's notifications [post-M9]
+- [x] Masked calling never puts either real number in a response, in either direction; the numbers are read at the moment of the call and not stored on the call record [post-M9]
+- [x] A masked number stops working when the job ends - a line that keeps working afterwards is a leak with extra steps [post-M9]
+- [x] Call metadata (who, whom, when, how long) is kept as dispute evidence; **calls are deliberately not recorded** - no consent was taken for it and no process exists to handle it [post-M9]
+- [x] Money and account notifications cannot be switched off, so nobody discovers a failed payout by noticing the money never arrived [post-M9]
+
 ## Audit & immutability
 - [x] `audit_logs` append-only (no UPDATE/DELETE grants) [M1]
 - [x] `job_status_events`, `ledger_entries`, `payment_events`, `dispute_evidence`, `strikes` and `kyc_access_log` are append-only (UPDATE/DELETE revoked); chat messages allow only a read receipt to change [M2, M5, M7, M8]

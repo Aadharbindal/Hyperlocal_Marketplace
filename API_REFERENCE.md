@@ -324,5 +324,29 @@ factor is missing or stale, and for any non-staff caller.
 | `503 MAINTENANCE` | While `MAINTENANCE_MODE` is on, every state-changing request waits and reads keep working |
 | `GET /ready` | Now also reports `maintenanceMode`, `minAppVersion`, `adminMfaRequired`, the scheduler's state and the number of live streams |
 
+## Reaching people (post-M9)
+
+### Devices and notifications
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/me/devices` | any signed-in user | `{ token, platform, deviceLabel?, appVersion? }`. Sent on **every launch**, because the OS rotates push tokens. A token already on another account moves to this one, so a handset that changed hands stops notifying its previous owner |
+| GET | `/me/devices` | any signed-in user | The person's registered devices. The token itself is never returned; `x-device-token` marks which row is the phone asking |
+| DELETE | `/me/devices/:id` | owner | Stops notifications to that device. The row is kept, so a device that returns is recognised rather than duplicated |
+| GET | `/me/notifications` | any signed-in user | The list plus `unread` for the badge, each item carrying its `category` |
+| POST | `/me/notifications/read` | any signed-in user | `{ ids? }`; omit `ids` to clear everything. Marking nothing is a success, not an error |
+| GET | `/me/notification-settings` | any signed-in user | The three switches, plus `alwaysOn` naming the categories that deliberately have none |
+| PATCH | `/me/notification-settings` | any signed-in user | `{ jobUpdates?, offers?, marketing? }`. **Money and account alerts have no switch** - finding out a payout failed by noticing the money never arrived is worse than an alert *audited* |
+
+Every in-app notification is also a push, if the person has a device registered and has not turned
+that category off. A push preview carries what happened, never what it is about: a body
+containing an amount, an address or a phone number is replaced with "Open the app to see the
+details", because a lock screen is read by whoever is holding the phone.
+
+### Calling and rescheduling
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/jobs/:id/call` | any party on the job | `{ urgent? }`. Returns a number to dial that reaches the other person through the telephony provider. **Neither real number is ever in the response.** Ten calls per job per day; calling hours (07:00-22:00) apply only to a booking scheduled for later, never to a job already under way or in dispute. The call is logged - who, whom, when, how long - but never recorded |
+| POST | `/jobs/:id/reschedule` | CUSTOMER, SUPPORT | `{ newStart, newEnd?, reason? }`. Two moves per booking, none once somebody may be travelling (2 h notice on a booked slot), nothing in the past or more than 30 days out. The provider who blocked the slot is notified. Refusals carry a plain-English `message` alongside the code *audited* |
+
 ## Planned (by milestone)
 _Nothing is left planned: all nine milestones are implemented. What is still missing is listed in `KNOWN_LIMITATIONS.md`._

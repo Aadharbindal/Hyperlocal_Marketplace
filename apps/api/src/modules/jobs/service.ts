@@ -2,9 +2,12 @@ import {
   BID_WINDOW_MINUTES,
   JOB_STATUS_LABEL_KEY,
   canTransition,
+  checkCanReschedule,
   checkMedia,
   checkSubmittable,
   detectHazards,
+  MAX_RESCHEDULES,
+  explainRescheduleBlocker,
   isLikelyDuplicate,
   maskPhone,
   mediaPhaseFor,
@@ -13,6 +16,7 @@ import {
   type JobMediaView,
   type JobStatus,
   type JobView,
+  type RescheduleView,
   type Language,
   type UserRole,
 } from '@hyperlocal/core';
@@ -259,6 +263,7 @@ export function jobService(d: JobDeps) {
         recipient_tracking_token: null,
         category_id: input.categoryId,
         status: 'DRAFT',
+        reschedule_count: 0,
         payment_status: 'NONE',
         bid_window_ends_at: null,
         confirmed_provider_id: null,
@@ -442,6 +447,76 @@ export function jobService(d: JobDeps) {
       });
 
       return { job: open4bids, duplicateOf: duplicate?.id ?? null };
+    },
+
+    /**
+     * Moving a booking instead of losing it.
+     *
+     * A customer who cannot be home on Tuesday should not have to cancel and start over - that
+     * costs them the price they agreed and costs the provider the job. The limits are about
+     * the other person's time: two moves, and not once somebody may already be travelling.
+     */
+    async reschedule(
+      job: JobRecord,
+      customerId: string,
+      input: { newStart: string; newEnd?: string; reason?: string },
+    ): Promise<RescheduleView> {
+      const newStart = new Date(input.newStart);
+      const problem = checkCanReschedule({
+        jobStatus: job.status,
+        isCustomer: job.customer_id === customerId,
+        rescheduleCount: job.reschedule_count,
+        currentStart: job.preferred_start,
+        newStart,
+        now: new Date(),
+      });
+      if (problem) {
+        throw new AppError('VALIDATION_ERROR', {
+          details: { reschedule: [problem], message: explainRescheduleBlocker(problem) },
+        });
+      }
+
+      const newEnd = input.newEnd ? new Date(input.newEnd) : null;
+      await store.reach.addReschedule({
+        job_id: job.id,
+        requested_by: customerId,
+        previous_start: job.preferred_start,
+        previous_end: job.preferred_end,
+        new_start: newStart,
+        new_end: newEnd,
+        reason: input.reason ?? null,
+      });
+
+      const updated = await store.jobs.update(job.id, {
+        preferred_start: newStart,
+        preferred_end: newEnd,
+        reschedule_count: job.reschedule_count + 1,
+      });
+
+      // Whoever blocked time for this has to be told, not left to find out on the day.
+      const providerId = job.confirmed_provider_id;
+      if (providerId) {
+        const when = newStart.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+        await store.notifications.create({
+          user_id: providerId,
+          type: 'job.rescheduled',
+          title: 'A booking has moved',
+          body: `The customer has changed the time to ${when}. Check your schedule.`,
+          data: { jobId: job.id },
+          channel: 'IN_APP',
+          read_at: null,
+          sent_at: new Date(),
+        });
+      }
+
+      adapters.analytics.track('job_rescheduled', { userId: customerId, jobId: job.id });
+      return {
+        jobId: job.id,
+        preferredStart: updated.preferred_start?.toISOString() ?? null,
+        preferredEnd: updated.preferred_end?.toISOString() ?? null,
+        movesLeft: Math.max(0, MAX_RESCHEDULES - updated.reschedule_count),
+        providerNotified: !!providerId,
+      };
     },
 
     async cancelByCustomer(job: JobRecord, reason: string, ctx: TransitionContext) {

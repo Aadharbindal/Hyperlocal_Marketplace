@@ -2,14 +2,17 @@ import {
   CHAT_OPEN_FROM,
   DEFAULT_FEE_POLICY,
   START_JOB_OTP_POLICY,
+  checkCanCall,
   checkCanOverrideStart,
   checkCanStart,
   checkCompletion,
   checkRevisionRequest,
   computeQuote,
   flagChatMessage,
+  MAX_CALLS_PER_JOB_PER_DAY,
   maskPhone,
   revisionNeedsSupport,
+  type CallView,
   type ChatMessageView,
   type CompletionView,
   type ExecutionView,
@@ -646,6 +649,80 @@ export function executionService(d: ExecutionDeps) {
         createdAt: m.created_at.toISOString(),
       }));
       return { threadId: thread.id, jobId: job.id, open: !thread.closed_at, items };
+    },
+
+    // ------------------------------------------------------------------ talking
+    /**
+     * Connects two people on a job through the telephony provider, so they can talk without
+     * either of them learning the other's number.
+     *
+     * The call is logged - who rang whom, when, for how long - because in a dispute about what
+     * was agreed on the phone, "there was a call at 4pm" is evidence. What is *said* is not
+     * recorded: a recording is a privacy liability we have no consent for and no process to
+     * handle, so the duration is all that is kept.
+     */
+    async startCall(job: JobRecord, callerId: string, input: { urgent?: boolean } = {}): Promise<CallView> {
+      const { customerId, providerIds } = await partiesFor(job);
+      const isCustomer = callerId === customerId;
+      const calleeId = isCustomer ? providerIds[0] : customerId;
+
+      const since = new Date(Date.now() - 24 * 3600_000);
+      const callsToday = await store.reach.countCallsSince(job.id, callerId, since);
+      const problem = checkCanCall({
+        jobStatus: job.status,
+        callerIsOnJob: isCustomer || providerIds.includes(callerId),
+        callsToday,
+        // The pilot is one city, so the server clock is the local clock. When that stops being
+        // true this has to come from the job's address, not from here.
+        localHour: new Date().getHours(),
+        urgent: input.urgent,
+      });
+      // Not being on the job is an authorization failure, not a bad request, and is answered
+      // the same way every other "this is not yours" is.
+      if (problem === 'NOT_ON_THIS_JOB') throw forbidden('not on this job');
+      if (problem) throw new AppError('VALIDATION_ERROR', { details: { call: [problem] } });
+      if (!calleeId) throw new AppError('VALIDATION_ERROR', { details: { call: ['NOBODY_TO_CALL'] } });
+
+      const [caller, callee] = await Promise.all([store.users.findById(callerId), store.users.findById(calleeId)]);
+      if (!caller || !callee) throw notFound('user');
+
+      const record = await store.reach.createCall({
+        job_id: job.id,
+        caller_id: callerId,
+        callee_id: calleeId,
+        virtual_number: null,
+        provider_session_id: null,
+        status: 'REQUESTED',
+        failure_reason: null,
+        duration_seconds: null,
+      });
+
+      try {
+        const call = await adapters.telephony.createMaskedCall({
+          fromE164: caller.phone_e164,
+          toE164: callee.phone_e164,
+          jobId: job.id,
+        });
+        const connected = await store.reach.updateCall(record.id, {
+          virtual_number: call.virtualNumber,
+          provider_session_id: call.sessionId,
+          status: 'CONNECTED',
+        });
+        adapters.analytics.track('masked_call_started', { userId: callerId, jobId: job.id });
+        return {
+          id: connected.id,
+          virtualNumber: call.virtualNumber,
+          status: 'CONNECTED',
+          // A first name only, the same as everywhere else a counterparty is shown.
+          calleeName: (callee.display_name ?? 'your contact').split(' ')[0] ?? 'your contact',
+          callsLeftToday: Math.max(0, MAX_CALLS_PER_JOB_PER_DAY - callsToday - 1),
+          createdAt: connected.created_at.toISOString(),
+        };
+      } catch (e) {
+        await store.reach.updateCall(record.id, { status: 'FAILED', failure_reason: 'provider_error' });
+        adapters.monitoring.captureError(e, { scope: 'masked_call', jobId: job.id });
+        throw new AppError('VALIDATION_ERROR', { details: { call: ['COULD_NOT_CONNECT'] } });
+      }
     },
 
     toRevisionView,

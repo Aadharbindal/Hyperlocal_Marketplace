@@ -16,6 +16,7 @@ export const ACTIONS = [
   'job.create',
   'job.read_own',
   'job.submit',
+  'job.reschedule',
   'job.cancel_as_customer',
   'job.approve_completion',
   'job.raise_dispute',
@@ -66,6 +67,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Action, readonly UserRole[]>> = 
   'job.create': ['CUSTOMER', 'SUPPORT', 'ADMIN'],
   'job.read_own': ALL_HUMAN,
   'job.submit': ['CUSTOMER', 'SUPPORT', 'ADMIN'],
+  // Support can move a booking on a customer's behalf, over the phone. A provider cannot: the
+  // time belongs to the person whose home it is.
+  'job.reschedule': ['CUSTOMER', 'SUPPORT', 'ADMIN'],
   'job.cancel_as_customer': ['CUSTOMER', 'SUPPORT', 'ADMIN'],
   'job.approve_completion': ['CUSTOMER'],
   'job.raise_dispute': ['CUSTOMER', 'PROVIDER', 'CONTRACTOR', 'VENDOR'],

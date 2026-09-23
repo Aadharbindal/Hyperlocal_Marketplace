@@ -15,7 +15,10 @@ import type {
   ContractorProfileRecord,
   CustomerProfileRecord,
   DataStore,
+  DeviceTokenRecord,
   IdempotencyRecord,
+  JobRescheduleRecord,
+  MaskedCallRecord,
   NotificationRecord,
   OtpChallengeRecord,
   ProviderProfileRecord,
@@ -47,6 +50,9 @@ export function createMemoryStore(): DataStore {
   const consents: ConsentRecord[] = [];
   const audit: AuditLogRecord[] = [];
   const notifications: NotificationRecord[] = [];
+  const devices: DeviceTokenRecord[] = [];
+  const calls = new Map<string, MaskedCallRecord>();
+  const reschedules: JobRescheduleRecord[] = [];
   const retention: RetentionEventRecord[] = [];
   const idem = new Map<string, IdempotencyRecord>();
   const jobsRepo = createMemoryJobsRepo();
@@ -88,6 +94,9 @@ export function createMemoryStore(): DataStore {
           suspended_reason: null,
           suspended_by: null,
           suspension_approved_by: null,
+          push_job_updates: true,
+          push_offers: true,
+          push_marketing: false,
           last_login_at: null,
           deleted_at: null,
           created_at: now(),
@@ -338,6 +347,91 @@ export function createMemoryStore(): DataStore {
       },
       async listForUser(userId, limit) {
         return notifications.filter((n) => n.user_id === userId).slice(-limit).reverse();
+      },
+      async countUnread(userId) {
+        return notifications.filter((n) => n.user_id === userId && !n.read_at).length;
+      },
+      async markRead(userId, ids) {
+        let n = 0;
+        for (let i = 0; i < notifications.length; i++) {
+          const row = notifications[i]!;
+          if (row.user_id !== userId || row.read_at) continue;
+          if (ids && !ids.includes(row.id)) continue;
+          notifications[i] = { ...row, read_at: now() };
+          n++;
+        }
+        return n;
+      },
+    },
+
+    reach: {
+      async upsertDevice(d) {
+        // mirrors device_tokens_token_idx: one row per token, whoever it belongs to now
+        const existing = devices.find((x) => x.token === d.token);
+        if (existing) {
+          const next: DeviceTokenRecord = {
+            ...existing,
+            ...d,
+            disabled_at: null,
+            disabled_reason: null,
+            last_seen_at: now(),
+            updated_at: now(),
+          };
+          devices[devices.indexOf(existing)] = next;
+          return next;
+        }
+        const rec: DeviceTokenRecord = {
+          ...d,
+          id: newId(),
+          disabled_at: null,
+          disabled_reason: null,
+          last_seen_at: now(),
+          created_at: now(),
+          updated_at: now(),
+        } as DeviceTokenRecord;
+        devices.push(rec);
+        return rec;
+      },
+      async listDevices(userId) {
+        return devices
+          .filter((d) => d.user_id === userId && !d.disabled_at)
+          .sort((a, b) => b.last_seen_at.getTime() - a.last_seen_at.getTime());
+      },
+      async activeTokens(userId) {
+        return devices.filter((d) => d.user_id === userId && !d.disabled_at).map((d) => d.token);
+      },
+      async disableToken(token, reason) {
+        const i = devices.findIndex((d) => d.token === token);
+        if (i >= 0) devices[i] = { ...devices[i]!, disabled_at: now(), disabled_reason: reason, updated_at: now() };
+      },
+      async removeDevice(userId, id) {
+        const i = devices.findIndex((d) => d.id === id && d.user_id === userId);
+        if (i >= 0) devices[i] = { ...devices[i]!, disabled_at: now(), disabled_reason: 'removed_by_user', updated_at: now() };
+      },
+
+      async createCall(c) {
+        const rec: MaskedCallRecord = { ...c, id: newId(), created_at: now(), updated_at: now() } as MaskedCallRecord;
+        calls.set(rec.id, rec);
+        return rec;
+      },
+      async updateCall(id, patch) {
+        const c = calls.get(id);
+        if (!c) throw new Error('call not found');
+        const next = { ...c, ...patch, updated_at: now() };
+        calls.set(id, next);
+        return next;
+      },
+      async countCallsSince(jobId, callerId, since) {
+        return [...calls.values()].filter((c) => c.job_id === jobId && c.caller_id === callerId && c.created_at >= since).length;
+      },
+
+      async addReschedule(r) {
+        const rec: JobRescheduleRecord = { ...r, id: newId(), created_at: now() } as JobRescheduleRecord;
+        reschedules.push(Object.freeze(rec));
+        return rec;
+      },
+      async listReschedules(jobId) {
+        return reschedules.filter((r) => r.job_id === jobId).sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
       },
     },
 

@@ -1,5 +1,14 @@
 import type { FastifyInstance } from 'fastify';
-import { ConsentBody, GrantRoleBody, UpdateMeBody, type MeResponse } from '@hyperlocal/core';
+import {
+  ConsentBody,
+  GrantRoleBody,
+  MarkReadBody,
+  NotificationSettingsBody,
+  RegisterDeviceBody,
+  UpdateMeBody,
+  categoryForNotification,
+  type MeResponse,
+} from '@hyperlocal/core';
 import { AppError } from '../../lib/errors';
 import { parse } from '../../lib/validate';
 import { requireAction, requireAuth } from '../../plugins/auth';
@@ -114,7 +123,107 @@ export async function userRoutes(app: FastifyInstance, ctx: AppContext) {
 
   app.get('/me/notifications', { preHandler: requireAction('me.read', { allowSuspended: true }) }, async (req) => {
     const auth = requireAuth(req);
-    const items = await store.notifications.listForUser(auth.userId, 50);
-    return { items: items.map((n) => ({ id: n.id, type: n.type, title: n.title, body: n.body, data: n.data, readAt: n.read_at?.toISOString() ?? null, createdAt: n.created_at.toISOString() })) };
+    const [items, unread] = await Promise.all([
+      store.notifications.listForUser(auth.userId, 50),
+      store.notifications.countUnread(auth.userId),
+    ]);
+    return {
+      items: items.map((n) => ({
+        id: n.id,
+        type: n.type,
+        category: categoryForNotification(n.type),
+        title: n.title,
+        body: n.body,
+        data: n.data,
+        readAt: n.read_at?.toISOString() ?? null,
+        createdAt: n.created_at.toISOString(),
+      })),
+      unread,
+    };
   });
+
+  /** Reading is not an action with consequences, so it needs no reason and no audit entry. */
+  app.post('/me/notifications/read', { preHandler: requireAction('me.read', { allowSuspended: true }) }, async (req) => {
+    const auth = requireAuth(req);
+    const { ids } = parse(MarkReadBody, req.body ?? {});
+    const marked = await store.notifications.markRead(auth.userId, ids);
+    return { marked, unread: await store.notifications.countUnread(auth.userId) };
+  });
+
+  // -------------------------------------------------------------------- devices
+  /**
+   * The app registers its push token here on every launch, because the operating system rotates
+   * it and a stale token is a person who quietly stops hearing from us. Registering the same
+   * token twice is the normal case, not an error.
+   */
+  app.post('/me/devices', { preHandler: requireAction('me.read', { allowSuspended: true }) }, async (req) => {
+    const auth = requireAuth(req);
+    const body = parse(RegisterDeviceBody, req.body);
+    const device = await store.reach.upsertDevice({
+      user_id: auth.userId,
+      token: body.token,
+      platform: body.platform,
+      device_label: body.deviceLabel ?? null,
+      app_version: body.appVersion ?? null,
+    });
+    return { device: { id: device.id, platform: device.platform, deviceLabel: device.device_label } };
+  });
+
+  app.get('/me/devices', { preHandler: requireAction('me.read', { allowSuspended: true }) }, async (req) => {
+    const auth = requireAuth(req);
+    // The token itself is never returned: it is a handle to somebody's phone, and the list is
+    // for recognising a device, not for using it.
+    const currentToken = typeof req.headers['x-device-token'] === 'string' ? req.headers['x-device-token'] : null;
+    const items = (await store.reach.listDevices(auth.userId)).map((d) => ({
+      id: d.id,
+      platform: d.platform,
+      deviceLabel: d.device_label,
+      isThisDevice: !!currentToken && d.token === currentToken,
+      lastSeenAt: d.last_seen_at.toISOString(),
+      createdAt: d.created_at.toISOString(),
+    }));
+    return { items };
+  });
+
+  /** Signing a device out of notifications. The row is kept, so a device that returns is recognised. */
+  app.delete('/me/devices/:id', { preHandler: requireAction('me.read', { allowSuspended: true }) }, async (req) => {
+    const auth = requireAuth(req);
+    const { id } = req.params as { id: string };
+    await store.reach.removeDevice(auth.userId, id);
+    return { ok: true };
+  });
+
+  // -------------------------------------------------------------------- what we may send
+  app.get('/me/notification-settings', { preHandler: requireAction('me.read', { allowSuspended: true }) }, async (req) => {
+    const auth = requireAuth(req);
+    return settingsView(auth.user);
+  });
+
+  app.patch('/me/notification-settings', { preHandler: requireAction('me.update', { allowSuspended: true }) }, async (req) => {
+    const auth = requireAuth(req);
+    const body = parse(NotificationSettingsBody, req.body ?? {});
+    const updated = await store.users.update(auth.userId, {
+      ...(body.jobUpdates === undefined ? {} : { push_job_updates: body.jobUpdates }),
+      ...(body.offers === undefined ? {} : { push_offers: body.offers }),
+      ...(body.marketing === undefined ? {} : { push_marketing: body.marketing }),
+    });
+    await services.audit.record(req.auditCtx(), {
+      action: 'user.notification_settings_changed',
+      entityType: 'user',
+      entityId: auth.userId,
+      after: body,
+    });
+    return settingsView(updated);
+  });
+
+  function settingsView(u: { push_job_updates: boolean; push_offers: boolean; push_marketing: boolean }) {
+    return {
+      jobUpdates: u.push_job_updates,
+      offers: u.push_offers,
+      marketing: u.push_marketing,
+      // Said out loud so the settings screen can explain why there is no switch for these,
+      // rather than leaving someone to wonder whether we are ignoring one.
+      alwaysOn: ['MONEY', 'ACCOUNT'] as const,
+    };
+  }
 }

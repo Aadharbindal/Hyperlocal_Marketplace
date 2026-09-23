@@ -41,6 +41,10 @@ export interface UserRecord {
   /** A suspension names both people; the SQL trigger in 0008 refuses one that does not. */
   suspended_by: string | null;
   suspension_approved_by: string | null;
+  /** What this person agreed to have sent to their phone. Money and account alerts have no switch. */
+  push_job_updates: boolean;
+  push_offers: boolean;
+  push_marketing: boolean;
   last_login_at: Date | null;
   deleted_at: Date | null;
   created_at: Date;
@@ -238,6 +242,8 @@ export interface JobRecord {
   hazards: string[];
   preferred_start: Date | null;
   preferred_end: Date | null;
+  /** How many times the customer has moved this booking; two is the limit. */
+  reschedule_count: number;
   address_id: string | null;
   address_snapshot: Record<string, unknown> | null;
   lat: number | null;
@@ -811,6 +817,71 @@ export interface AuditRepo {
 export interface NotificationsRepo {
   create(n: New<NotificationRecord>): Promise<NotificationRecord>;
   listForUser(userId: string, limit: number): Promise<NotificationRecord[]>;
+  countUnread(userId: string): Promise<number>;
+  /** Marks the given notifications read, or every unread one when ids is omitted. */
+  markRead(userId: string, ids?: string[]): Promise<number>;
+}
+
+export interface DeviceTokenRecord {
+  id: string;
+  user_id: string;
+  token: string;
+  platform: 'IOS' | 'ANDROID' | 'WEB';
+  device_label: string | null;
+  app_version: string | null;
+  disabled_at: Date | null;
+  disabled_reason: string | null;
+  last_seen_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface MaskedCallRecord {
+  id: string;
+  job_id: string;
+  caller_id: string;
+  callee_id: string;
+  virtual_number: string | null;
+  provider_session_id: string | null;
+  status: 'REQUESTED' | 'CONNECTED' | 'FAILED' | 'ENDED';
+  failure_reason: string | null;
+  duration_seconds: number | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface JobRescheduleRecord {
+  id: string;
+  job_id: string;
+  requested_by: string;
+  previous_start: Date | null;
+  previous_end: Date | null;
+  new_start: Date;
+  new_end: Date | null;
+  reason: string | null;
+  created_at: Date;
+}
+
+/** Devices, calls and reschedules: the three ways a job reaches beyond the app. */
+export interface ReachRepo {
+  /**
+   * Registering the same token twice is the normal case, not an error: the app sends it on
+   * every launch. A token that moved to another account moves with it rather than notifying
+   * both people.
+   */
+  upsertDevice(d: Omit<New<DeviceTokenRecord>, 'disabled_at' | 'disabled_reason' | 'last_seen_at'>): Promise<DeviceTokenRecord>;
+  listDevices(userId: string): Promise<DeviceTokenRecord[]>;
+  /** Active push tokens for a person; an empty list simply means nowhere to send. */
+  activeTokens(userId: string): Promise<string[]>;
+  disableToken(token: string, reason: string): Promise<void>;
+  removeDevice(userId: string, id: string): Promise<void>;
+
+  createCall(c: New<MaskedCallRecord>): Promise<MaskedCallRecord>;
+  updateCall(id: string, patch: Partial<MaskedCallRecord>): Promise<MaskedCallRecord>;
+  countCallsSince(jobId: string, callerId: string, since: Date): Promise<number>;
+
+  addReschedule(r: New<JobRescheduleRecord>): Promise<JobRescheduleRecord>;
+  listReschedules(jobId: string): Promise<JobRescheduleRecord[]>;
 }
 
 export interface RetentionRepo {
@@ -1023,6 +1094,7 @@ export interface DataStore {
   payments: PaymentsRepo;
   audit: AuditRepo;
   notifications: NotificationsRepo;
+  reach: ReachRepo;
   retention: RetentionRepo;
   idempotency: IdempotencyRepo;
   /** Run fn atomically. Memory store runs it serially; Postgres uses a transaction. */

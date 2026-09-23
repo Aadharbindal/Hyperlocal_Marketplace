@@ -18,6 +18,7 @@ import { useNetwork } from '@/store/network';
 import { useSession } from '@/store/session';
 import { palette } from '@/theme';
 import { useLiveUpdates } from '@/api/live';
+import { usePushRegistration } from '@/api/push';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,6 +33,8 @@ const queryClient = new QueryClient({
 function AuthGate() {
   // One live connection for the whole app; it marks queries stale rather than carrying data.
   useLiveUpdates();
+  // And one registration, so anything that happens while the app is closed still reaches them.
+  usePushRegistration();
   const router = useRouter();
   const segments = useSegments() as string[];
   const hydrated = useSession((s) => s.hydrated);

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   JOB_STATUS_LABEL_KEY,
   JobCancelBody,
+  RescheduleBody,
   JobCreate,
   JobMediaCreate,
   JobUpdate,
@@ -147,6 +148,28 @@ export async function jobRoutes(app: FastifyInstance, ctx: AppContext) {
     const { job: submitted, duplicateOf } = await jobs.submit(job, transitionCtx(req));
     await services.audit.record(req.auditCtx(), { action: 'job.submitted', entityType: 'job', entityId: job.id });
     return { job: await jobs.toJobView(submitted, langOf(req), { includeToken: true }), duplicateOf };
+  });
+
+  // ---------------------------------------------------------------- reschedule
+  /**
+   * Moving a booking rather than cancelling it. Only the customer may - it is their time being
+   * arranged - and the provider is told, because they blocked a slot for it.
+   */
+  app.post('/jobs/:id/reschedule', { preHandler: requireAction('job.reschedule') }, async (req) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const body = parse(RescheduleBody, req.body);
+    const job = await jobs.ownedJob(id, auth.userId);
+    const result = await jobs.reschedule(job, auth.userId, body);
+    await services.audit.record(req.auditCtx(), {
+      action: 'job.rescheduled',
+      entityType: 'job',
+      entityId: job.id,
+      reason: body.reason ?? null,
+      before: { preferredStart: job.preferred_start?.toISOString() ?? null },
+      after: { preferredStart: result.preferredStart },
+    });
+    return result;
   });
 
   // ---------------------------------------------------------------- cancel

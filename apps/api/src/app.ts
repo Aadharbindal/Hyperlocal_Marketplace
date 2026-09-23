@@ -1,10 +1,11 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
-import { isUnsupportedVersion, type Language } from '@hyperlocal/core';
+import { categoryForNotification, isSafePushPreview, isUnsupportedVersion, mayPush, type Language } from '@hyperlocal/core';
 import { createAdapters, type Adapters } from './adapters';
 import { loadEnv, type Env } from './config/env';
 import { createDataStore, type DataStore } from './data';
+import type { NotificationRecord } from './data/types';
 import { seedDemo } from './data/seed';
 import { newId } from './lib/crypto';
 import { AppError } from './lib/errors';
@@ -80,8 +81,9 @@ export async function buildApp(opts: BuildOptions = {}) {
   const auth = authService({ env, store, adapters, audit, tokens });
   const events = eventsService();
 
-  // Every in-app notification is also a nudge on the live stream. Wrapping the repository here
-  // keeps that in one place: an event never carries data, only "this changed", so the client
+  // Every in-app notification is also a nudge on the live stream, and - if the person has a
+  // device registered and has not asked us not to - a push. Wrapping the repository here keeps
+  // all three in one place: an event never carries data, only "this changed", so the client
   // re-reads the endpoint it already trusts and a missed message cannot put a wrong number on
   // screen.
   const createNotification = store.notifications.create.bind(store.notifications);
@@ -89,8 +91,42 @@ export async function buildApp(opts: BuildOptions = {}) {
     const record = await createNotification(n);
     const jobId = (n.data as { jobId?: string } | undefined)?.jobId;
     events.publish([record.user_id], { kind: 'notification', jobId, at: new Date().toISOString() });
+    void deliverPush(record).catch((e) => {
+      // A push that fails must never fail the thing that caused it. The in-app notification is
+      // already written; the person will see it when they open the app.
+      logger.warn({ err: e, notificationId: record.id }, 'push delivery failed');
+    });
     return record;
   };
+
+  /**
+   * Sends the notification to the person's phone, if there is one and if they agreed to it.
+   *
+   * The body is checked before it leaves: a push preview is read by whoever is holding the
+   * phone, so an amount, an address or a phone number in it would be a leak to someone who
+   * never signed in. When the body is not safe to show, the title goes out alone and the
+   * detail waits behind the lock screen.
+   */
+  async function deliverPush(record: NotificationRecord) {
+    const category = categoryForNotification(record.type);
+    const user = await store.users.findById(record.user_id);
+    if (!user) return;
+    if (!mayPush(category, { jobUpdates: user.push_job_updates, offers: user.push_offers, marketing: user.push_marketing })) return;
+
+    const deviceTokens = await store.reach.activeTokens(record.user_id);
+    if (deviceTokens.length === 0) return;
+
+    const body = isSafePushPreview(record.body) ? record.body : 'Open the app to see the details.';
+    const result = await adapters.push.send({
+      deviceTokens,
+      title: record.title,
+      body,
+      data: { notificationId: record.id, type: record.type, ...(record.data as Record<string, unknown>) },
+    });
+    if (result.accepted === 0 && deviceTokens.length > 0) {
+      logger.info({ userId: record.user_id, devices: deviceTokens.length }, 'push accepted by nobody');
+    }
+  }
 
   const jobs = jobService({
     env,

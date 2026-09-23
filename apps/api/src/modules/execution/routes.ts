@@ -3,6 +3,7 @@ import {
   ApproveCompletionBody,
   AssignTechnicianBody,
   ChatSendBody,
+  StartCallBody,
   CompleteJobBody,
   JobProgressBody,
   PriceRevisionBody,
@@ -202,6 +203,20 @@ export async function executionRoutes(app: FastifyInstance, ctx: AppContext) {
     const { id } = parse(IdParam, req.params);
     const job = await jobForParty(req, id);
     return execution.view(job, auth.userId);
+  });
+
+  // ---------------------------------------------------------------- calling
+  /**
+   * Connects the two people on this job through the telephony provider. Neither number is ever
+   * sent to the other side - the response carries only the number to dial and who it reaches.
+   */
+  app.post('/jobs/:id/call', async (req, reply) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const body = parse(StartCallBody, req.body ?? {});
+    const job = await jobForParty(req, id);
+    const call = await execution.startCall(job, auth.userId, body);
+    return reply.code(201).send({ call });
   });
 
   // ---------------------------------------------------------------- chat

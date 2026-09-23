@@ -72,6 +72,7 @@ Until this run the SQL had never executed. Every one of these was invisible in m
 | A suspension through the M1 route was impossible - `users_suspension_needs_two` demands both names and the service wrote neither | the memory repo did not mirror that trigger; it does now, and the single-admin route is retired |
 | `upsertProviderProfile` silently discarded ratings, strikes, completed jobs and reliability on conflict | the memory repo replaced the whole record |
 | Money and ratings came back as strings, so arithmetic and comparisons went wrong in several places | JavaScript objects in, JavaScript objects out |
+| Two people accepting the same offer at once gave the loser a 500 instead of a 409: the database wins that race, and its constraint violations were not translated into conflicts | the in-memory store raised its own conflicts already |
 
 ## What actually exists at the end of M9
 
@@ -88,8 +89,9 @@ Until this run the SQL had never executed. Every one of these was invisible in m
 | Scheduled work | `scheduler.test.ts` | 10 |
 | Adversarial security pass | `security.test.ts` | 21 |
 | Where the money goes (payout accounts) | `finance.test.ts` | 5 |
-| **API integration total** | | **184** |
-| Domain rules | `packages/core/src/**/*.test.ts` | **132** |
+| Push, masked calling, rescheduling | `reach.test.ts` | 17 |
+| **API integration total** | | **201** |
+| Domain rules | `packages/core/src/**/*.test.ts` | **147** |
 
 Run everything with `npm test`; `npm run typecheck && npm run lint && npm run migrate:check &&
 npm run build` is the rest of the gate. All of it runs in CI on every push.

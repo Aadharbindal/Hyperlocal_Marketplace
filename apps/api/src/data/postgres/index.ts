@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { conflict } from '../../lib/errors';
 import { createPostgresBidsRepo, createPostgresKycRepo } from './bids';
 import { createPostgresJobsRepo } from './jobs';
 import { createPostgresExecutionRepo } from './execution';
@@ -11,6 +12,9 @@ import type {
   AuditLogRecord,
   ConsentRecord,
   DataStore,
+  DeviceTokenRecord,
+  JobRescheduleRecord,
+  MaskedCallRecord,
   OtpChallengeRecord,
   SessionRecord,
   UserRecord,
@@ -40,10 +44,34 @@ function useNumericTypes() {
   pg.types.setTypeParser(NUMERIC, (v) => (v === null ? null : Number(v)));
 }
 
+/**
+ * The database enforces rules the service also enforces - a single winning assignment, one
+ * active quote, a settlement that cannot be paid to nowhere - and it is the database that wins
+ * the race when two requests arrive at once. When it refuses, that refusal is a *conflict*, the
+ * same thing the in-memory store raises, and the caller must see it as one.
+ *
+ * Without this, a customer tapping "accept" twice gets "something went wrong on our side"
+ * instead of "somebody already booked this".
+ */
+const CONSTRAINT_VIOLATION = new Set([
+  '23505', // unique_violation - somebody got there first
+  '23514', // check_violation - including the ones our triggers raise
+  '23P01', // exclusion_violation
+]);
+
+function translateDbError(e: unknown): never {
+  const err = e as { code?: string; constraint?: string; message?: string };
+  if (err?.code && CONSTRAINT_VIOLATION.has(err.code)) {
+    throw conflict({ reason: err.constraint ?? err.message ?? 'constraint_violation' });
+  }
+  throw e;
+}
+
 export function createPostgresStore(databaseUrl: string): DataStore {
   useNumericTypes();
   const pool = new pg.Pool({ connectionString: databaseUrl, max: 10 });
-  return buildStore(pool, pool);
+  const guarded: Queryable = { query: (text, params) => pool.query(text, params).catch(translateDbError) };
+  return buildStore(guarded, pool);
 }
 
 function buildStore(q: Queryable, pool: pg.Pool): DataStore {
@@ -286,6 +314,76 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
         ))!;
       },
       listForUser: (userId, limit) => many('select * from notifications where user_id = $1 order by created_at desc limit $2', [userId, limit]),
+      async countUnread(userId) {
+        const r = await one<{ n: number }>('select count(*)::int as n from notifications where user_id = $1 and read_at is null', [userId]);
+        return r?.n ?? 0;
+      },
+      async markRead(userId, ids) {
+        const res = ids
+          ? await q.query('update notifications set read_at = now() where user_id = $1 and read_at is null and id = any($2::uuid[])', [userId, ids])
+          : await q.query('update notifications set read_at = now() where user_id = $1 and read_at is null', [userId]);
+        return res.rowCount ?? 0;
+      },
+    },
+
+    reach: {
+      async upsertDevice(d) {
+        // A token already on another account moves to this one: a handset that changed hands
+        // must not keep notifying the person who sold it.
+        return (await one<DeviceTokenRecord>(
+          `insert into device_tokens (user_id, token, platform, device_label, app_version)
+           values ($1,$2,$3,$4,$5)
+           on conflict (token) do update set user_id = excluded.user_id, platform = excluded.platform,
+             device_label = excluded.device_label, app_version = excluded.app_version,
+             disabled_at = null, disabled_reason = null, last_seen_at = now()
+           returning *`,
+          [d.user_id, d.token, d.platform, d.device_label, d.app_version],
+        ))!;
+      },
+      listDevices: (userId) =>
+        many<DeviceTokenRecord>('select * from device_tokens where user_id = $1 and disabled_at is null order by last_seen_at desc', [userId]),
+      async activeTokens(userId) {
+        const rows = await many<{ token: string }>('select token from device_tokens where user_id = $1 and disabled_at is null', [userId]);
+        return rows.map((r) => r.token);
+      },
+      async disableToken(token, reason) {
+        await q.query('update device_tokens set disabled_at = now(), disabled_reason = $2 where token = $1', [token, reason]);
+      },
+      async removeDevice(userId, id) {
+        await q.query(
+          `update device_tokens set disabled_at = now(), disabled_reason = 'removed_by_user' where id = $1 and user_id = $2`,
+          [id, userId],
+        );
+      },
+
+      async createCall(c) {
+        return (await one<MaskedCallRecord>(
+          `insert into masked_calls (job_id, caller_id, callee_id, virtual_number, provider_session_id, status, failure_reason, duration_seconds)
+           values ($1,$2,$3,$4,$5,$6,$7,$8) returning *`,
+          [c.job_id, c.caller_id, c.callee_id, c.virtual_number, c.provider_session_id, c.status, c.failure_reason, c.duration_seconds],
+        ))!;
+      },
+      async updateCall(id, patch) {
+        const { sets, values } = patchSql(patch as Record<string, unknown>, 2);
+        return (await one<MaskedCallRecord>(`update masked_calls set ${sets} where id = $1 returning *`, [id, ...values]))!;
+      },
+      async countCallsSince(jobId, callerId, since) {
+        const r = await one<{ n: number }>(
+          'select count(*)::int as n from masked_calls where job_id = $1 and caller_id = $2 and created_at >= $3',
+          [jobId, callerId, since],
+        );
+        return r?.n ?? 0;
+      },
+
+      async addReschedule(r) {
+        return (await one<JobRescheduleRecord>(
+          `insert into job_reschedules (job_id, requested_by, previous_start, previous_end, new_start, new_end, reason)
+           values ($1,$2,$3,$4,$5,$6,$7) returning *`,
+          [r.job_id, r.requested_by, r.previous_start, r.previous_end, r.new_start, r.new_end, r.reason],
+        ))!;
+      },
+      listReschedules: (jobId) =>
+        many<JobRescheduleRecord>('select * from job_reschedules where job_id = $1 order by created_at desc', [jobId]),
     },
 
     retention: {
@@ -316,7 +414,9 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
       const client = await pool.connect();
       try {
         await client.query('begin');
-        const result = await fn(buildStore(client, pool));
+        // The work inside a transaction needs the same translation: a constraint the database
+        // refuses there is still a conflict, not a server fault.
+        const result = await fn(buildStore({ query: (t, p2) => client.query(t, p2).catch(translateDbError) }, pool));
         await client.query('commit');
         return result;
       } catch (e) {

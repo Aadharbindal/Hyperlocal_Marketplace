@@ -10,6 +10,7 @@ import { useCancelJob, useJob } from '@/api/jobs';
 import { useCancellationQuote } from '@/api/finance';
 import { BookingCard } from '@/features/customer/BookingCard';
 import { AfterJobCard } from '@/features/customer/AfterJobCard';
+import { ContactAndTimeCard } from '@/features/customer/ContactAndTimeCard';
 import { LiveJobPanel } from '@/features/customer/LiveJobPanel';
 import { MaterialPanel } from '@/features/customer/MaterialPanel';
 import { OffersList } from '@/features/customer/OffersList';
@@ -250,6 +251,17 @@ export default function JobDetailScreen() {
             </View>
           )}
         </Card>
+      </Animated.View>
+
+      {/* Reaching the person, and moving the time - the two things people reach for between
+          booking and arrival. */}
+      <Animated.View entering={FadeInDown.delay(210).duration(420)}>
+        <ContactAndTimeCard
+          jobId={j.id}
+          status={j.status}
+          preferredStart={j.preferredStart}
+          onMessage={() => router.push('/(customer)/messages')}
+        />
       </Animated.View>
 
       {/* full history */}
