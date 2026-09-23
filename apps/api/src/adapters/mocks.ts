@@ -153,6 +153,14 @@ export function mockPayment(env: Env, log: Logger): PaymentAdapter {
     async refund({ idempotencyKey }) {
       return { providerRefundId: `rfnd_mock_${sha256(idempotencyKey).slice(0, 12)}` };
     },
+    async registerPayee(input) {
+      // Deterministic, and deliberately logs no bank details even in the mock.
+      log.info({ mock: true, kind: input.kind, referenceId: input.referenceId }, '[MOCK payment] payee registered');
+      return {
+        contactId: `cont_mock_${sha256(input.referenceId).slice(0, 12)}`,
+        fundAccountId: `fa_mock_${sha256(`${input.referenceId}:fa`).slice(0, 12)}`,
+      };
+    },
     async payout({ idempotencyKey, amountPaise, payeeRef }) {
       log.info({ mock: true, amountPaise, payeeRef }, '[MOCK payment] payout');
       return { transferId: `pout_mock_${sha256(idempotencyKey).slice(0, 12)}`, ok: true };

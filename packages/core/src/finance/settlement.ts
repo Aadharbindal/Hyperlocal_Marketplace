@@ -51,7 +51,8 @@ export type SettlementBlocker =
   | 'HOLD_PERIOD'
   | 'ALREADY_SETTLED'
   | 'NOTHING_OWED'
-  | 'PAYEE_SUSPENDED';
+  | 'PAYEE_SUSPENDED'
+  | 'NO_PAYOUT_ACCOUNT';
 
 export function checkCanSettle(
   input: {
@@ -62,6 +63,8 @@ export function checkCanSettle(
     openDisputes: number;
     existingSettlement: boolean;
     payeeSuspended: boolean;
+    /** The payout rail pays a registered account, not a person - see `payout_accounts`. */
+    hasPayoutAccount?: boolean;
   },
   now: Date = new Date(),
 ): SettlementBlocker | null {
@@ -72,10 +75,59 @@ export function checkCanSettle(
   if (input.amountPaise <= 0) return 'NOTHING_OWED';
   // A suspended account keeps what it earned; the payout waits for the review (DISPUTE_POLICY §5).
   if (input.payeeSuspended) return 'PAYEE_SUSPENDED';
+  // Nowhere to send it is not a failure to retry, it is something the payee has to fix.
+  if (input.hasPayoutAccount === false) return 'NO_PAYOUT_ACCOUNT';
   if (!input.capturedAt) return 'NOT_CAPTURED';
   const due = new Date(input.capturedAt.getTime() + SETTLEMENT_HOLD_HOURS * 3600_000);
   if (now < due) return 'HOLD_PERIOD';
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Where the money goes
+// ---------------------------------------------------------------------------
+
+export const PAYOUT_METHODS = ['BANK_ACCOUNT', 'UPI'] as const;
+export type PayoutMethod = (typeof PAYOUT_METHODS)[number];
+
+export type PayoutAccountBlocker = 'NAME_TOO_SHORT' | 'BAD_IFSC' | 'BAD_ACCOUNT_NUMBER' | 'BAD_UPI_ID';
+
+/** `ABCD0123456`: four letters, a zero, then six alphanumerics. */
+const IFSC = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+/** Indian account numbers run from nine to eighteen digits. */
+const ACCOUNT_NUMBER = /^\d{9,18}$/;
+/** `name@handle`, the shape every UPI id takes. */
+const VPA = /^[\w.\-]{2,64}@[a-zA-Z]{2,64}$/;
+
+/**
+ * Checked here as well as by the bank, because a typo in an account number is the one mistake
+ * in this product that sends real money to a stranger.
+ */
+export function checkPayoutAccount(
+  input:
+    | { method: 'BANK_ACCOUNT'; accountHolderName: string; accountNumber: string; ifsc: string }
+    | { method: 'UPI'; accountHolderName: string; vpa: string },
+): PayoutAccountBlocker | null {
+  if (input.accountHolderName.trim().length < 3) return 'NAME_TOO_SHORT';
+  if (input.method === 'BANK_ACCOUNT') {
+    if (!ACCOUNT_NUMBER.test(input.accountNumber.trim())) return 'BAD_ACCOUNT_NUMBER';
+    if (!IFSC.test(input.ifsc.trim().toUpperCase())) return 'BAD_IFSC';
+    return null;
+  }
+  if (!VPA.test(input.vpa.trim())) return 'BAD_UPI_ID';
+  return null;
+}
+
+/** What the payee sees back: enough to recognise the account, never enough to use it. */
+export function maskAccountNumber(accountNumber: string): string {
+  const digits = accountNumber.replace(/\D/g, '');
+  return digits.length <= 4 ? '****' : `${'*'.repeat(Math.min(8, digits.length - 4))}${digits.slice(-4)}`;
+}
+
+export function maskVpa(vpa: string): string {
+  const [name = '', handle = ''] = vpa.split('@');
+  const shown = name.slice(0, 2);
+  return `${shown}${'*'.repeat(Math.max(2, name.length - 2))}@${handle}`;
 }
 
 /** A vendor is paid for goods the customer confirmed receiving, with an invoice on file. */

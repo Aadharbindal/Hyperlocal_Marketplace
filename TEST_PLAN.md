@@ -50,7 +50,28 @@ admin privilege escalation · cross-role access · suspended login.
 ```
 DATA_MODE=postgres DATABASE_URL=... npm run test:integration
 ```
-The same suite must pass. CI runs memory mode on every push; Postgres mode nightly (M9).
+The same suite must pass, unchanged: the memory repositories exist to mirror the SQL, not to be
+an easier version of it. `makeApp` truncates every table except the service catalog (reference
+data seeded by `0001`) so each file starts clean. CI runs memory mode on every push; Postgres
+mode nightly (M9).
+
+**The database must be created with UTF-8.** The catalog carries Devanagari names, so a cluster
+initialised in a Windows-1252 locale refuses `0001` outright:
+
+```
+createdb hyperlocal --encoding=UTF8 --template=template0
+```
+
+### What the first real Postgres run found
+
+Until this run the SQL had never executed. Every one of these was invisible in memory mode:
+
+| Bug | Why memory mode missed it |
+| --- | --- |
+| OTP verification always failed: the insert dropped the caller's `id`, and the OTP hash is salted with it | the memory repo kept the id it was given |
+| A suspension through the M1 route was impossible - `users_suspension_needs_two` demands both names and the service wrote neither | the memory repo did not mirror that trigger; it does now, and the single-admin route is retired |
+| `upsertProviderProfile` silently discarded ratings, strikes, completed jobs and reliability on conflict | the memory repo replaced the whole record |
+| Money and ratings came back as strings, so arithmetic and comparisons went wrong in several places | JavaScript objects in, JavaScript objects out |
 
 ## What actually exists at the end of M9
 
@@ -66,8 +87,9 @@ The same suite must pass. CI runs memory mode on every push; Postgres mode night
 | Support console and MFA | `admin.test.ts` | 13 |
 | Scheduled work | `scheduler.test.ts` | 10 |
 | Adversarial security pass | `security.test.ts` | 21 |
-| **API integration total** | | **179** |
-| Domain rules | `packages/core/src/**/*.test.ts` | **129** |
+| Where the money goes (payout accounts) | `finance.test.ts` | 5 |
+| **API integration total** | | **184** |
+| Domain rules | `packages/core/src/**/*.test.ts` | **132** |
 
 Run everything with `npm test`; `npm run typecheck && npm run lint && npm run migrate:check &&
 npm run build` is the rest of the gate. All of it runs in CI on every push.
@@ -89,9 +111,9 @@ people using it:
 
 - **No mobile component tests.** The app is exercised by hand and through the web build; there is
   no jest-expo suite yet. This is the largest gap in the plan above.
-- **Postgres repositories are written but untested.** Every suite runs against the in-memory
-  store, which mirrors each SQL constraint by hand. The SQL itself has never been executed.
-  Running the same suite against a real Postgres is the first thing to do before launch.
+- ~~**Postgres repositories are written but untested.**~~ Closed. All 184 API tests now pass
+  against a real PostgreSQL 17, and the run found four bugs that memory mode could not (see
+  above). The gap that remains is that it is a manual run: it is not yet in CI.
 - **No load or soak test.** Nothing has measured what happens at a hundred concurrent bookings,
   and the ops report walks the store rather than querying aggregates, which will not hold at
   scale.

@@ -278,9 +278,14 @@ export function adminService(d: AdminDeps) {
       const approverIsStaff = approverRoles.some((r) => (r.role === 'ADMIN' || r.role === 'SUPPORT') && r.status === 'ACTIVE');
       if (!approver || !approverIsStaff) blocked('SECOND_APPROVER_NOT_STAFF');
 
+      // Both names go on the record. This is not bookkeeping: `users_suspension_needs_two`
+      // refuses the update without them, because a suspension nobody is accountable for is
+      // worse than none.
       const updated = await store.users.update(targetId, {
         status: 'SUSPENDED',
         suspended_reason: input.reason,
+        suspended_by: actorId,
+        suspension_approved_by: input.secondApproverId,
       });
       const provider = await store.users.getProviderProfile(targetId);
       if (provider) {

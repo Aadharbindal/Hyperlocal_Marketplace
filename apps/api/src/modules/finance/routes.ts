@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   DisputeEvidenceBody,
+  PayoutAccountBody,
   RaiseDisputeBody,
   ResolveDisputeBody,
   ReviewBody,
@@ -56,6 +57,26 @@ export async function financeRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get('/me/earnings', async (req) => {
     const auth = requireAuth(req);
     return finance.earnings(auth.userId);
+  });
+
+  // ---------------------------------------------------------------- payout account
+  /**
+   * Where the money goes. Customers have no reason to be here - only the people who get paid do.
+   * The body carries bank details, so it is never logged and never echoed back: the response is
+   * the masked view.
+   */
+  app.get('/me/payout-account', async (req) => {
+    const auth = requireAuth(req);
+    return { payoutAccount: await finance.getPayoutAccount(auth.userId) };
+  });
+
+  app.post('/me/payout-account', async (req, reply) => {
+    const auth = requireAuth(req);
+    if (auth.activeRole !== 'PROVIDER' && auth.activeRole !== 'VENDOR') throw forbidden('only providers and vendors are paid out');
+    const body = parse(PayoutAccountBody, req.body);
+    // The service writes the audit entry itself, so the details never have to travel further.
+    const account = await finance.setPayoutAccount(auth.userId, body, req.id);
+    return reply.code(201).send({ payoutAccount: account });
   });
 
   // ---------------------------------------------------------------- disputes

@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CancellationQuoteView, DisputeView, EarningsView, JobMoneyView, ReviewView } from '@hyperlocal/core';
+import type {
+  CancellationQuoteView,
+  DisputeView,
+  EarningsView,
+  JobMoneyView,
+  PayoutAccountBody,
+  PayoutAccountView,
+  ReviewView,
+} from '@hyperlocal/core';
 import { api, newIdempotencyKey } from './client';
 import { executionKeys } from './execution';
 import { jobKeys } from './jobs';
@@ -10,6 +18,7 @@ export const financeKeys = {
   cancellation: (jobId: string) => ['job', jobId, 'cancellation-quote'] as const,
   earnings: () => ['me', 'earnings'] as const,
   reviews: (providerId: string) => ['provider', providerId, 'reviews'] as const,
+  payoutAccount: () => ['me', 'payout-account'] as const,
 };
 
 function invalidate(qc: ReturnType<typeof useQueryClient>, jobId: string) {
@@ -71,6 +80,31 @@ export function useEarnings() {
     queryKey: financeKeys.earnings(),
     queryFn: () => api<EarningsView>('/me/earnings'),
     staleTime: 30_000,
+  });
+}
+
+/**
+ * Where this payee's money goes. Only ever the masked view comes back - the details are sent
+ * once, to the server, and are never held on the device.
+ */
+export function usePayoutAccount() {
+  return useQuery({
+    queryKey: financeKeys.payoutAccount(),
+    queryFn: async () => (await api<{ payoutAccount: PayoutAccountView | null }>('/me/payout-account')).payoutAccount,
+    staleTime: 60_000,
+  });
+}
+
+export function useSetPayoutAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PayoutAccountBody) =>
+      api<{ payoutAccount: PayoutAccountView }>('/me/payout-account', { method: 'POST', body }),
+    onSuccess: (r) => {
+      qc.setQueryData(financeKeys.payoutAccount(), r.payoutAccount);
+      // Anything that was waiting on this is released server-side, so the earnings view is stale.
+      void qc.invalidateQueries({ queryKey: financeKeys.earnings() });
+    },
   });
 }
 

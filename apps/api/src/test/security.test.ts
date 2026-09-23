@@ -294,7 +294,13 @@ describe('privilege escalation', () => {
 describe('suspended and unverified accounts', () => {
   it('lets a suspended provider read but not act', async () => {
     const p = await makeProvider('+919222000028');
-    await app.ctx.store.users.update(p.userId, { status: 'SUSPENDED', suspended_reason: 'Under review for repeated no-shows' });
+    await app.ctx.store.users.update(p.userId, {
+      status: 'SUSPENDED',
+      suspended_reason: 'Under review for repeated no-shows',
+      // both names, because the database insists on them and so does the policy
+      suspended_by: (await login(app, '+919000000007')).user.id,
+      suspension_approved_by: (await login(app, '+919000000008')).user.id,
+    });
 
     const read = await app.inject({ method: 'GET', url: '/provider/profile', headers: p.headers });
     expect(read.statusCode).toBe(200);

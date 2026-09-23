@@ -50,6 +50,14 @@ const FEATURES: Feature[] = [
 // drawn larger than the hero box. This is how much of the width the copy may use -
 // the rest is the technician's, and the two never meet.
 const COPY_WIDTH = 0.44;
+/**
+ * Where the technician actually begins inside the artwork, measured from its right edge. The
+ * left half of the file is empty, which is what lets it be drawn oversized - but only up to the
+ * point where he would reach the words.
+ */
+const ART_CONTENT_FROM_RIGHT = 0.493;
+/** The left of the screen belongs to the copy, however much vertical room there happens to be. */
+const COPY_GUARD = 0.47;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -79,7 +87,10 @@ export default function PhoneScreen() {
   // the artwork's left half is empty, so drawing it oversized only makes the technician
   // bigger - it grows into that margin, never into the copy column
   const grow = compact ? 1.1 : 1.22;
-  const scale = Math.max((height < 700 ? fit * 0.92 : fit) * grow, 0.7);
+  // On a tall screen the art would otherwise grow until it crossed the copy, so the width is
+  // capped by where the technician starts rather than by the space available.
+  const maxScale = (1 - COPY_GUARD) / ART_CONTENT_FROM_RIGHT;
+  const scale = Math.max(Math.min((height < 700 ? fit * 0.92 : fit) * grow, maxScale), 0.7);
   const heroWidth = natWidth * scale;
   const heroHeight = natHeight * scale;
   // the copy is laid out top-and-bottom, so this inset is what lifts the feature rows

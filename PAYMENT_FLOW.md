@@ -91,7 +91,28 @@ Refunds are idempotent (`refunds.idempotency_key`) and always write a `REFUND` l
 | Duplicate payment | second gateway order blocked by idempotency key; if gateway double-charged, auto-refund |
 | Gateway outage | booking held in PAYMENT_PENDING with retry; customer notified |
 | Payout failure | settlement FAILED, retried, support alerted after 3 failures |
+| Payee has not said where to get paid | the settlement is still written, then parked `ON_HOLD` with `NO_PAYOUT_ACCOUNT` and the payee is asked for their details. Adding them releases it on the next sweep. The debt is never dropped, and the ledger already carries it either way |
 | Chargeback | payment → DISPUTE_HOLD, dispute auto-opened, evidence pack exported |
+
+## 8b. Where the money actually goes
+
+A payout rail does not pay a person. RazorpayX pays a `fund_account_id`, created from a Contact
+plus bank details or a UPI id. So before anyone can be paid:
+
+1. The payee submits `POST /me/payout-account` once - UPI id, or account number and IFSC.
+2. The details are checked against the same rules the gateway uses (`checkPayoutAccount`), then
+   handed straight to the payment provider, which creates the contact and fund account.
+3. **Only the last four digits are stored.** The full account number never touches our database,
+   our logs or any response body; the row keeps `account_last4`, the IFSC or a UPI id, and the
+   provider's two ids.
+4. The account is marked `VERIFIED`. That means *the account exists and is payable* - it does
+   **not** mean the name on it belongs to the payee. A penny-drop or name-match check is a
+   separate paid API and is not wired (KNOWN_LIMITATIONS).
+
+Adding a new account replaces the previous one, so there is never a question about where money
+went. Both the service and a SQL trigger refuse to move a settlement to INITIATED or PAID without
+a verified account - but neither refuses to *record* what is owed. A debt the payee cannot see
+would be worse than one that is visibly waiting.
 
 ## 9. Mock adapter behaviour
 

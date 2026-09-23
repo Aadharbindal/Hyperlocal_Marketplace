@@ -3,6 +3,7 @@ import type {
   DisputeRecord,
   FinanceRepo,
   LedgerEntryRecord,
+  PayoutAccountRecord,
   RefundRecord,
   ReviewRecord,
   SettlementRecord,
@@ -130,6 +131,30 @@ export function createPostgresFinanceRepo(q: Queryable): FinanceRepo {
     listReviewsFor: (revieweeId, limit) =>
       many<ReviewRecord>('select * from reviews where reviewee_id = $1 order by created_at desc limit $2', [revieweeId, limit]),
     findReview: (jobId, reviewerId) => one<ReviewRecord>('select * from reviews where job_id = $1 and reviewer_id = $2', [jobId, reviewerId]),
+
+    async createPayoutAccount(a) {
+      // changing where money goes replaces the old account rather than adding a second one
+      await q.query(
+        "update payout_accounts set status = 'DISABLED' where user_id = $1 and status in ('PENDING','VERIFIED')",
+        [a.user_id],
+      );
+      return (await one<PayoutAccountRecord>(
+        `insert into payout_accounts (user_id, method, account_holder_name, account_last4, ifsc, vpa,
+           provider_contact_id, provider_fund_account_id, status, verified_at, rejection_reason)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *`,
+        [a.user_id, a.method, a.account_holder_name, a.account_last4, a.ifsc, a.vpa, a.provider_contact_id,
+          a.provider_fund_account_id, a.status, a.verified_at, a.rejection_reason],
+      ))!;
+    },
+    getPayoutAccount: (userId) =>
+      one<PayoutAccountRecord>(
+        "select * from payout_accounts where user_id = $1 and status in ('VERIFIED','PENDING') order by created_at desc limit 1",
+        [userId],
+      ),
+    async updatePayoutAccount(id, patch) {
+      const { sets, values } = patchSql(patch as Record<string, unknown>, 2);
+      return (await one<PayoutAccountRecord>(`update payout_accounts set ${sets} where id = $1 returning *`, [id, ...values]))!;
+    },
 
     async createTicket(t) {
       return (await one<SupportTicketRecord>(

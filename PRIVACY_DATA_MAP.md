@@ -13,7 +13,7 @@
 | Addresses + GPS | customer | service delivery | `addresses`, `jobs.address_snapshot` | customer, confirmed provider (after confirmation only), support | address: until deleted by user; job snapshot: 7 y (finance) with GPS truncated to 3 decimals after 90 d |
 | Provider base location & radius | provider | matching | `provider_profiles` | provider, system, admin | account life |
 | KYC documents | provider, technician, vendor | verification | encrypted object storage; metadata in `kyc_records` | KYC reviewers only, every access audited | 5 y after account closure or as required by law; never shown to customers |
-| Bank details | provider, vendor, contractor | payouts | encrypted column | payouts service, finance admin | account life + 7 y |
+| Bank details | provider, vendor, contractor | payouts | **not stored** - handed to the payment provider on submission; only the last 4 digits, the IFSC or a UPI id are kept | payouts service, finance admin | account life + 7 y |
 | Job photos / videos | customer, provider | scope, evidence | object storage + `job_media` | job parties, support | 90 d after settlement unless dispute/legal hold; then purge; hashes retained |
 | Voice notes + transcript | customer | scope description | object storage | job parties, support | 90 d after settlement; transcript retained anonymised |
 | Chat messages | job parties | coordination, leak detection | `chat_messages` | job parties, support | 180 d after settlement then anonymised |

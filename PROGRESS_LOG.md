@@ -4,6 +4,92 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Launch readiness: real Postgres, real adapters, and where the money goes
+
+**Milestone:** post-M9 - the first run against a real database, live integrations, and payout accounts
+**Date:** 2026-09-23
+**Status:** Complete
+
+**Why this exists:** M9 closed with an honest headline - nothing external was live and the SQL
+had never been executed. This is the work that turns both of those from a claim into a fact.
+
+**Implemented:**
+
+*The database, for real.* All nine migrations applied to a PostgreSQL 17 cluster and the whole
+API suite - 184 tests, unchanged - now passes against it. `makeApp` reads `DATA_MODE` from the
+environment and truncates between files, so the same expectations run against either store.
+
+The run found four bugs that memory mode structurally could not:
+1. **Every OTP failed.** The insert let the database generate its own `id`, but the OTP hash is
+   salted with the id the service made. Nobody could have logged in.
+2. **Suspension was impossible.** `users_suspension_needs_two` (M8) demands both the requester
+   and the approver, and the service wrote neither, because the memory repo did not mirror that
+   trigger. It does now - and the M1 single-admin `POST /admin/users/:id/suspend` is retired: it
+   bypassed a rule the database enforces, so it only ever "worked" in memory. It now answers
+   with `USE_TWO_PERSON_SUSPENSION` and points at `suspend-approved`.
+3. **Ratings and strikes were thrown away.** `upsertProviderProfile`'s `on conflict` clause did
+   not update `rating_avg`, `rating_count`, `completed_jobs`, `reliability_score` or
+   `strike_count`, so every review silently vanished.
+4. **Money came back as text.** `pg` returns `bigint` and `numeric` as strings; amounts and
+   ratings are now parsed once, in the store, rather than at every call site.
+
+*Live adapters.* Razorpay (orders, capture, refund, RazorpayX payouts, webhook signatures),
+MSG91, Google Maps, Expo Push, Supabase Storage, Sentry and PostHog over their raw endpoints,
+and Exotel. Each is selected per provider and **fails loudly at boot without its credentials**
+rather than falling back to a mock. Written against the published API shapes, and none has run
+against the real thing - that is stated in `KNOWN_LIMITATIONS.md`, not implied.
+
+*Where the money goes.* Reading the RazorpayX documentation exposed a real gap: the rail does not
+pay a person, it pays a `fund_account_id`. There was nowhere for a provider or vendor to say
+where their money should go, so **every payout would have failed**. Now: `POST /me/payout-account`
+(UPI or bank), validated with the same rules the gateway uses, registered with the provider
+first - if the rail refuses the details, no row is left behind claiming money can be sent.
+
+**Only the last four digits are stored.** The full account number goes to the payment provider
+and nowhere else: not the database, not the logs (`accountNumber`, `ifsc` and `vpa` were added
+to the redaction list), and never a response body.
+
+The rule it enforces is deliberately narrow. What is **owed** is always recorded; only **sending**
+it needs a verified account. A settlement for someone who has not added their details is written
+and parked `ON_HOLD` with `NO_PAYOUT_ACCOUNT`, the payee is told, and adding an account releases
+it on the next sweep. My first attempt skipped creating the settlement entirely - a test I had
+written to say "hold the money instead of losing it" failed, which was the right answer: money a
+payee cannot see is worse than money they can see waiting.
+
+**Changed files:** `packages/core/src/{finance/settlement.ts,finance/finance.test.ts,contracts/finance.ts}`,
+`supabase/migrations/0009_payout_accounts.sql`,
+`apps/api/src/{adapters/live/*,adapters/{index,types,mocks}.ts,config/env.ts,lib/logger.ts,data/types.ts,data/memory/{index,finance}.ts,data/postgres/{index,finance}.ts,modules/finance/{service,routes}.ts,modules/admin/{service,routes}.ts,test/*}`,
+`apps/mobile/{app/payout-account.tsx,app/(provider)/earnings.tsx,app/(vendor)/shop.tsx,src/api/finance.ts}`,
+and the documents below.
+
+**Database changes:** `0009_payout_accounts` - `payout_accounts` (method, holder name,
+`account_last4` only, IFSC or UPI id, the provider's contact and fund account ids, status), one
+active account per person, and `settlements_need_payout_account`, which refuses to let a
+settlement reach INITIATED or PAID without one. Forward-only; nothing in 0001-0008 was rewritten.
+`migrate:check` reports 9 valid migrations, and all 9 now apply to a real cluster.
+
+**API changes:** `GET /me/payout-account`, `POST /me/payout-account`. `GET /me/earnings` gained
+`payoutAccount` and `awaitingPayoutAccountPaise`. `POST /admin/users/:id/suspend` is retired in
+favour of `suspend-approved`. Documented in `API_REFERENCE.md`.
+
+**Tests added / passed:** 5 new API tests and 3 new core tests. Totals: **184/184 API in memory
+mode**, **184/184 API against real Postgres**, **132/132 core**. Type check clean in 3/3
+workspaces, lint 0 errors, `migrate:check` OK.
+
+**Manual verification completed:** a local PostgreSQL 17 cluster was created with UTF-8 (the
+catalog carries Devanagari, and a Windows-1252 cluster rejects `0001` outright - now documented
+in `TEST_PLAN.md`), all nine migrations applied in order, and the full suite run against it.
+
+**Known limitations:** the live adapters have never been executed against the real APIs, so
+"implemented" here means written and type-safe, not proven. A payout account is marked VERIFIED
+once RazorpayX accepts it - that proves the account exists and is payable, **not** that the name
+on it belongs to the payee; a penny-drop check is a separate paid API and is not wired. The
+Postgres run is manual and not yet in CI. Still open from M9: no mobile component tests, no load
+test, no accessibility audit, Expo SDK 53 needs upgrading before store submission, and the
+payments structure still needs professional review.
+
+---
+
 ## Milestone 9: Hardening and launch readiness
 
 **Milestone:** M9 - Background work, live updates, the adversarial pass, and an honest final sweep

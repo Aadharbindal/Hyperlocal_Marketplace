@@ -23,7 +23,14 @@ async function customerWithOpenJob(phone: string) {
   return { headers: h, userId: res.user.id, job: submitted.json().job };
 }
 
-async function makeProvider(phone: string) {
+/** UPI details for a test payee. Nothing real, and shaped the way the validator expects. */
+const payoutFor = (phone: string, name: string) => ({
+  method: 'UPI' as const,
+  accountHolderName: name,
+  vpa: `pay${phone.slice(-6)}@okhdfc`,
+});
+
+async function makeProvider(phone: string, opts: { payoutAccount?: boolean } = {}) {
   const res = await login(app, phone);
   const h = bearer(res.accessToken, { 'x-active-role': 'PROVIDER' });
   await app.inject({ method: 'POST', url: '/me/roles', headers: bearer(res.accessToken), payload: { role: 'PROVIDER' } });
@@ -38,6 +45,11 @@ async function makeProvider(phone: string) {
   const profile = await app.ctx.store.users.getProviderProfile(res.user.id);
   await app.ctx.store.users.upsertProviderProfile({ ...profile!, verification_status: 'VERIFIED' });
   await app.inject({ method: 'POST', url: '/provider/availability', headers: h, payload: { isAvailable: true } });
+  // A payee with nowhere to be paid cannot be settled, so unless a test is about that, the
+  // provider says where their money goes.
+  if (opts.payoutAccount !== false) {
+    await app.inject({ method: 'POST', url: '/me/payout-account', headers: h, payload: payoutFor(phone, `Services ${phone.slice(-4)}`) });
+  }
   return { headers: h, userId: res.user.id };
 }
 
@@ -52,9 +64,9 @@ async function admin() {
 }
 
 /** A confirmed, authorized booking that has not started yet. */
-async function confirmedJob(customerPhone: string, providerPhone: string, bid = BID) {
+async function confirmedJob(customerPhone: string, providerPhone: string, bid = BID, providerOpts: { payoutAccount?: boolean } = {}) {
   const c = await customerWithOpenJob(customerPhone);
-  const p = await makeProvider(providerPhone);
+  const p = await makeProvider(providerPhone, providerOpts);
   const offer = await app.inject({ method: 'POST', url: `/jobs/${c.job.id}/bids`, headers: p.headers, payload: bid });
   const accepted = await app.inject({ method: 'POST', url: `/bids/${offer.json().id}/accept`, headers: c.headers });
   await app.inject({
@@ -64,8 +76,8 @@ async function confirmedJob(customerPhone: string, providerPhone: string, bid = 
   return { c, p, jobId: c.job.id as string, quote: accepted.json().quote };
 }
 
-async function jobInProgress(customerPhone: string, providerPhone: string, bid = BID) {
-  const s = await confirmedJob(customerPhone, providerPhone, bid);
+async function jobInProgress(customerPhone: string, providerPhone: string, bid = BID, providerOpts: { payoutAccount?: boolean } = {}) {
+  const s = await confirmedJob(customerPhone, providerPhone, bid, providerOpts);
   await app.inject({ method: 'POST', url: `/jobs/${s.jobId}/progress`, headers: s.p.headers, payload: { to: 'EN_ROUTE' } });
   await app.inject({ method: 'POST', url: `/jobs/${s.jobId}/progress`, headers: s.p.headers, payload: { to: 'ARRIVED' } });
   const panel = await app.inject({ method: 'GET', url: `/jobs/${s.jobId}/execution`, headers: s.c.headers });
@@ -74,8 +86,8 @@ async function jobInProgress(customerPhone: string, providerPhone: string, bid =
 }
 
 /** All the way to COMPLETED, which is the moment money is captured. */
-async function completedJob(customerPhone: string, providerPhone: string, bid = BID) {
-  const s = await jobInProgress(customerPhone, providerPhone, bid);
+async function completedJob(customerPhone: string, providerPhone: string, bid = BID, providerOpts: { payoutAccount?: boolean } = {}) {
+  const s = await jobInProgress(customerPhone, providerPhone, bid, providerOpts);
   const shot = await app.inject({
     method: 'POST', url: `/jobs/${s.jobId}/evidence`, headers: s.p.headers,
     payload: { kind: 'PHOTO', mime: 'image/jpeg', sizeBytes: 120_000 },
@@ -133,6 +145,79 @@ describe('capture and the ledger (PRODUCT_SPEC section 14)', () => {
     const { c, jobId } = await completedJob('+919555000003', '+919555000004');
     const r = await app.inject({ method: 'GET', url: `/admin/jobs/${jobId}/ledger`, headers: c.headers });
     expect(r.statusCode).toBe(403);
+  });
+});
+
+describe('where the money goes', () => {
+  it('never gives an account number back, only enough to recognise it', async () => {
+    const p = await makeProvider('+919555001001', { payoutAccount: false });
+    const added = await app.inject({
+      method: 'POST', url: '/me/payout-account', headers: p.headers,
+      payload: { method: 'BANK_ACCOUNT', accountHolderName: 'Ramesh Kumar', accountNumber: '918273645500', ifsc: 'HDFC0001234' },
+    });
+    expect(added.statusCode).toBe(201);
+    const body = added.body;
+    expect(body).not.toContain('918273645500');
+    expect(added.json().payoutAccount.masked).toBe('****5500');
+    expect(added.json().payoutAccount.readyForPayouts).toBe(true);
+  });
+
+  it('refuses details the payout rail would reject anyway', async () => {
+    const p = await makeProvider('+919555001002', { payoutAccount: false });
+    const badIfsc = await app.inject({
+      method: 'POST', url: '/me/payout-account', headers: p.headers,
+      payload: { method: 'BANK_ACCOUNT', accountHolderName: 'Ramesh Kumar', accountNumber: '918273645500', ifsc: 'HDFCX001234' },
+    });
+    expect(badIfsc.statusCode).toBe(400);
+    const badVpa = await app.inject({
+      method: 'POST', url: '/me/payout-account', headers: p.headers,
+      payload: { method: 'UPI', accountHolderName: 'Ramesh Kumar', vpa: 'not-a-upi-id' },
+    });
+    expect(badVpa.statusCode).toBe(400);
+    expect((await app.inject({ method: 'GET', url: '/me/payout-account', headers: p.headers })).json().payoutAccount).toBeNull();
+  });
+
+  it('replaces the old account rather than keeping two', async () => {
+    const p = await makeProvider('+919555001003', { payoutAccount: false });
+    await app.inject({ method: 'POST', url: '/me/payout-account', headers: p.headers, payload: payoutFor('+919555001003', 'Ramesh Kumar') });
+    await app.inject({
+      method: 'POST', url: '/me/payout-account', headers: p.headers,
+      payload: { method: 'BANK_ACCOUNT', accountHolderName: 'Ramesh Kumar', accountNumber: '400500600700', ifsc: 'ICIC0000123' },
+    });
+    const current = await app.inject({ method: 'GET', url: '/me/payout-account', headers: p.headers });
+    expect(current.json().payoutAccount.method).toBe('BANK_ACCOUNT');
+    expect(current.json().payoutAccount.masked).toBe('****0700');
+  });
+
+  it('is not a customer concern', async () => {
+    const c = await customerWithOpenJob('+919555001004');
+    const r = await app.inject({ method: 'POST', url: '/me/payout-account', headers: c.headers, payload: payoutFor('+919555001004', 'Ramesh Kumar') });
+    expect(r.statusCode).toBe(403);
+  });
+
+  it('holds the money instead of losing it when there is nowhere to send it, and releases it once there is', async () => {
+    const { p, jobId } = await completedJob('+919555001005', '+919555001006', BID, { payoutAccount: false });
+    const a = await admin();
+
+    // The work is done and the customer has paid: the provider is owed this money whether or
+    // not we know where to send it.
+    const stuck = await app.inject({ method: 'GET', url: '/me/earnings', headers: p.headers });
+    expect(stuck.json().payoutAccount).toBeNull();
+    expect(stuck.json().lifetimePaise).toBeGreaterThan(0);
+
+    await ageSettlements(jobId);
+    await app.inject({ method: 'POST', url: '/admin/settlements/run', headers: a.headers });
+    const waiting = await app.inject({ method: 'GET', url: '/me/earnings', headers: p.headers });
+    expect(waiting.json().settledPaise).toBe(0);
+    expect(waiting.json().awaitingPayoutAccountPaise).toBeGreaterThan(0);
+
+    await app.inject({ method: 'POST', url: '/me/payout-account', headers: p.headers, payload: payoutFor('+919555001006', 'Ramesh Kumar') });
+    await ageSettlements(jobId);
+    await app.inject({ method: 'POST', url: '/admin/settlements/run', headers: a.headers });
+
+    const paid = await app.inject({ method: 'GET', url: '/me/earnings', headers: p.headers });
+    expect(paid.json().settledPaise).toBeGreaterThan(0);
+    expect(paid.json().awaitingPayoutAccountPaise).toBe(0);
   });
 });
 

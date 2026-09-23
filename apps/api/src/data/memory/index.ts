@@ -86,6 +86,8 @@ export function createMemoryStore(): DataStore {
           preferred_language: input.preferred_language ?? 'en',
           status: 'ACTIVE',
           suspended_reason: null,
+          suspended_by: null,
+          suspension_approved_by: null,
           last_login_at: null,
           deleted_at: null,
           created_at: now(),
@@ -98,6 +100,10 @@ export function createMemoryStore(): DataStore {
         const u = users.get(id);
         if (!u) throw new Error('user not found');
         const next = { ...u, ...patch, updated_at: now() };
+        // mirrors users_suspension_needs_two: nobody suspends alone
+        if (next.status === 'SUSPENDED' && u.status !== 'SUSPENDED' && (!next.suspended_by || !next.suspension_approved_by)) {
+          throw new Error('a suspension must record who asked for it and who approved it');
+        }
         users.set(id, next);
         return next;
       },

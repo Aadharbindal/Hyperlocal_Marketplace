@@ -31,22 +31,17 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext) {
     return { items };
   });
 
+  /**
+   * Retired. This was the M1 route, where one admin could suspend somebody on their own. M8
+   * made suspension a two-person action and `users_suspension_needs_two` enforces it in SQL, so
+   * this route cannot succeed against a real database - it only ever "worked" in memory mode.
+   * It answers rather than 404s so anyone still calling it is told where to go.
+   */
   app.post('/admin/users/:id/suspend', { preHandler: requireAction('admin.user.suspend') }, async (req) => {
-    const auth = requireAuth(req);
-    const { id } = parse(IdParam, req.params);
-    const { reason } = parse(ReasonBody, req.body ?? {});
-    const target = await store.users.findById(id);
-    if (!target) throw notFound('user');
-    if (target.id === auth.userId) throw new AppError('FORBIDDEN', { details: { reason: 'cannot suspend yourself' } });
-    if ((await store.users.listRoles(target.id)).some((r) => r.role === 'ADMIN' && r.status === 'ACTIVE')) {
-      throw new AppError('FORBIDDEN', { details: { reason: 'admins are suspended through two-person approval (M8)' } });
-    }
-    const before = { status: target.status };
-    // Balances and history are retained; only actions are blocked (PRODUCT_SPEC section 35).
-    await store.users.update(id, { status: 'SUSPENDED', suspended_reason: reason });
-    await store.auth.revokeAllSessions(id);
-    await services.audit.record(req.auditCtx(), { action: 'admin.user.suspended', entityType: 'user', entityId: id, reason, before, after: { status: 'SUSPENDED' } });
-    return { ok: true };
+    requireAuth(req);
+    throw new AppError('VALIDATION_ERROR', {
+      details: { admin: ['USE_TWO_PERSON_SUSPENSION'], use: 'POST /admin/users/:id/suspend-approved' },
+    });
   });
 
   app.post('/admin/users/:id/reactivate', { preHandler: requireAction('admin.user.reactivate') }, async (req) => {

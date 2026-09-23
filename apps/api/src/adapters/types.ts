@@ -45,6 +45,11 @@ export interface StorageAdapter extends AdapterMeta {
   delete(key: string): Promise<void>;
 }
 
+/** Bank details go to the payment provider and nowhere else; we keep only the handle back. */
+export type PayoutRegistrationInput =
+  | { kind: 'BANK'; name: string; phoneE164: string; accountNumber: string; ifsc: string; referenceId: string }
+  | { kind: 'UPI'; name: string; phoneE164: string; vpa: string; referenceId: string };
+
 export interface PaymentAdapter extends AdapterMeta {
   createOrder(input: { amountPaise: number; currency: 'INR'; receipt: string; notes?: Record<string, string> }): Promise<{ providerOrderId: string }>;
   capture(input: { providerPaymentId: string; amountPaise: number }): Promise<{ ok: boolean }>;
@@ -54,6 +59,12 @@ export interface PaymentAdapter extends AdapterMeta {
    */
   fetchPayment(providerOrderId: string): Promise<{ status: 'PENDING' | 'AUTHORIZED' | 'CAPTURED' | 'FAILED'; providerPaymentId: string | null; amountPaise: number | null }>;
   refund(input: { providerPaymentId: string; amountPaise: number; idempotencyKey: string }): Promise<{ providerRefundId: string }>;
+  /**
+   * Registers where a payee gets paid, and returns the handle the gateway will actually accept.
+   * This exists because a payout rail pays an account it knows about, not a person: without
+   * this step `payout` has nothing to send money to.
+   */
+  registerPayee(input: PayoutRegistrationInput): Promise<{ contactId: string; fundAccountId: string }>;
   /** Money out to a provider or vendor. Separate from refunds: a payout is not a reversal. */
   payout(input: { amountPaise: number; payeeRef: string; idempotencyKey: string }): Promise<{ transferId: string; ok: boolean; failureReason?: string }>;
   verifyWebhookSignature(rawBody: string, signature: string): boolean;

@@ -14,7 +14,7 @@ describe('health', () => {
     const r = await app.inject({ method: 'GET', url: '/ready' });
     expect(r.statusCode).toBe(200);
     const body = r.json();
-    expect(body.dataMode).toBe('memory');
+    expect(body.dataMode).toBe(app.ctx.store.mode);
     expect(body.mockedAdapters).toContain('sms');
     expect(body.mockedAdapters).toContain('payment');
   });

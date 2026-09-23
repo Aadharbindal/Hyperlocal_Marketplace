@@ -38,6 +38,9 @@ export interface UserRecord {
   preferred_language: Language;
   status: UserStatus;
   suspended_reason: string | null;
+  /** A suspension names both people; the SQL trigger in 0008 refuses one that does not. */
+  suspended_by: string | null;
+  suspension_approved_by: string | null;
   last_login_at: Date | null;
   deleted_at: Date | null;
   created_at: Date;
@@ -686,6 +689,24 @@ export interface SupportTicketRecord {
   updated_at: Date;
 }
 
+export interface PayoutAccountRecord {
+  id: string;
+  user_id: string;
+  method: 'BANK_ACCOUNT' | 'UPI';
+  account_holder_name: string;
+  /** Only the last four digits are ever stored, the way KYC does it. */
+  account_last4: string | null;
+  ifsc: string | null;
+  vpa: string | null;
+  provider_contact_id: string | null;
+  provider_fund_account_id: string | null;
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'DISABLED';
+  verified_at: Date | null;
+  rejection_reason: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface AdminMfaRecord {
   user_id: string;
   secret_encrypted: string;
@@ -961,6 +982,10 @@ export interface FinanceRepo {
   createReview(r: New<ReviewRecord>): Promise<ReviewRecord>;
   listReviewsFor(revieweeId: string, limit: number): Promise<ReviewRecord[]>;
   findReview(jobId: string, reviewerId: string): Promise<ReviewRecord | null>;
+
+  createPayoutAccount(a: New<PayoutAccountRecord>): Promise<PayoutAccountRecord>;
+  getPayoutAccount(userId: string): Promise<PayoutAccountRecord | null>;
+  updatePayoutAccount(id: string, patch: Partial<PayoutAccountRecord>): Promise<PayoutAccountRecord>;
 
   createTicket(t: New<SupportTicketRecord>): Promise<SupportTicketRecord>;
   listTickets(filter: { status?: string; openedBy?: string; limit: number }): Promise<SupportTicketRecord[]>;

@@ -97,7 +97,7 @@ describe('idempotency (NET-06)', () => {
 });
 
 describe('admin (AUTH-09, audit)', () => {
-  it('support can search (masked), only admin can suspend, reason is mandatory, everything audited', async () => {
+  it('support can search (masked), suspension needs two staff, reason is mandatory, everything audited', async () => {
     const victim = await login(app, '+919222222227');
     const support = await login(app, PHONES.support);
     const admin = await login(app, PHONES.admin);
@@ -110,13 +110,27 @@ describe('admin (AUTH-09, audit)', () => {
     expect(search.statusCode).toBe(200);
     expect(search.json().items[0].phone).toBe('+91********27');
 
-    const supportSuspend = await app.inject({ method: 'POST', url: `/admin/users/${victim.user.id}/suspend`, headers: bearer(support.accessToken), payload: { reason: 'abuse report' } });
-    expect(supportSuspend.statusCode).toBe(403);
+    // Suspension is a two-person action, not an admin-only one: support may ask for it, but
+    // never alone.
+    const supportAlone = await app.inject({ method: 'POST', url: `/admin/users/${victim.user.id}/suspend-approved`, headers: bearer(support.accessToken), payload: { reason: 'Repeated no-shows confirmed by support' } });
+    expect(supportAlone.statusCode).toBe(400);
 
-    const noReason = await app.inject({ method: 'POST', url: `/admin/users/${victim.user.id}/suspend`, headers: bearer(admin.accessToken), payload: {} });
+    const customerTry = await app.inject({ method: 'POST', url: `/admin/users/${victim.user.id}/suspend-approved`, headers: bearer(customer.accessToken), payload: { reason: 'Repeated no-shows confirmed by support', secondApproverId: admin.user.id } });
+    expect(customerTry.statusCode).toBe(403);
+
+    const noReason = await app.inject({ method: 'POST', url: `/admin/users/${victim.user.id}/suspend-approved`, headers: bearer(admin.accessToken), payload: {} });
     expect(noReason.statusCode).toBe(400);
 
-    const suspended = await app.inject({ method: 'POST', url: `/admin/users/${victim.user.id}/suspend`, headers: bearer(admin.accessToken), payload: { reason: 'Repeated no-shows confirmed by support' } });
+    // The M1 single-admin route is retired: the database will not accept a suspension that
+    // names only one person, so the route says so rather than pretending to work.
+    const oldWay = await app.inject({ method: 'POST', url: `/admin/users/${victim.user.id}/suspend`, headers: bearer(admin.accessToken), payload: { reason: 'Repeated no-shows confirmed by support' } });
+    expect(oldWay.statusCode).toBe(400);
+    expect(oldWay.json().error.details.admin).toEqual(['USE_TWO_PERSON_SUSPENSION']);
+
+    const suspended = await app.inject({
+      method: 'POST', url: `/admin/users/${victim.user.id}/suspend-approved`, headers: bearer(admin.accessToken),
+      payload: { reason: 'Repeated no-shows confirmed by support', secondApproverId: support.user.id },
+    });
     expect(suspended.statusCode).toBe(200);
 
     // Victim's sessions are revoked; a fresh login still works but actions are blocked (balances stay readable).
@@ -147,8 +161,12 @@ describe('admin (AUTH-09, audit)', () => {
 
   it('an admin cannot suspend themselves', async () => {
     const admin = await login(app, PHONES.admin);
-    const r = await app.inject({ method: 'POST', url: `/admin/users/${admin.user.id}/suspend`, headers: bearer(admin.accessToken), payload: { reason: 'oops mistake' } });
-    expect(r.statusCode).toBe(403);
+    const support = await login(app, PHONES.support);
+    const r = await app.inject({
+      method: 'POST', url: `/admin/users/${admin.user.id}/suspend-approved`, headers: bearer(admin.accessToken),
+      payload: { reason: 'A mistake, which is exactly why nobody suspends themselves', secondApproverId: support.user.id },
+    });
+    expect(r.json().error.details.admin).toEqual(['CANNOT_SUSPEND_SELF']);
   });
 });
 

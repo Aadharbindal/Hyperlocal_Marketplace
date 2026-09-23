@@ -432,9 +432,10 @@ describe('job security', () => {
     expect(j.statusCode).toBe(201);
 
     const admin = await login(app, PHONES.admin);
+    const support = await login(app, PHONES.support);
     await app.inject({
-      method: 'POST', url: `/admin/users/${victim.userId}/suspend`, headers: bearer(admin.accessToken),
-      payload: { reason: 'Payment fraud under investigation' },
+      method: 'POST', url: `/admin/users/${victim.userId}/suspend-approved`, headers: bearer(admin.accessToken),
+      payload: { reason: 'Payment fraud under investigation, confirmed by two reviewers', secondApproverId: support.user.id },
     });
     const relogin = await login(app, '+919333000041');
     const h = bearer(relogin.accessToken);

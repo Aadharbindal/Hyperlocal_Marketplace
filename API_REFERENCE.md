@@ -225,7 +225,9 @@ for a capture, and the amount always comes from the locked quote.
 ### Earnings, disputes and reviews
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
-| GET | `/me/earnings` | PROVIDER, VENDOR | Paid, clearing and on-hold balances, every settlement and the caller's own ledger lines |
+| GET | `/me/earnings` | PROVIDER, VENDOR | Paid, clearing and on-hold balances, the payout account money is going to, what is waiting for one, every settlement and the caller's own ledger lines |
+| GET | `/me/payout-account` | any signed-in user | The masked account money is sent to, or `null`. Never returns an account number |
+| POST | `/me/payout-account` | PROVIDER, VENDOR | `{ method: 'UPI', accountHolderName, vpa }` or `{ method: 'BANK_ACCOUNT', accountHolderName, accountNumber, ifsc }`. Registered with the payout provider first; only the last four digits are stored. Replaces any existing account and releases settlements parked for want of one *audited* |
 | POST | `/jobs/:id/dispute` | any party on the job | `{ category, description, mediaIds? }`. Freezes the money: the payment goes to `DISPUTE_HOLD`, pending settlements go `ON_HOLD`, and a live job moves to `DISPUTED`. One open dispute per job; 20+ character description required *audited* |
 | GET | `/jobs/:id/disputes` | any party on the job | The job's disputes, flagged `raisedByMe` / `againstMe`, with the SLA deadline |
 | POST | `/disputes/:id/evidence` | any party on the job | `{ mediaIds, note? }`; moves an OPEN dispute to UNDER_REVIEW |

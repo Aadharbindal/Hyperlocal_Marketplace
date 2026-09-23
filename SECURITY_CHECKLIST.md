@@ -42,6 +42,9 @@ migration proves it; anything half-done says so and says what is missing.
 - [x] Webhook dedupe by `payment_events.provider_event_id` (unique); a replay is a 200 no-op [M4]
 - [x] Idempotent capture, refund and settlement: unique `idempotency_key` on payments, refunds, settlements and every ledger batch [M7]
 - [x] Never trust the client: capture is not an endpoint at all, amounts come from the locked quote, and reconciliation asks the gateway rather than the app [M7, M9]
+- [x] Bank account numbers are **never stored**: they go to the payment provider on submission and the row keeps only the last four digits. `POST /me/payout-account` never echoes the number back, and `accountNumber`, `ifsc` and `vpa` are in the logger's redaction list [post-M9]
+- [x] A settlement cannot be *sent* to a payee with no verified payout account - enforced in the service, in the memory repo and by a SQL trigger - while what is owed is still recorded, so money is never quietly dropped [post-M9]
+- [ ] The name on a payout account is not verified against the payee's KYC name; a penny-drop or name-match check is still to be wired (KNOWN_LIMITATIONS)
 
 ## Audit & immutability
 - [x] `audit_logs` append-only (no UPDATE/DELETE grants) [M1]

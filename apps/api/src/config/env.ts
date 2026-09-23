@@ -36,10 +36,15 @@ const EnvSchema = z.object({
   SMS_PROVIDER: Provider(['mock', 'msg91', 'twilio']),
   SMS_API_KEY: z.string().optional(),
   SMS_SENDER_ID: z.string().optional(),
+  /** The DLT-approved template the OTP is sent through. Without it the operator rejects the SMS. */
+  SMS_TEMPLATE_ID: z.string().optional(),
   PAYMENT_PROVIDER: Provider(['mock', 'razorpay']),
   PAYMENT_KEY_ID: z.string().optional(),
   PAYMENT_KEY_SECRET: z.string().optional(),
   PAYMENT_WEBHOOK_SECRET: z.string().optional(),
+  /** RazorpayX: the account payouts are sent *from*, not anyone's bank account. */
+  PAYOUT_ACCOUNT_NUMBER: z.string().optional(),
+  PAYOUT_MODE: z.enum(['IMPS', 'NEFT', 'UPI', 'RTGS']).default('IMPS'),
   /** Admin MFA is mandatory in production; it can be turned off for a local demo. */
   ADMIN_MFA_REQUIRED: z.coerce.boolean().default(false),
   /** The background worker. Off in tests, which drive it explicitly instead. */
@@ -61,10 +66,16 @@ const EnvSchema = z.object({
   STORAGE_PROVIDER: Provider(['mock', 'supabase', 's3']),
   STORAGE_BUCKET: z.string().default('job-media'),
   STORAGE_SIGNED_URL_TTL_SECONDS: z.coerce.number().int().default(900),
+  TELEPHONY_SID: z.string().optional(),
+  TELEPHONY_API_KEY: z.string().optional(),
+  TELEPHONY_API_TOKEN: z.string().optional(),
+  TELEPHONY_CALLER_ID: z.string().optional(),
+  TELEPHONY_SUBDOMAIN: z.string().default('api.exotel.com'),
   ERROR_MONITORING_PROVIDER: Provider(['mock', 'sentry']),
   ERROR_MONITORING_DSN: z.string().optional(),
   ANALYTICS_PROVIDER: Provider(['mock', 'posthog']),
   ANALYTICS_KEY: z.string().optional(),
+  ANALYTICS_HOST: z.string().default('https://app.posthog.com'),
   ALLOW_MOCK_IN_PRODUCTION: z.coerce.boolean().default(false),
 
   OTP_LENGTH: z.coerce.number().int().min(4).max(8).default(6),

@@ -26,7 +26,22 @@ type Queryable = { query: (text: string, params?: unknown[]) => Promise<pg.Query
  * Status: written for Milestone 1 tables; exercised by the integration suite when
  * DATA_MODE=postgres (see TEST_PLAN.md "Running against Postgres").
  */
+/**
+ * `pg` hands back `bigint` and `numeric` as strings, because either can hold more than a JS
+ * number safely. Neither can here: money is paise (a crore of rupees is 10^9 paise, eleven
+ * digits clear of `Number.MAX_SAFE_INTEGER`), and the `numeric` columns are ratings, scores and
+ * coordinates. The domain treats all of them as numbers, so they are parsed once, here, rather
+ * than every caller remembering a `Number(...)` and one of them forgetting.
+ */
+function useNumericTypes() {
+  const INT8 = 20;
+  const NUMERIC = 1700;
+  pg.types.setTypeParser(INT8, (v) => (v === null ? null : Number(v)));
+  pg.types.setTypeParser(NUMERIC, (v) => (v === null ? null : Number(v)));
+}
+
 export function createPostgresStore(databaseUrl: string): DataStore {
+  useNumericTypes();
   const pool = new pg.Pool({ connectionString: databaseUrl, max: 10 });
   return buildStore(pool, pool);
 }
@@ -96,7 +111,12 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
              experience_years = excluded.experience_years, service_radius_km = excluded.service_radius_km,
              base_lat = excluded.base_lat, base_lng = excluded.base_lng, is_available = excluded.is_available,
              verification_status = excluded.verification_status, contractor_id = excluded.contractor_id,
-             suspended_until = excluded.suspended_until`,
+             suspended_until = excluded.suspended_until,
+             -- These move as work happens, so an upsert that ignored them would quietly throw
+             -- away a rating or a strike the caller had just recomputed.
+             reliability_score = excluded.reliability_score, rating_avg = excluded.rating_avg,
+             rating_count = excluded.rating_count, completed_jobs = excluded.completed_jobs,
+             strike_count = excluded.strike_count`,
           [p.user_id, p.business_name, p.bio, p.experience_years, p.service_radius_km, p.base_lat, p.base_lng, p.is_available,
             p.verification_status, p.reliability_score, p.rating_avg, p.rating_count, p.completed_jobs, p.strike_count, p.contractor_id, p.suspended_until],
         );
@@ -162,9 +182,11 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     auth: {
       async createChallenge(c) {
         return (await one<OtpChallengeRecord>(
-          `insert into otp_challenges (phone_e164, purpose, code_hash, attempts, max_attempts, expires_at, consumed_at, request_ip)
-           values ($1,$2,$3,$4,$5,$6,$7,$8) returning *`,
-          [c.phone_e164, c.purpose, c.code_hash, c.attempts, c.max_attempts, c.expires_at, c.consumed_at, c.request_ip],
+          // The id is supplied, not generated here: the OTP hash is salted with it, so letting
+          // the database invent its own would make every code fail to verify.
+          `insert into otp_challenges (id, phone_e164, purpose, code_hash, attempts, max_attempts, expires_at, consumed_at, request_ip)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *`,
+          [c.id, c.phone_e164, c.purpose, c.code_hash, c.attempts, c.max_attempts, c.expires_at, c.consumed_at, c.request_ip],
         ))!;
       },
       getChallenge: (id) => one('select * from otp_challenges where id = $1', [id]),
@@ -183,9 +205,11 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
       latestChallenge: (phone) => one('select * from otp_challenges where phone_e164 = $1 order by created_at desc limit 1', [phone]),
       async createSession(s) {
         return (await one<SessionRecord>(
-          `insert into sessions (user_id, refresh_token_hash, device_label, user_agent, ip, expires_at, revoked_at, rotated_from, last_used_at)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *`,
-          [s.user_id, s.refresh_token_hash, s.device_label, s.user_agent, s.ip, s.expires_at, s.revoked_at, s.rotated_from, s.last_used_at],
+          // The caller's id is honoured here too. Nothing depends on it today, but a record
+          // whose id changes on the way into the database is a trap waiting to be stepped in.
+          `insert into sessions (id, user_id, refresh_token_hash, device_label, user_agent, ip, expires_at, revoked_at, rotated_from, last_used_at)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning *`,
+          [s.id, s.user_id, s.refresh_token_hash, s.device_label, s.user_agent, s.ip, s.expires_at, s.revoked_at, s.rotated_from, s.last_used_at],
         ))!;
       },
       getSession: (id) => one<SessionRecord>('select * from sessions where id = $1', [id]),
@@ -314,5 +338,8 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
       await pool.end();
     },
   };
+  // Not part of DataStore: the integration suite needs a way to reset the schema between files,
+  // and a test reaching for raw SQL is honest about what it is doing.
+  (store as unknown as { query: (sql: string) => Promise<unknown> }).query = (sql: string) => q.query(sql);
   return store;
 }

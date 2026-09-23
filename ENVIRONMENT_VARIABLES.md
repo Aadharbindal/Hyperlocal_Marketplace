@@ -62,6 +62,12 @@ values and, in `production`, refuses `mock` adapters for SMS and payments unless
 | `OTP_REQUESTS_PER_HOUR` | 5 |
 | `OTP_DEMO_CODE` | 123456 (mock SMS only; ignored when `SMS_PROVIDER≠mock`) |
 
+## Payouts
+| Name | Notes |
+| --- | --- |
+| `PAYOUT_ACCOUNT_NUMBER` | The platform's own RazorpayX account money is sent **from**. Required when `PAYMENT_PROVIDER=razorpay` |
+| `PAYOUT_MODE` | `IMPS`, `NEFT`, `UPI` or `RTGS` (default `IMPS`) |
+
 ## Pilot zone
 `PILOT_CITY`, `PILOT_CENTER_LAT`, `PILOT_CENTER_LNG`, `PILOT_RADIUS_KM` (default 3).
 

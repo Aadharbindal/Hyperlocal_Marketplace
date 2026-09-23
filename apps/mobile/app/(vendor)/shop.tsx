@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { StyleSheet, Switch, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 import { api } from '@/api/client';
+import { usePayoutAccount } from '@/api/finance';
 import { materialKeys } from '@/api/materials';
 import { useLogout, useMe } from '@/api/hooks';
 import { palette, spacing } from '@/theme';
@@ -18,7 +20,9 @@ interface VendorProfile {
 
 export default function VendorShopScreen() {
   const me = useMe(true);
+  const router = useRouter();
   const qc = useQueryClient();
+  const payoutAccount = usePayoutAccount();
   const logout = useLogout();
   const profile = useQuery({ queryKey: ['vendor', 'profile'], queryFn: () => api<VendorProfile>('/vendor/profile') });
   const setAvailable = useMutation({
@@ -106,6 +110,23 @@ export default function VendorShopScreen() {
         </>
       )}
 
+      <Spacer h={spacing.lg} />
+      {/* A vendor is paid the same way a provider is, so it is the same screen underneath. */}
+      <Pressable onPress={() => router.push('/payout-account')} accessibilityRole="button">
+        <Card style={styles.payout}>
+          <Ionicons name="wallet-outline" size={20} color={payoutAccount.data ? palette.textMuted : palette.primary} />
+          <View style={{ flex: 1 }}>
+            <Text variant="label" weight="semibold">
+              {payoutAccount.data ? 'Where you get paid' : 'Add your bank details'}
+            </Text>
+            <Text variant="micro" tone="muted">
+              {payoutAccount.data ? payoutAccount.data.masked : 'Payments for your supplies wait until we know where to send them'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+        </Card>
+      </Pressable>
+
       <Spacer h={spacing.xl} />
       <Button title="Sign out" variant="ghost" fullWidth onPress={() => void logout.mutateAsync()} />
     </Screen>
@@ -113,6 +134,7 @@ export default function VendorShopScreen() {
 }
 
 const styles = StyleSheet.create({
+  payout: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   card: { gap: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   note: { flexDirection: 'row', alignItems: 'center', gap: 6 },

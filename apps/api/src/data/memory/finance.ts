@@ -5,6 +5,7 @@ import type {
   DisputeRecord,
   FinanceRepo,
   LedgerEntryRecord,
+  PayoutAccountRecord,
   RefundRecord,
   ReviewRecord,
   SettlementRecord,
@@ -24,7 +25,19 @@ export function createMemoryFinanceRepo(): FinanceRepo {
   const strikes: StrikeRecord[] = [];
   const reviews = new Map<string, ReviewRecord>();
   const tickets = new Map<string, SupportTicketRecord>();
+  const payoutAccounts = new Map<string, PayoutAccountRecord>();
   const now = () => new Date();
+
+  /**
+   * Mirrors settlements_need_payout_account_trg: what is owed can always be recorded, but it
+   * cannot be sent to a payee the payout rail has never heard of.
+   */
+  function requirePayable(payeeId: string, status: string) {
+    if (status !== 'INITIATED' && status !== 'PAID') return;
+    const account = [...payoutAccounts.values()].find((a) => a.user_id === payeeId && a.status === 'VERIFIED');
+    if (!account) throw conflict({ reason: 'no_verified_payout_account', payeeId });
+    if (!account.provider_fund_account_id) throw conflict({ reason: 'payee_not_registered_with_provider' });
+  }
 
   return {
     async appendLedger(batch) {
@@ -66,6 +79,7 @@ export function createMemoryFinanceRepo(): FinanceRepo {
       if ([...settlements.values()].some((x) => x.idempotency_key === s.idempotency_key)) {
         throw conflict({ reason: 'settlement_exists' });
       }
+      requirePayable(s.payee_id, s.status);
       const rec: SettlementRecord = { ...s, id: newId(), created_at: now(), updated_at: now() } as SettlementRecord;
       settlements.set(rec.id, rec);
       return rec;
@@ -77,6 +91,7 @@ export function createMemoryFinanceRepo(): FinanceRepo {
       const s = settlements.get(id);
       if (!s) throw new Error('settlement not found');
       const next = { ...s, ...patch, updated_at: now() };
+      requirePayable(next.payee_id, next.status);
       settlements.set(id, next);
       return next;
     },
@@ -193,6 +208,33 @@ export function createMemoryFinanceRepo(): FinanceRepo {
     },
     async findReview(jobId, reviewerId) {
       return [...reviews.values()].find((r) => r.job_id === jobId && r.reviewer_id === reviewerId) ?? null;
+    },
+
+    async createPayoutAccount(a) {
+      // mirrors payout_accounts_one_active_idx: changing where money goes replaces the old
+      // account rather than adding a second one
+      for (const existing of payoutAccounts.values()) {
+        if (existing.user_id === a.user_id && (existing.status === 'PENDING' || existing.status === 'VERIFIED')) {
+          payoutAccounts.set(existing.id, { ...existing, status: 'DISABLED', updated_at: now() });
+        }
+      }
+      const rec: PayoutAccountRecord = { ...a, id: newId(), created_at: now(), updated_at: now() } as PayoutAccountRecord;
+      payoutAccounts.set(rec.id, rec);
+      return rec;
+    },
+    async getPayoutAccount(userId) {
+      return (
+        [...payoutAccounts.values()]
+          .filter((a) => a.user_id === userId && (a.status === 'VERIFIED' || a.status === 'PENDING'))
+          .sort((x, y) => y.created_at.getTime() - x.created_at.getTime())[0] ?? null
+      );
+    },
+    async updatePayoutAccount(id, patch) {
+      const a = payoutAccounts.get(id);
+      if (!a) throw new Error('payout account not found');
+      const next = { ...a, ...patch, updated_at: now() };
+      payoutAccounts.set(id, next);
+      return next;
     },
 
     async createTicket(t) {

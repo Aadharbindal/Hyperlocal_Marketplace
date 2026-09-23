@@ -21,6 +21,7 @@ PostgreSQL 15 (Supabase). Conventions:
 | `0005_execution` | M5 | start_otps, price_revision_requests, job_completions, chat_threads, chat_messages (+ revision-actor, chat-sender and message-immutability triggers) |
 | `0006_materials` | M6 | material_requests, material_quotes, material_orders (+ requester, vendor-verified and invoice-match triggers) |
 | `0008_admin` | M8 | admin_mfa, kyc_access_log (+ sessions.mfa_verified_at, dispute queue columns, the two-person suspension trigger) |
+| `0009_payout_accounts` | post-M9 | payout_accounts (+ the trigger that stops a settlement being *sent* to a payee the payout rail has never heard of) |
 | `0007_finance` | M7 | ledger_entries, settlements, refunds, disputes, dispute_evidence, strikes, reviews, support_tickets (+ payment_status gains RELEASED, and the completion, invoice, refund-cap, two-person and review triggers) |
 
 ## Tables
@@ -227,6 +228,8 @@ check its age (8 hours) rather than trusting a role claim alone.
 | One active confirmed provider per job | partial unique on `job_assignments(job_id) where status='ACTIVE'` |
 | One active booking quote per job | partial unique on `booking_quotes(job_id) where status='ACTIVE'` |
 | No settlement before valid completion | trigger `settlements_require_completion` |
+| No payout to an unregistered payee | trigger `settlements_need_payout_account` - what is owed can always be recorded, but a settlement cannot move to INITIATED or PAID without a VERIFIED `payout_accounts` row carrying a provider fund account id |
+| One payout account in use per person | partial unique on `payout_accounts(user_id) where status in ('PENDING','VERIFIED')` |
 | No vendor payout without approved order | trigger on settlements where payee_role='VENDOR' |
 | One material list in play per job | partial unique on `material_requests(job_id) where status in ('OPEN','QUOTED')` |
 | One live quote per vendor per list | partial unique on `material_quotes(request_id, vendor_id)` |

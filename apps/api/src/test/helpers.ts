@@ -3,14 +3,54 @@ import { seedDemo } from '../data/seed';
 
 export type TestApp = App;
 
+/**
+ * The suite runs in memory by default and against real Postgres when the environment says so:
+ *
+ *   DATA_MODE=postgres DATABASE_URL=... npm run test:integration
+ *
+ * Nothing in the tests themselves changes. That is the point - the same expectations have to
+ * hold whichever store is underneath, because the memory repositories exist to mirror the SQL,
+ * not to be an easier version of it.
+ */
+const DATA_MODE = process.env.DATA_MODE === 'postgres' ? 'postgres' : 'memory';
+
 export async function makeApp(envOverrides: Record<string, string> = {}): Promise<TestApp> {
   const app = await buildApp({
-    envOverrides: { APP_ENV: 'test', DATA_MODE: 'memory', OTP_DEMO_CODE: '123456', OTP_REQUESTS_PER_HOUR: '5', ...envOverrides },
+    envOverrides: {
+      APP_ENV: 'test',
+      DATA_MODE,
+      ...(DATA_MODE === 'postgres' && process.env.DATABASE_URL ? { DATABASE_URL: process.env.DATABASE_URL } : {}),
+      OTP_DEMO_CODE: '123456',
+      OTP_REQUESTS_PER_HOUR: '5',
+      ...envOverrides,
+    },
     seed: false,
   });
+  // Each test file gets the database to itself. Truncating is faster than re-running the
+  // migrations and proves the foreign keys are wired, since CASCADE has to reach everything.
+  // The service catalog is reference data seeded by 0001 and belongs to the schema, not to a
+  // test, so it is left alone.
+  if (DATA_MODE === 'postgres') await truncateAll(app);
   await seedDemo(app.ctx.store, app.ctx.env);
   await app.ready();
   return app;
+}
+
+async function truncateAll(app: TestApp) {
+  const store = app.ctx.store as unknown as { query?: (sql: string) => Promise<unknown> };
+  if (!store.query) throw new Error('postgres store does not expose a query hook for tests');
+  await store.query(`
+    do $$
+    declare t text;
+    begin
+      for t in
+        select tablename from pg_tables
+        where schemaname = 'public' and tablename not in ('service_categories', 'service_skills')
+      loop
+        execute format('truncate table %I cascade', t);
+      end loop;
+    end $$;
+  `);
 }
 
 /**

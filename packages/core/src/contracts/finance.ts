@@ -101,6 +101,46 @@ export const ReviewView = z.object({
 export type ReviewView = z.infer<typeof ReviewView>;
 
 // ---------------------------------------------------------------------------
+// Where the money goes
+// ---------------------------------------------------------------------------
+
+export const PayoutAccountBody = z
+  .discriminatedUnion('method', [
+    z
+      .object({
+        method: z.literal('BANK_ACCOUNT'),
+        accountHolderName: z.string().trim().min(3).max(100),
+        accountNumber: z.string().trim().regex(/^\d{9,18}$/),
+        ifsc: z.string().trim().length(11),
+      })
+      .strict(),
+    z
+      .object({
+        method: z.literal('UPI'),
+        accountHolderName: z.string().trim().min(3).max(100),
+        vpa: z.string().trim().min(5).max(80),
+      })
+      .strict(),
+  ]);
+export type PayoutAccountBody = z.infer<typeof PayoutAccountBody>;
+
+/** What comes back: enough to recognise the account, never enough to use it. */
+export const PayoutAccountView = z.object({
+  id: z.string().uuid(),
+  method: z.enum(['BANK_ACCOUNT', 'UPI']),
+  accountHolderName: z.string(),
+  /** Masked - the full number lives with the payment provider, not with us. */
+  masked: z.string(),
+  ifsc: z.string().nullable(),
+  status: z.enum(['PENDING', 'VERIFIED', 'REJECTED', 'DISABLED']),
+  rejectionReason: z.string().nullable(),
+  /** True once the payout provider has registered the payee and money can actually be sent. */
+  readyForPayouts: z.boolean(),
+  createdAt: z.string(),
+});
+export type PayoutAccountView = z.infer<typeof PayoutAccountView>;
+
+// ---------------------------------------------------------------------------
 // Money views
 // ---------------------------------------------------------------------------
 
@@ -136,6 +176,10 @@ export const EarningsView = z.object({
   onHoldPaise: z.number().int(),
   lifetimePaise: z.number().int(),
   jobsCompleted: z.number().int(),
+  /** Null until the payee says where to send their money; payouts wait until it is set. */
+  payoutAccount: PayoutAccountView.nullable(),
+  /** Earned, but unpayable until there is somewhere to send it. */
+  awaitingPayoutAccountPaise: z.number().int(),
   settlements: z.array(SettlementView),
   recentEntries: z.array(LedgerEntryView),
 });

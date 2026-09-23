@@ -26,6 +26,11 @@ export function createLogger(env: Env): Logger {
         '*.password',
         '*.token',
         '*.docNumber',
+        // Bank details pass through on one route only, and must not survive anywhere else.
+        '*.accountNumber',
+        '*.account_number',
+        '*.ifsc',
+        '*.vpa',
       ],
       censor: '[REDACTED]',
     },

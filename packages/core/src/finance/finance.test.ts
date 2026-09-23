@@ -16,6 +16,8 @@ import {
   checkCanReview,
   checkCanSettle,
   checkCanSettleVendor,
+  checkPayoutAccount,
+  maskVpa,
   nextRating,
   refundNeedsTwoPeople,
   shouldSuspend,
@@ -110,6 +112,8 @@ describe('settlement rules', () => {
     expect(checkCanSettle({ ...base, existingSettlement: true })).toBe('ALREADY_SETTLED');
     // a suspended account keeps the money; it just waits for the review
     expect(checkCanSettle({ ...base, payeeSuspended: true })).toBe('PAYEE_SUSPENDED');
+    // and money cannot be sent to a payee who has not said where it should go
+    expect(checkCanSettle({ ...base, hasPayoutAccount: false })).toBe('NO_PAYOUT_ACCOUNT');
   });
 
   it('pays a vendor only for confirmed goods with an invoice', () => {
@@ -119,6 +123,29 @@ describe('settlement rules', () => {
     expect(checkCanSettleVendor({ ...ok, orderStatus: 'DELIVERED' })).toBe('ORDER_NOT_CONFIRMED');
     expect(checkCanSettleVendor({ ...ok, orderStatus: 'ON_HOLD' })).toBe('ORDER_NOT_CONFIRMED');
     expect(checkCanSettleVendor({ ...ok, openDisputes: 1 })).toBe('DISPUTE_OPEN');
+  });
+});
+
+describe('payout account details', () => {
+  const bank = { method: 'BANK_ACCOUNT' as const, accountHolderName: 'Ramesh Kumar', accountNumber: '918273645500', ifsc: 'HDFC0001234' };
+
+  it('accepts details the payout rail would accept', () => {
+    expect(checkPayoutAccount(bank)).toBeNull();
+    expect(checkPayoutAccount({ method: 'UPI', accountHolderName: 'Ramesh Kumar', vpa: 'ramesh.k@okhdfc' })).toBeNull();
+  });
+
+  it('catches the mistakes people actually make, before the gateway does', () => {
+    // an IFSC is four letters, a zero, then six more - the zero is the part people get wrong
+    expect(checkPayoutAccount({ ...bank, ifsc: 'HDFCX001234' })).toBe('BAD_IFSC');
+    expect(checkPayoutAccount({ ...bank, ifsc: 'hdfc0001234' })).toBeNull(); // case is not a mistake
+    expect(checkPayoutAccount({ ...bank, accountNumber: '12345' })).toBe('BAD_ACCOUNT_NUMBER');
+    expect(checkPayoutAccount({ ...bank, accountNumber: '9182 7364 5500' })).toBe('BAD_ACCOUNT_NUMBER');
+    expect(checkPayoutAccount({ ...bank, accountHolderName: 'R' })).toBe('NAME_TOO_SHORT');
+    expect(checkPayoutAccount({ method: 'UPI', accountHolderName: 'Ramesh Kumar', vpa: '9876543210' })).toBe('BAD_UPI_ID');
+  });
+
+  it('shows a UPI id without giving it away', () => {
+    expect(maskVpa('ramesh.k@okhdfc')).toBe('ra******@okhdfc');
   });
 });
 
