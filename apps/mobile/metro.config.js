@@ -11,5 +11,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
-config.resolver.disableHierarchicalLookup = true;
+// `disableHierarchicalLookup` used to be the standard monorepo workaround. Expo's own config now
+// handles workspace resolution, and turning it off fights that - expo-doctor flags it. The
+// explicit nodeModulesPaths above are enough.
 module.exports = config;

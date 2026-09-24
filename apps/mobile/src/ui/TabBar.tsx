@@ -1,9 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { Tabs } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { elevation, layout, palette, radius, spacing } from '@/theme';
 import { Text } from './Text';
+
+/**
+ * expo-router 57 vendors react-navigation rather than depending on it, so
+ * `@react-navigation/bottom-tabs` is no longer a package we can import from. The type is derived
+ * from the `tabBar` prop of the `Tabs` component we already use - which is public API, and will
+ * keep pointing at the right shape through the next upgrade too.
+ */
+type BottomTabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0];
 
 export interface TabSpec {
   name: string;

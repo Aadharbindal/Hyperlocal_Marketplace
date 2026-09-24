@@ -348,5 +348,46 @@ details", because a lock screen is read by whoever is holding the phone.
 | POST | `/jobs/:id/call` | any party on the job | `{ urgent? }`. Returns a number to dial that reaches the other person through the telephony provider. **Neither real number is ever in the response.** Ten calls per job per day; calling hours (07:00-22:00) apply only to a booking scheduled for later, never to a job already under way or in dispute. The call is logged - who, whom, when, how long - but never recorded |
 | POST | `/jobs/:id/reschedule` | CUSTOMER, SUPPORT | `{ newStart, newEnd?, reason? }`. Two moves per booking, none once somebody may be travelling (2 h notice on a booked slot), nothing in the past or more than 30 days out. The provider who blocked the slot is notified. Refusals carry a plain-English `message` alongside the code *audited* |
 
+## Receipts and growth (post-M9)
+
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/jobs/:id/invoice` | customer | The bill for one booking, issued automatically when the money is captured. Every figure is snapshotted at issue: a later correction is a credit note, never an edit |
+| GET | `/me/invoices` | customer | Every receipt this customer holds |
+| GET | `/me/favourites` | customer | Saved professionals, each with whether they can actually be asked right now and the job worth repeating |
+| POST | `/providers/:id/favourite` | customer | `{ note? }`. The note is a reminder to self and is **never shown to the provider** |
+| DELETE | `/providers/:id/favourite` | customer | |
+| POST | `/jobs/:id/rebook` | customer | `{ preferProviderId?, description?, preferredStart? }`. Opens a new job from an old one. `preferProviderId` is a **preference, not an assignment**: the job still goes out for bids and the preferred professional is simply told first *audited* |
+| GET | `/promo/preview?code=&orderPaise=` | customer | What a code would take off, before committing. Re-checked at acceptance, because the answer can change between looking and booking |
+| GET | `/me/referrals` | any signed-in user | The caller's own code, the terms in one sentence, and who has joined - first names only |
+| POST | `/me/referrals/claim` | any signed-in user | `{ code }`. Only before a first completed booking: a code from somebody who already books here is a discount, not a referral |
+| GET/POST | `/admin/promos` | ADMIN, SUPPORT | Creating a code. A percentage code without `maxDiscountPaise` is refused - an uncapped percentage is an unbounded liability *audited* |
+| POST | `/admin/promos/:id/deactivate` | ADMIN, SUPPORT | Stops the code. Bookings already made keep the discount they were given *audited* |
+
+`POST /bids/:id/accept` takes a strict body which may carry `{ promoCode }`. **A discount comes
+off what the customer pays and nothing else** - the provider's payable is untouched, whatever
+marketing was running.
+
+`GET /provider/jobs/nearby` accepts `categoryIds`, `maxDistanceKm`, `priorities`, `requestTypes`,
+`maxBids`, `hideMyBids`, `withMediaOnly` and `sort` (comma-separated lists, since they arrive in a
+URL). It returns `facets` built from what is in that provider's feed today, and an `emptyReason`
+when filters left nothing - "there is work nearby, but none within 3 km" is a different message
+from "there is no work". **A filter can only narrow what the server already decided the provider
+is eligible for.**
+
+## Contractors and their crews (post-M9)
+
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET/PUT | `/contractor/profile` | CONTRACTOR | Business name, radius, and how much of the crew is verified. `verificationStatus` is never something the applicant sets |
+| GET | `/contractor/technicians` | CONTRACTOR | Their own crew, with full phone numbers - these are people they employ |
+| POST | `/contractor/technicians` | CONTRACTOR | `{ phone, fullName, skills? }`. The person **must already have an account on that number**; a contractor cannot conjure one. Adding them is what grants the TECHNICIAN role, the grant records who did it, and they are notified *audited* |
+| DELETE | `/contractor/technicians/:id` | CONTRACTOR | Deactivates. The profile is kept, so their history stays theirs *audited* |
+| POST | `/contractor/technicians/:id/kyc` | CONTRACTOR | Submits documents to the same review queue as any other applicant. **Staff decide, never the contractor** - otherwise "verified" means "their employer says so" *audited* |
+| GET | `/contractor/jobs` | CONTRACTOR | Live jobs and who is on each, flagging the ones with `needsTechnician` |
+
+`TECHNICIAN` is deliberately absent from `SELF_SERVICE_ROLES`: nobody becomes a technician by
+declaring it.
+
 ## Planned (by milestone)
 _Nothing is left planned: all nine milestones are implemented. What is still missing is listed in `KNOWN_LIMITATIONS.md`._

@@ -42,7 +42,9 @@ export function Screen({ children, scroll = true, padded = true, withTabBar, ref
   );
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" backgroundColor={palette.ground} />
+      {/* No backgroundColor: Android is edge-to-edge from SDK 57, so the bar is transparent and
+          the ground colour on the view below shows through it. */}
+      <StatusBar style="dark" />
       <OfflineBanner visible={!online} label={t('error.OFFLINE')} />
       {keyboard ? (
         <KeyboardAvoidingView style={styles.grow} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

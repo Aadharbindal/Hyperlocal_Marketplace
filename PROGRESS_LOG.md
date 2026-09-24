@@ -4,6 +4,181 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Expo SDK 53 to 57, and the four breaking changes it surfaced
+
+**Milestone:** post-M9 - the upgrade that was blocking store submission
+**Date:** 2026-09-24
+**Status:** Complete
+
+**Why this exists:** SDK 53 could not be submitted to either store any more, and Expo Go had
+moved on far enough that the project would not open in it. This was the last thing on the
+feature-gap list, and deliberately the last thing done: it touches every file indirectly and
+nothing else should be in flight while it happens.
+
+**What moved:** Expo 53 → 57, React Native 0.79 → 0.86, React 19.0 → 19.2, Reanimated 3 → 4,
+expo-router 5 → 57, TypeScript 5.7 → 6. Four majors of Expo in one step rather than one at a
+time, which worked because the app uses Expo's own modules throughout and almost no third-party
+native code.
+
+**The four things that actually broke, and why each fix is the right one rather than the quick
+one:**
+
+1. **Reanimated 4 moved its worklet transform** into `react-native-worklets`. The old
+   `react-native-reanimated/plugin` path still resolves - it re-exports - so the build would have
+   kept working while warning on every run. The babel config now names the plugin where it
+   actually lives.
+2. **`StyleSheet.absoluteFillObject` is gone**, from both the types and the runtime.
+   `absoluteFill` is now a frozen plain object, which is what `absoluteFillObject` existed to
+   provide, so the seven call sites are a straight rename rather than a shim.
+3. **`expo-status-bar` dropped `backgroundColor`.** Android is edge-to-edge from SDK 57: the bar
+   is transparent and whatever is behind it shows through. `Screen` already paints the ground
+   colour on the view underneath, so removing the prop is not a workaround - it is the
+   arrangement the new default assumes.
+4. **`@react-navigation/bottom-tabs` is no longer a package we can import.** expo-router 57
+   vendors react-navigation instead of depending on it. Rather than reach into
+   `expo-router/build/...`, the tab bar's props type is now derived from the `tabBar` prop of the
+   `Tabs` component the app already uses - public API, and it will still point at the right shape
+   after the next upgrade.
+
+**Three things cleaned up on the way:**
+
+- **`query-string@7` is gone.** It was pinned in M2 only because `@react-navigation/native` 7.4
+  dropped it while expo-router 5.1 still imported it. expo-router 57 does not, so a workaround
+  that had been carried for four milestones could finally be deleted.
+- **One TypeScript for the whole repo.** `expo install --fix` moved the mobile app to 6.0 while
+  the root stayed on 5.7; two majors in one workspace is how "works here, fails there" starts.
+  The root moved to 6.0 and the mobile pin was removed - `packages/core` and `apps/api` type-check
+  clean on it, so there was no reason to hold back.
+- **`baseUrl` removed from the mobile tsconfig.** TypeScript 6 deprecates it, and `paths` has
+  resolved relative to the tsconfig itself since 4.4 - it was doing the same job twice.
+- **`newArchEnabled` and `splash` left `app.json`.** The new architecture is the only
+  architecture now, so the flag no longer exists; the splash screen moved into the
+  `expo-splash-screen` plugin. `metro.config.js` also dropped `disableHierarchicalLookup`, a
+  monorepo workaround that Expo's own config now handles and actively flags.
+
+**Changed files:** `apps/mobile/{package.json,app.json,babel.config.js,metro.config.js,tsconfig.json}`,
+`apps/mobile/src/ui/{Screen.tsx,TabBar.tsx,Chip3D.tsx}`,
+`apps/mobile/src/features/{auth/FloatingTile.tsx,customer/AfterJobCard.tsx,customer/ConfirmSheet.tsx,provider/BidSheet.tsx,shared/ChatSheet.tsx}`,
+`apps/mobile/app/(vendor)/requests.tsx`, `package.json`, `KNOWN_LIMITATIONS.md`.
+
+**Database changes:** none.
+
+**API changes:** none.
+
+**Tests added / passed:** no new tests - this was a runtime move, not a behaviour change. Totals
+unchanged: **233/233 API**, **164/164 core**. Type check clean in 3/3 workspaces on TypeScript 6,
+lint 0 errors, `migrate:check` OK.
+
+**Manual verification completed:** `expo-doctor` reports **21/21 checks passing** (it found the
+two stale config keys and the Metro override, all now fixed), an Android bundle exports cleanly
+at 5.4 MB, and typed routes regenerate with every new screen present and no stray entries.
+
+**Known limitations:** the app has **not been run on a physical device since the upgrade**. It
+type-checks, lints and bundles, which is not the same thing as working - Reanimated 4's worklet
+runtime and Android edge-to-edge insets are the two places a problem would show up first, and
+both want a real device rather than a bundle that compiled. That is stated in
+`KNOWN_LIMITATIONS.md` rather than implied by a green build.
+
+---
+
+## Closing the feature gap: receipts, growth, a camera and a crew
+
+**Milestone:** post-M9 - everything the product spec asked for that had never been built
+**Date:** 2026-09-24
+**Status:** Complete
+
+**Why this exists:** a line-by-line review of `PRODUCT_SPEC` against the code found seven things
+that were specified and missing. This is all of them except the SDK upgrade, which is its own
+entry above.
+
+**Implemented:**
+
+*A receipt.* Section 4 promises "receipts/invoices" and there was none: a customer could see what
+they paid inside the app and had nothing to keep, forward or claim against. One is issued the
+moment the money is captured, with every figure snapshotted rather than joined at read time - a
+receipt states what was charged on a day, and a later correction is a credit note, not a quiet
+edit to a document somebody has filed with their accounts. The layout separates the work from
+our fee from the tax, because a platform that hides its own fee inside one number is one people
+stop trusting the first time they do the arithmetic.
+
+*Saved professionals and rebooking.* "Book again" opens a new job rather than assigning anyone:
+the saved professional hears about it first, and the customer still sees every offer. Quietly
+assigning them would remove the comparison, which is the thing a marketplace is for. The list
+says honestly whether somebody can be asked right now, so the button never promises what will
+fail.
+
+*Promo codes*, with one rule running through them: **a discount is the platform's cost, never
+the provider's.** A professional is paid exactly what the accepted quote said whatever marketing
+we ran, and the `funded_by` column only accepts `PLATFORM` so that stays true. A percentage code
+without a ceiling is refused outright - an uncapped percentage is an unbounded liability.
+
+*Referrals* that pay out on completed work rather than on a signup, because rewarding signups is
+how a referral programme becomes a fraud programme. Codes are derived from the user id and leave
+out 0/O and 1/I, so somebody can read one aloud without spelling it out.
+
+*Feed filters*, on the server. The feed is already trimmed to what a provider is eligible for and
+a filter can only narrow that, never widen it. The options are built from what is in that
+provider's feed today, each with its count, so nobody taps into a dead end. An empty result says
+why: "there is work nearby, but none within 3 km" is a very different message from "there is no
+work".
+
+*The camera and the microphone.* The app had been calling the evidence endpoint with fixed
+metadata - a photo that did not exist, 180 KB every time. It now opens the camera or the gallery
+and sends the real file. Extra work that costs the customer more, and a job marked done, are
+exactly the two moments where "there is a photo" has to mean a photo somebody took. A voice note
+came with it, because typing a paragraph in a second language on a phone is work and describing
+a broken geyser out loud is not; it stops itself at sixty seconds rather than refusing the
+recording afterwards.
+
+*The contractor role*, which had a full API behind it and not one screen. Building it corrected a
+design I had backwards: I assumed a technician signs in and takes the role themselves, but
+`TECHNICIAN` is deliberately not self-service - and that is right. Nobody becomes a technician by
+declaring it; a contractor vouches for them. So **adding somebody to a crew is what grants the
+role**, and the grant records who did it. The person must already have an account on that number,
+which proves they hold the phone a customer will be shown, and they are told the moment it
+happens. Added is not verified: a contractor submits documents, staff decide, and the assign
+sheet only offers verified people so nobody wastes time picking somebody the server will refuse.
+
+*A language switch* that saves to the account rather than only the device, so an SMS arrives in
+the language somebody chose.
+
+**Changed files:** `packages/core/src/{growth/*,bidding/feed-filters*,contracts/{growth,provider}.ts,index.ts}`,
+`supabase/migrations/0011_receipts_and_growth.sql`,
+`apps/api/src/{modules/{growth,contractor}/*,modules/{negotiation,execution,provider}/*,data/{types.ts,memory/*,postgres/*},app.ts,test/{growth,contractor,security}.test.ts}`,
+`apps/mobile/{app/{receipts,favourites,referrals}.tsx,app/invoice/[id].tsx,app/(contractor)/*,app/(customer)/{book,job/[id]}.tsx,app/(provider)/jobs.tsx,app/_layout.tsx,src/api/{growth,contractor,execution,provider}.ts,src/features/{capture/*,provider/FeedFilterSheet.tsx,ProfileScreen.tsx},src/i18n/index.ts}`.
+
+**Database changes:** `0011_receipts_and_growth` - `invoices` (numbered per financial year, delete
+revoked), `favourite_providers`, `promo_codes` + `promo_redemptions` (one code per booking),
+`referrals` (one referrer per person, nobody refers themselves), plus `discount_paise` and
+`promo_code` on `booking_quotes` and a derived `referral_code` on `users`. Forward-only.
+`migrate:check` reports 11 valid migrations, and all 11 apply to a real cluster.
+
+**API changes:** `GET /jobs/:id/invoice`, `GET /me/invoices`, `GET /me/favourites`,
+`POST|DELETE /providers/:id/favourite`, `POST /jobs/:id/rebook`, `GET /promo/preview`,
+`GET /me/referrals`, `POST /me/referrals/claim`, `GET|POST /admin/promos`,
+`POST /admin/promos/:id/deactivate`, `GET|PUT /contractor/profile`,
+`GET|POST /contractor/technicians`, `DELETE /contractor/technicians/:id`,
+`POST /contractor/technicians/:id/kyc`, `GET /contractor/jobs`. `GET /provider/jobs/nearby` gained
+filters, facets and an `emptyReason`. `POST /bids/:id/accept` now takes a strict body carrying an
+optional `promoCode`.
+
+**Tests added / passed:** 32 new API tests and 32 new core tests. Totals: **233/233 API in memory
+mode**, **222/222 against real Postgres** at the point that run was made, **164/164 core**. Type
+check clean in 3/3 workspaces, lint 0 errors.
+
+**A bug worth recording:** submitting KYC required a *provider* profile, which a technician does
+not have, so a contractor submitting their crew's documents got a 404. The record belongs to the
+person, not to a profile; the provider-status bump is now conditional on there being one.
+`POST /bids/:id/accept` also became a strict body, so a client sending its own idea of the price
+is refused rather than silently ignored - the security test now covers both halves.
+
+**Known limitations:** referral rewards are marked QUALIFIED and both sides are notified, but the
+credit itself is applied by support rather than automatically. Promo codes have no admin console
+screen, only the API. There is still no provider-initiated reschedule, and the technician role
+uses the provider screens rather than having its own.
+
+---
+
 ## Reaching people: push, masked calling, and moving a booking
 
 **Milestone:** post-M9 - three things a real app has to do that this one could not

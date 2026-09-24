@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: spacing.sm },
   action: { flex: 1 },
 
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.overlay },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: palette.overlay },
   sheet: {
     position: 'absolute',
     left: 0,

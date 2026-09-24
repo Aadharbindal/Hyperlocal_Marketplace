@@ -4,7 +4,6 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "paths": { "@/*": ["./src/*"] },
     "types": []
   },

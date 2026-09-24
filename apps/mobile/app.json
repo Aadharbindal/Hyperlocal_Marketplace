@@ -6,10 +6,6 @@
     "scheme": "hyperlocal",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "backgroundColor": "#EAF7F1"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.hyperlocal.marketplace"
@@ -28,7 +24,14 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "expo-audio"
+      "expo-audio",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#EAF7F1"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

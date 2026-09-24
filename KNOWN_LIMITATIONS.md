@@ -51,7 +51,9 @@ and no file has ever been stored. The list below is what stands between that and
 | Media bytes in mock mode | **MOCKED** | `/jobs/:id/media` returns `upload.required: false` and marks the row uploaded; no bytes are stored, so photo thumbnails fall back to an icon | Supabase Storage / S3 signed PUT | before launch |
 | Voice-note transcription | deferred | none | Phase 2 | – |
 | Regional voice UI, AI categorisation, AI damage assessment | deferred by spec §31 | – | – | – |
-| Mobile dependency pin | workaround | `query-string@7` added to `apps/mobile` because `@react-navigation/native` 7.4 dropped it while `expo-router` 5.1 still imports it | remove when expo-router updates | M2 |
+| ~~Mobile dependency pin~~ | resolved | the `query-string@7` workaround is gone: expo-router 57 vendors react-navigation and no longer imports it |  | SDK 57 upgrade |
+| Expo SDK | **57** | upgraded from 53 (React Native 0.86, React 19.2, Reanimated 4, TypeScript 6). `expo-doctor` reports 21/21, and an Android bundle exports cleanly. Store submission is now unblocked, and Expo Go can open the project again | a real device pass on the new runtime | before launch |
+| Mobile runtime testing | **not done on SDK 57** | the app type-checks, lints and bundles on the new SDK, but has not been run on a physical device since the upgrade. Reanimated 4 and edge-to-edge Android are the two places to look first | a device pass | before launch |
 | Welcome hero artwork | **derived asset** | `apps/mobile/assets/hero-technician.png` is extracted from the reference render the user supplied (text removed, background rebuilt) | final licensed export of the same illustration | before release (D-011) |
 | Home hero artwork | placeholder | vector illustration in the home hero | final design assets | design handoff |
 | Legal/payment structure | **needs professional review** | authorization/hold/settlement vocabulary throughout, no pooled account modelling, no nodal account | payments counsel + RBI guidance review | before launch |

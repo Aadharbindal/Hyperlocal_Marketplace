@@ -33,7 +33,7 @@ export function FloatingTile({ iconKey, tint, size = 58, rotate = '0deg', style 
 
 const styles = StyleSheet.create({
   shadow: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#FFFFFF',
     shadowOpacity: 0.3,
     shadowRadius: 14,

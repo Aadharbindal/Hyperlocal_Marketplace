@@ -90,8 +90,10 @@ Until this run the SQL had never executed. Every one of these was invisible in m
 | Adversarial security pass | `security.test.ts` | 21 |
 | Where the money goes (payout accounts) | `finance.test.ts` | 5 |
 | Push, masked calling, rescheduling | `reach.test.ts` | 17 |
-| **API integration total** | | **201** |
-| Domain rules | `packages/core/src/**/*.test.ts` | **147** |
+| Receipts, favourites, promos, referrals, feed filters | `growth.test.ts` | 21 |
+| Contractors and their crews | `contractor.test.ts` | 11 |
+| **API integration total** | | **233** |
+| Domain rules | `packages/core/src/**/*.test.ts` | **164** |
 
 Run everything with `npm test`; `npm run typecheck && npm run lint && npm run migrate:check &&
 npm run build` is the rest of the gate. All of it runs in CI on every push.

@@ -51,6 +51,6 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   gloss: { position: 'absolute', top: 0, left: 0, right: 0, height: '48%' },
-  rim: { ...StyleSheet.absoluteFillObject, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
+  rim: { ...StyleSheet.absoluteFill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
   icon: { textShadowColor: 'rgba(0,0,0,0.18)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 3 },
 });

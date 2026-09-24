@@ -110,7 +110,7 @@ export function ChatSheet({ jobId, visible, onClose }: { jobId: string; visible:
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.overlay },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: palette.overlay },
   lift: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   sheet: {
     backgroundColor: palette.surface,

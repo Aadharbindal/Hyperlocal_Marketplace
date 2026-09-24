@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
   items: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: 5 },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
 
-  sheetWrap: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.overlay, justifyContent: 'flex-end' },
+  sheetWrap: { ...StyleSheet.absoluteFill, backgroundColor: palette.overlay, justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: palette.surface,
     borderTopLeftRadius: 28,

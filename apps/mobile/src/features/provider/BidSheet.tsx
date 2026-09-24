@@ -263,7 +263,7 @@ function bidError(e: ApiError): string {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.overlay },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: palette.overlay },
   sheet: {
     position: 'absolute',
     left: 0,
