@@ -23,6 +23,7 @@ import { eventRoutes } from './modules/events/routes';
 import { eventsService, type EventsService } from './modules/events/service';
 import { executionRoutes } from './modules/execution/routes';
 import { financeRoutes } from './modules/finance/routes';
+import { contractorRoutes } from './modules/contractor/routes';
 import { growthRoutes } from './modules/growth/routes';
 import { growthService, type GrowthService } from './modules/growth/service';
 import { schedulerService, type SchedulerService } from './modules/scheduler/service';
@@ -340,6 +341,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     await materialRoutes(scope, ctx);
     await financeRoutes(scope, ctx);
     await growthRoutes(scope, ctx);
+    await contractorRoutes(scope, ctx);
     await eventRoutes(scope, ctx);
     await adminRoutes(scope, ctx);
     await adminConsoleRoutes(scope, ctx);

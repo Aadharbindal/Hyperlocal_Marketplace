@@ -67,6 +67,11 @@ export function createPostgresNegotiationRepo(q: Queryable): NegotiationRepo {
         [a.job_id, a.provider_id, a.technician_id, a.contractor_id, a.assigned_by, a.status, a.replaced_by, a.reason],
       ))!;
     },
+    listAssignmentsForProvider: (providerId, limit) =>
+      many<AssignmentRecord>(
+        `select * from job_assignments where provider_id = $1 and status = 'ACTIVE' order by created_at desc limit $2`,
+        [providerId, limit],
+      ),
     getActiveAssignment: (jobId) => one<AssignmentRecord>("select * from job_assignments where job_id = $1 and status = 'ACTIVE'", [jobId]),
     async updateAssignment(id, patch) {
       const { sets, values } = patchSql(patch as Record<string, unknown>, 2);

@@ -41,7 +41,7 @@ export default function ReceiptsScreen() {
         <View style={styles.list}>
           {invoices.data.map((i, idx) => (
             <Animated.View key={i.id} entering={FadeInDown.delay(Math.min(idx, 8) * 40).duration(300)}>
-              <Pressable onPress={() => router.push(`/invoice/${i.jobId}`)} accessibilityRole="button">
+              <Pressable onPress={() => router.push({ pathname: '/invoice/[id]', params: { id: i.jobId } })} accessibilityRole="button">
                 <Card style={styles.row}>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text variant="label" weight="semibold">

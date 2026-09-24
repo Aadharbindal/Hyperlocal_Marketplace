@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { formatInr, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
+import { askForPhoto } from '@/features/capture/media';
 import { useAddEvidence, useCompleteJob, useExecution, useProgress, useRequestRevision, useStartJob } from '@/api/execution';
 import { ChatSheet } from '@/features/shared/ChatSheet';
 import { MaterialRequestForm } from '@/features/provider/MaterialRequestForm';
@@ -168,20 +169,28 @@ function InProgressActions({ jobId }: { jobId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Both flows need at least one photo. The mock storage adapter marks the row uploaded, so
-   * this stands in for the real camera capture until storage is live.
+   * Both flows need at least one photo, and it has to be a real one. Extra work that costs the
+   * customer more, and a job marked done, are exactly the two moments where "there is a photo"
+   * has to mean a photo somebody actually took.
    */
-  async function withPhoto(run: (mediaId: string) => Promise<unknown>) {
+  function withPhoto(run: (mediaId: string) => Promise<unknown>) {
     setError(null);
-    try {
-      const shot = await evidence.mutateAsync({ jobId, mime: 'image/jpeg', sizeBytes: 180_000 });
-      await run(shot.media.id);
-      setMode('none');
-      setAmount('');
-      setText('');
-    } catch (e) {
-      setError(e instanceof ApiError ? revisionError(e) : 'Something went wrong.');
-    }
+    askForPhoto(
+      (file) => {
+        void (async () => {
+          try {
+            const shot = await evidence.mutateAsync({ jobId, file });
+            await run(shot.media.id);
+            setMode('none');
+            setAmount('');
+            setText('');
+          } catch (e) {
+            setError(e instanceof ApiError ? revisionError(e) : 'Something went wrong.');
+          }
+        })();
+      },
+      setError,
+    );
   }
 
   if (mode === 'none') {

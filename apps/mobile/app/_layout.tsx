@@ -56,22 +56,28 @@ function AuthGate() {
       if (segments[1] !== 'role') router.replace('/(auth)/role');
       return;
     }
+    // A contractor runs a crew, so they get their own area. A technician does not: they are
+    // sent jobs rather than winning them, so the provider screens are exactly right for them.
     const target =
       activeRole === 'ADMIN' || activeRole === 'SUPPORT'
         ? '(admin)'
         : activeRole === 'VENDOR'
           ? '(vendor)'
-          : activeRole === 'PROVIDER' || activeRole === 'CONTRACTOR' || activeRole === 'TECHNICIAN'
-            ? '(provider)'
-            : '(customer)';
+          : activeRole === 'CONTRACTOR'
+            ? '(contractor)'
+            : activeRole === 'PROVIDER' || activeRole === 'TECHNICIAN'
+              ? '(provider)'
+              : '(customer)';
     const home =
       target === '(admin)'
         ? '/(admin)/queue'
         : target === '(vendor)'
           ? '/(vendor)/requests'
-          : target === '(provider)'
-            ? '/(provider)/jobs'
-            : '/(customer)/home';
+          : target === '(contractor)'
+            ? '/(contractor)/jobs'
+            : target === '(provider)'
+              ? '/(provider)/jobs'
+              : '/(customer)/home';
     if (group !== target) router.replace(home as never);
   }, [hydrated, token, user, activeRole, segments, router]);
 

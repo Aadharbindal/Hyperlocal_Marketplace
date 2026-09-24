@@ -1057,6 +1057,8 @@ export interface NegotiationRepo {
 
   createAssignment(a: New<AssignmentRecord>): Promise<AssignmentRecord>;
   getActiveAssignment(jobId: string): Promise<AssignmentRecord | null>;
+  /** Every live assignment this provider or contractor holds - the screen they run a day from. */
+  listAssignmentsForProvider(providerId: string, limit: number): Promise<AssignmentRecord[]>;
   updateAssignment(id: string, patch: Partial<AssignmentRecord>): Promise<AssignmentRecord>;
 }
 

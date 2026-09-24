@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MATERIAL_RESPONSIBILITIES, VERIFICATION_STATUSES } from './enums';
+import { PhoneSchema } from './auth';
 
 // ---------------------------------------------------------------------------
 // Provider profile
@@ -151,3 +152,57 @@ export const OfferView = BidView.extend({
   sponsored: z.boolean(),
 });
 export type OfferView = z.infer<typeof OfferView>;
+
+// ---------------------------------------------------------------------------
+// Contractors and their crews
+// ---------------------------------------------------------------------------
+
+export const ContractorProfileUpdate = z
+  .object({
+    businessName: z.string().trim().min(3).max(80),
+    baseAddressId: z.string().uuid().optional(),
+    serviceRadiusKm: z.number().min(1).max(25).optional(),
+  })
+  .strict();
+export type ContractorProfileUpdate = z.infer<typeof ContractorProfileUpdate>;
+
+/**
+ * A technician is *added*, not created: they sign in on their own phone first. A contractor who
+ * could create accounts for people could also create accounts **as** people, and then send an
+ * unverified stranger to somebody's home under a name the customer had reason to trust.
+ */
+export const AddTechnicianBody = z
+  .object({
+    phone: PhoneSchema,
+    fullName: z.string().trim().min(3).max(80),
+    skills: z.array(z.string().uuid()).max(10).optional(),
+  })
+  .strict();
+export type AddTechnicianBody = z.infer<typeof AddTechnicianBody>;
+
+export const TechnicianView = z.object({
+  userId: z.string().uuid(),
+  fullName: z.string(),
+  /** A contractor sees their own crew's numbers in full; nobody else does. */
+  phone: z.string(),
+  verificationStatus: z.enum(VERIFICATION_STATUSES),
+  skills: z.array(z.string()),
+  active: z.boolean(),
+});
+export type TechnicianView = z.infer<typeof TechnicianView>;
+
+/** Submitting a crew member's documents. Staff decide the outcome, never the contractor. */
+export const TechnicianKycBody = KycSubmitBody;
+export type TechnicianKycBody = z.infer<typeof TechnicianKycBody>;
+
+export const ContractorJobItem = z.object({
+  jobId: z.string().uuid(),
+  status: z.string(),
+  categoryName: z.string(),
+  areaLabel: z.string(),
+  preferredStart: z.string().nullable(),
+  technician: z.object({ userId: z.string().uuid(), fullName: z.string() }).nullable(),
+  /** What a contractor opens this screen looking for. */
+  needsTechnician: z.boolean(),
+});
+export type ContractorJobItem = z.infer<typeof ContractorJobItem>;

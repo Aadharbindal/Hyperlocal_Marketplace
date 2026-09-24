@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -8,7 +8,9 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import type { JobView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useCategories } from '@/api/hooks';
-import { useAddresses, useAttachMedia, useCreateDraft, useRemoveMedia, useSubmitJob, useUpdateDraft } from '@/api/jobs';
+import { useAddresses, useAttachMedia, useCreateDraft, useRemoveMedia, useSubmitJob, useUpdateDraft, type LocalMedia } from '@/api/jobs';
+import { askForPhoto } from '@/features/capture/media';
+import { VoiceNoteRecorder } from '@/features/capture/VoiceNoteRecorder';
 import { useStrings } from '@/i18n';
 import { layout, palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, IconButton, Screen, Text } from '@/ui';
@@ -98,27 +100,18 @@ export default function BookScreen() {
     return new Date(Date.now() + hours * 3600_000).toISOString();
   }
 
-  async function addPhoto() {
+  /** Camera or gallery - somebody in front of the leak wants one, somebody who photographed it
+   *  this morning wants the other. */
+  function addPhoto() {
     setError(null);
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      setError('Photo access is needed to attach a picture.');
-      return;
-    }
-    const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.6 });
-    if (picked.canceled || !picked.assets[0]) return;
-    const asset = picked.assets[0];
+    askForPhoto((file) => void attachFile(file), setError);
+  }
+
+  async function attachFile(file: LocalMedia) {
+    setError(null);
     try {
       const draft = await ensureDraft();
-      await attach.mutateAsync({
-        jobId: draft.id,
-        file: {
-          uri: asset.uri,
-          kind: 'PHOTO',
-          mime: asset.mimeType ?? 'image/jpeg',
-          sizeBytes: asset.fileSize ?? 500_000,
-        },
-      });
+      await attach.mutateAsync({ jobId: draft.id, file });
       const refreshed = await updateDraft.mutateAsync({ id: draft.id, categoryId });
       setJob(refreshed);
     } catch (e) {
@@ -231,6 +224,22 @@ export default function BookScreen() {
               </Text>
             </Pressable>
           </View>
+        </Animated.View>
+
+        {/* A voice note, for anybody who would rather say it than type it. */}
+        <Animated.View entering={FadeInDown.delay(170).duration(380)}>
+          <Text weight="semibold" style={styles.label}>
+            Voice note <Text variant="caption" tone="muted">(optional)</Text>
+          </Text>
+          <VoiceNoteRecorder
+            existing={job?.media.find((m) => m.kind === 'VOICE_NOTE') ?? null}
+            onRecorded={(file) => void attachFile(file)}
+            onRemove={() => {
+              const note = job?.media.find((m) => m.kind === 'VOICE_NOTE');
+              if (job && note) removeMedia.mutate({ jobId: job.id, mediaId: note.id });
+            }}
+            disabled={attach.isPending}
+          />
         </Animated.View>
 
         {/* options */}

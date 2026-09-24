@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ChatThreadView, CompletionView, ExecutionView, PriceRevisionView } from '@hyperlocal/core';
 import { api, newIdempotencyKey } from './client';
 import { bookingKeys } from './negotiation';
-import { jobKeys } from './jobs';
+import { jobKeys, type LocalMedia } from './jobs';
 import { FALLBACK_POLL_MS } from './polling';
 
 export const executionKeys = {
@@ -46,15 +46,36 @@ export function useStartJob() {
   });
 }
 
-/** Attaches progress, revision or completion evidence; the server picks the phase. */
+/**
+ * Attaches progress, revision or completion evidence; the server picks the phase from the job's
+ * status, so the client never has to guess which one it is in.
+ *
+ * The bytes are transferred when the storage adapter asks for them. In mock mode the API marks
+ * the row uploaded and says the transfer is not required, so the same code path works both ways
+ * without the app pretending a file exists that does not.
+ */
 export function useAddEvidence() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ jobId, mime, sizeBytes }: { jobId: string; mime: string; sizeBytes: number }) =>
-      api<{ media: { id: string; url: string } }>(`/jobs/${jobId}/evidence`, {
-        method: 'POST',
-        body: { kind: 'PHOTO', mime, sizeBytes },
-      }),
+    mutationFn: async ({ jobId, file }: { jobId: string; file: LocalMedia }) => {
+      const res = await api<{ media: { id: string; url: string }; upload: { url: string; method: 'PUT' | 'POST'; required: boolean } }>(
+        `/jobs/${jobId}/evidence`,
+        {
+          method: 'POST',
+          body: {
+            kind: file.kind,
+            mime: file.mime,
+            sizeBytes: file.sizeBytes,
+            ...(file.durationSeconds ? { durationSeconds: Math.round(file.durationSeconds) } : {}),
+          },
+        },
+      );
+      if (res.upload.required) {
+        const blob = await (await fetch(file.uri)).blob();
+        await fetch(res.upload.url, { method: res.upload.method, body: blob, headers: { 'content-type': file.mime } });
+      }
+      return res;
+    },
     onSuccess: (_r, v) => invalidate(qc, v.jobId),
   });
 }

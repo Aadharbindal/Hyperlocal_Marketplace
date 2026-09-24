@@ -216,8 +216,10 @@ export function providerService(d: ProviderDeps) {
         reviewed_at: null,
         rejection_reason: null,
       });
-      const p = await profileOrThrow(userId);
-      if (p.verification_status === 'UNVERIFIED' || p.verification_status === 'REJECTED') {
+      // The KYC record belongs to the person, not to a provider profile: a technician has no
+      // provider profile at all, and their own status is moved by whoever submitted for them.
+      const p = await store.users.getProviderProfile(userId);
+      if (p && (p.verification_status === 'UNVERIFIED' || p.verification_status === 'REJECTED')) {
         await store.users.upsertProviderProfile({ ...p, verification_status: 'SUBMITTED' });
       }
       adapters.analytics.track('kyc_submitted', { userId, documentType: input.documentType });
