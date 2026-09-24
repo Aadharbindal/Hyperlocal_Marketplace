@@ -11,6 +11,7 @@ import { useCancellationQuote } from '@/api/finance';
 import { BookingCard } from '@/features/customer/BookingCard';
 import { AfterJobCard } from '@/features/customer/AfterJobCard';
 import { ContactAndTimeCard } from '@/features/customer/ContactAndTimeCard';
+import { WarrantyCard } from '@/features/customer/WarrantyCard';
 import { LiveJobPanel } from '@/features/customer/LiveJobPanel';
 import { MaterialPanel } from '@/features/customer/MaterialPanel';
 import { OffersList } from '@/features/customer/OffersList';
@@ -251,6 +252,12 @@ export default function JobDetailScreen() {
             </View>
           )}
         </Card>
+      </Animated.View>
+
+      {/* The warranty. Prominent on a finished job rather than filed under "help": it is the
+          reason booking through the platform is worth doing at all. */}
+      <Animated.View entering={FadeInDown.delay(200).duration(420)}>
+        <WarrantyCard jobId={j.id} finished={j.status === 'COMPLETED' || j.status === 'SETTLED'} />
       </Animated.View>
 
       {/* Reaching the person, and moving the time - the two things people reach for between

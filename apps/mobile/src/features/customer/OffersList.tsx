@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { formatInr, type OfferView } from '@hyperlocal/core';
 import { useCounterOffer } from '@/api/negotiation';
@@ -54,6 +55,7 @@ export function OffersList({ jobId, live }: { jobId: string; live: boolean }) {
 }
 
 function OfferCard({ offer, best, onAccept, onCounter, countering }: { offer: OfferView; best: boolean; onAccept: () => void; onCounter: () => void; countering: boolean }) {
+  const router = useRouter();
   const p = offer.provider;
   return (
     <Card style={[styles.card, best && styles.cardBest]}>
@@ -67,23 +69,33 @@ function OfferCard({ offer, best, onAccept, onCounter, countering }: { offer: Of
       )}
 
       <View style={styles.providerRow}>
-        <View style={styles.avatar}>
-          <Text weight="bold" tone="primary">
-            {p.businessName.slice(0, 2).toUpperCase()}
-          </Text>
-        </View>
-        <View style={styles.providerText}>
-          <View style={styles.nameRow}>
-            <Text variant="label" weight="semibold" numberOfLines={1}>
-              {p.businessName}
+        {/* Tapping the person opens their profile. Choosing between four offers on price alone
+            is exactly what this marketplace is meant not to be. */}
+        <Pressable
+          onPress={() => router.push({ pathname: '/provider/[id]', params: { id: p.id } })}
+          accessibilityRole="button"
+          accessibilityLabel={`See ${p.businessName}'s profile`}
+          style={styles.providerTap}
+        >
+          <View style={styles.avatar}>
+            <Text weight="bold" tone="primary">
+              {p.businessName.slice(0, 2).toUpperCase()}
             </Text>
-            {p.verified && <Ionicons name="shield-checkmark" size={15} color={palette.primary} />}
           </View>
-          <Text variant="micro" tone="muted">
-            {p.ratingAvg ? `${p.ratingAvg.toFixed(1)} ★ · ` : ''}
-            {p.completedJobs} jobs · {p.distanceKm} km away
-          </Text>
-        </View>
+          <View style={styles.providerText}>
+            <View style={styles.nameRow}>
+              <Text variant="label" weight="semibold" numberOfLines={1}>
+                {p.businessName}
+              </Text>
+              {p.verified && <Ionicons name="shield-checkmark" size={15} color={palette.primary} />}
+              <Ionicons name="chevron-forward" size={13} color={palette.textMuted} />
+            </View>
+            <Text variant="micro" tone="muted">
+              {p.ratingAvg ? `${p.ratingAvg.toFixed(1)} ★ · ` : ''}
+              {p.completedJobs} jobs · {p.distanceKm} km away
+            </Text>
+          </View>
+        </Pressable>
         <View style={styles.price}>
           <Text variant="subheading" weight="bold">
             {formatInr(offer.totalPaise)}
@@ -144,6 +156,7 @@ const styles = StyleSheet.create({
   bestPill: { position: 'absolute', top: -1, right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FFE8B8', paddingHorizontal: spacing.sm, paddingVertical: 3, borderBottomLeftRadius: radius.sm, borderBottomRightRadius: radius.sm },
 
   providerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  providerTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
   providerText: { flex: 1, gap: 2 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },

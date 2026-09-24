@@ -389,5 +389,36 @@ is eligible for.**
 `TECHNICIAN` is deliberately absent from `SELF_SERVICE_ROLES`: nobody becomes a technician by
 declaring it.
 
+## Warranty, trust and search (post-M9)
+
+### Warranty claims
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/jobs/:id/warranty` | customer | What cover this job carries, how long is left, and whether a claim can be raised right now - the app never works this out itself |
+| POST | `/jobs/:id/warranty-claim` | customer | `{ description (20+ chars), mediaIds? }`. **Deliberately not a dispute**: a claim is "the work was fine and it has come back", and filing it as a dispute would hang a strike-shaped cloud over somebody who has done nothing wrong *audited* |
+| GET | `/me/warranty-claims` | any signed-in user | A professional sees claims against their work; everybody else sees their own |
+| POST | `/warranty-claims/:id/respond` | the professional | `{ response: ACCEPT\|DECLINE, reason?, proposedStart? }`. Declining is allowed - not everything that breaks later is the same fault - but never without an explanation *audited* |
+| POST | `/warranty-claims/:id/revisit` | either party | Books the return visit. **It carries no money in either direction**: the professional already agreed to it when they offered the warranty *audited* |
+| POST | `/warranty-claims/:id/resolve` | customer | `{ note }` *audited* |
+
+A claim the professional leaves unanswered for 48 hours is escalated to support by the
+`escalate-warranty` task. Silence must not be a way to run down somebody's warranty clock.
+
+### Choosing a professional, and finding one
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/providers/:id` | any signed-in user | The profile a customer sees before booking: verification, ratings with a breakdown, jobs done, skills, bio, reviews. **Never a phone number, an address, a document or an exact location** - only a rounded "about 3 km away" |
+| GET | `/search?q=&limit=` | any signed-in user | Matches the words people actually type - "geyser", "नल", "short circuit" - against categories and skills in both languages, and says what each hit `matchedOn`. With no `q` it returns suggestions rather than nothing, because a blank panel reads as broken |
+
+### Trust and the law
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/me/export` | any signed-in user | The DPDP Act right of access. Returns the person's own data, names every section included, and names **what was left out and why** - identity documents, other people's messages, and internal fraud signals *audited* |
+| GET | `/admin/flagged-messages` | ADMIN, SUPPORT | Messages the contact filter caught, oldest first, flagged `overdue` past 24 h. These have been flagged since M5 and nobody could read them |
+| POST | `/admin/flagged-messages/:id/review` | ADMIN, SUPPORT | `{ outcome: ALLOWED\|WARNED\|STRIKE\|SUSPENDED, reason? }`. `ALLOWED` carries no consequence and needs no reason - most flags are somebody sharing a number so a delivery is let through the gate *audited* |
+| POST | `/admin/mfa/recovery-codes` | ADMIN, SUPPORT | Ten codes, **shown once**, stored hashed. A new set invalidates the old outright *audited* |
+| GET | `/admin/mfa/recovery-codes` | ADMIN, SUPPORT | How many are left. Never the codes |
+| POST | `/admin/mfa/recover` | ADMIN, SUPPORT | `{ code }`. Burnt on use whatever happens next *audited* |
+
 ## Planned (by milestone)
 _Nothing is left planned: all nine milestones are implemented. What is still missing is listed in `KNOWN_LIMITATIONS.md`._

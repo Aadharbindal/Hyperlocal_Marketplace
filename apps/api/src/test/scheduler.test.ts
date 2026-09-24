@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { TASK_SCHEDULE } from '@hyperlocal/core';
 import { bearer, login, makeApp, type TestApp } from './helpers';
 
 let app: TestApp;
@@ -156,7 +157,9 @@ describe('the worker itself', () => {
     expect(results.every((r) => typeof r.durationMs === 'number')).toBe(true);
 
     const status = app.ctx.services.scheduler.status();
-    expect(status.length).toBe(8);
+    // Every task in TASK_SCHEDULE is wired: a task in the schedule with no handler would be a
+    // silent no-op, which is the failure mode a scheduler is least able to tell you about.
+    expect(status.length).toBe(TASK_SCHEDULE.length);
     expect(status.every((t) => t.description.length > 10)).toBe(true);
     expect(status.filter((t) => t.runs > 0).length).toBeGreaterThan(0);
   });

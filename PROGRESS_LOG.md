@@ -4,6 +4,112 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## The warranty nobody could claim, and four other holes
+
+**Milestone:** post-M9 - the gaps a feature review found after the spec was already "done"
+**Date:** 2026-09-24
+**Status:** Complete
+
+**Why this exists:** with every specified feature built, I went looking for what was *missing
+from the spec*. Six things came out of it. The first is not a feature - it is the reason the
+business model works at all.
+
+**Implemented:**
+
+*A warranty somebody can claim on.* Every accepted quote has carried `warranty_days` since M4,
+and every completion a `warranty_note`. Neither did anything. A customer whose tap leaked again
+a week later had no button, so they rang the professional directly - which is precisely the
+leakage PRODUCT_SPEC section 17 exists to prevent, and both of them would learn they never
+needed us.
+
+The central decision is that **a warranty claim is not a dispute**. A dispute is an argument
+about what happened; a claim is "the work was fine and it has come back", which usually ends with
+the same professional returning at no charge. Filing it as a dispute would hang a strike-shaped
+cloud over somebody who has done nothing wrong, and professionals would quietly stop offering
+warranties at all.
+
+A claim goes to the professional with a 48-hour clock. They may decline - not everything that
+breaks later is the same fault - but never without an explanation, because the customer is owed
+a reason and support will need one. Silence is not an option: an unanswered claim escalates to
+support, so nobody can run down a warranty clock by ignoring it. Accepting books a return visit
+that is **a job in its own right and carries no money in either direction** - the professional
+already agreed to it when they offered the warranty, and a test asserts that no payment and no
+quote exist on it.
+
+*A professional a customer can look at.* Before this, comparing four offers meant comparing four
+prices and a rating, which made the marketplace an auction - and section 10 is explicit that it
+should not be one. The profile shows verification, jobs done, skills, a bio, reviews, and a
+rating *breakdown*, because a 4.6 from three people is not a 4.6 from three hundred. It carries
+no phone number, no address, no document and no exact location: only "about 3 km away".
+
+*A search box that searches.* It had been `onFocus={comingSoon}` since M2. People do not type
+category names - they type "geyser", "नल", "short circuit" - so it matches the words they use in
+both languages and says what each hit matched on, so "gizer" finding "Water heater" explains
+itself. With nothing typed it offers what they booked before, because a blank panel reads as
+broken.
+
+*The right of access.* Deletion has existed since M1; access had not, and the DPDP Act 2023 does
+not treat it as optional. The export names every section it included **and every one it left
+out, with the reason** - identity documents, the other side of a conversation, internal fraud
+signals - so nobody has to guess whether something is missing by accident or by design.
+
+*A moderation queue somebody reads.* Messages carrying a phone number or a UPI handle have been
+flagged since M5 and nobody ever looked at one. A flag nobody reads is worse than no flag: it is
+the appearance of moderation without the fact of it, and that appearance is what we would be
+relying on if somebody asked how we police off-platform payment. `ALLOWED` needs no reason - most
+flags are somebody sharing a number so a delivery is let through the gate - but a strike does.
+
+*Recovery codes.* Admin MFA has had TOTP and a five-failure lock since M8 and no way back in: a
+lost phone meant hand-editing production, at speed, under pressure, which is the situation in
+which people make the mistake that becomes the incident. Ten codes, shown once, stored hashed.
+
+*And the first mobile tests this app has ever had.* 18 of them, over the shared UI primitives and
+the warranty card - the screen that has to be right about money and promises.
+
+**Changed files:** `packages/core/src/{warranty/*,trust/trust.ts,search/*,contracts/warranty.ts,ops/schedule.ts,index.ts}`,
+`supabase/migrations/0012_warranty_and_trust.sql`,
+`apps/api/src/{modules/{warranty,trust}/*,modules/{scheduler,provider,execution}/*,data/{types.ts,memory/*,postgres/*},app.ts,vitest.config.ts,test/{warranty,scheduler}.test.ts}`,
+`apps/mobile/{app/search.tsx,app/provider/[id].tsx,app/(customer)/{home,job/[id]}.tsx,src/api/warranty.ts,src/features/customer/{WarrantyCard.tsx,WarrantyCard.test.tsx,OffersList.tsx},src/ui/ui.test.tsx,jest.config.js,jest.setup.jsx,tsconfig.json}`.
+
+**Database changes:** `0012_warranty_and_trust` - `warranty_claims` (with a trigger refusing a
+claim after its cover ends, and one open claim per job), `admin_recovery_codes` (hashed, used
+rows kept), `data_export_requests`, review columns on `chat_messages`, and
+`jobs.warranty_claim_id`. Forward-only. `migrate:check` reports 12 valid migrations, and all 12
+apply to a real cluster.
+
+**API changes:** `GET /jobs/:id/warranty`, `POST /jobs/:id/warranty-claim`,
+`GET /me/warranty-claims`, `POST /warranty-claims/:id/{respond,revisit,resolve}`,
+`GET /providers/:id`, `GET /search`, `GET /me/export`, `GET /admin/flagged-messages`,
+`POST /admin/flagged-messages/:id/review`, `GET/POST /admin/mfa/recovery-codes`,
+`POST /admin/mfa/recover`. Documented in `API_REFERENCE.md`.
+
+**Tests added / passed:** 23 new API tests, 23 new core tests and **18 mobile tests - the first
+in this project**. Totals: **256/256 API in memory mode**, **256/256 against real Postgres**,
+**187/187 core**, **18/18 mobile**. Type check clean in 3/3 workspaces, lint 0 errors,
+`migrate:check` OK.
+
+**Three things the work turned up:**
+
+1. **Submitting KYC needed a provider profile**, which a technician does not have - so a
+   contractor submitting for their crew got a 404. The record belongs to the person, not to a
+   profile.
+2. **Two Reacts.** Installing the test renderer pulled a second React to the workspace root, and
+   two Reacts in one tree means a null hook dispatcher and an error that blames the component. A
+   root `overrides` entry holds the whole tree at the app's own pin.
+3. **The Postgres run was failing on time, not on correctness.** Vitest's default five seconds is
+   comfortable against the in-memory store and too tight against a real one, where a single test
+   drives hundreds of round trips. The timeout is now twenty seconds - still short enough that a
+   genuine hang fails rather than hangs.
+
+**Known limitations:** the referral reward is marked QUALIFIED and both sides are notified, but
+the credit is applied by support rather than automatically. The data export is JSON rather than a
+file somebody can keep. Search runs over the in-memory catalog, which is right at pilot size and
+becomes a Postgres text search when it is not. Mobile coverage is 18 tests, which is a beginning
+and not coverage - and the app still has not been run on a physical device since the SDK 57
+upgrade.
+
+---
+
 ## Expo SDK 53 to 57, and the four breaking changes it surfaced
 
 **Milestone:** post-M9 - the upgrade that was blocking store submission

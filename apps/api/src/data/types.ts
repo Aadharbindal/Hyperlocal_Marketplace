@@ -246,6 +246,8 @@ export interface JobRecord {
   preferred_end: Date | null;
   /** How many times the customer has moved this booking; two is the limit. */
   reschedule_count: number;
+  /** Set when this job is a free return visit under a warranty claim. */
+  warranty_claim_id: string | null;
   address_id: string | null;
   address_snapshot: Record<string, unknown> | null;
   lat: number | null;
@@ -521,6 +523,10 @@ export interface ChatMessageRecord {
   flagged: boolean;
   flag_reason: string | null;
   read_at: Date | null;
+  /** Set once somebody in support has actually looked at a flagged message. */
+  reviewed_by: string | null;
+  reviewed_at: Date | null;
+  review_outcome: 'ALLOWED' | 'WARNED' | 'STRIKE' | 'SUSPENDED' | null;
   created_at: Date;
 }
 
@@ -940,6 +946,61 @@ export interface ReferralRecord {
   updated_at: Date;
 }
 
+export interface WarrantyClaimRecord {
+  id: string;
+  job_id: string;
+  customer_id: string;
+  provider_id: string;
+  description: string;
+  media_ids: string[];
+  status: 'OPEN' | 'ACCEPTED' | 'DECLINED' | 'REVISIT_BOOKED' | 'RESOLVED' | 'ESCALATED' | 'EXPIRED';
+  /** Copied from the quote at claim time: a later change to terms must not shorten it. */
+  warranty_days: number;
+  covered_until: Date;
+  provider_response: string | null;
+  responded_at: Date | null;
+  decline_reason: string | null;
+  revisit_job_id: string | null;
+  resolved_at: Date | null;
+  resolution_note: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface AdminRecoveryCodeRecord {
+  id: string;
+  user_id: string;
+  code_hash: string;
+  used_at: Date | null;
+  used_from_ip: string | null;
+  created_at: Date;
+}
+
+export interface DataExportRequestRecord {
+  id: string;
+  user_id: string;
+  status: 'READY' | 'FAILED';
+  requested_at: Date;
+  record_counts: Record<string, number>;
+}
+
+/** Warranty claims, flagged-message review, recovery codes and export requests. */
+export interface TrustRepo {
+  createClaim(c: New<WarrantyClaimRecord>): Promise<WarrantyClaimRecord>;
+  getClaim(id: string): Promise<WarrantyClaimRecord | null>;
+  updateClaim(id: string, patch: Partial<WarrantyClaimRecord>): Promise<WarrantyClaimRecord>;
+  findOpenClaim(jobId: string): Promise<WarrantyClaimRecord | null>;
+  listClaimsForCustomer(customerId: string, limit: number): Promise<WarrantyClaimRecord[]>;
+  listClaimsForProvider(providerId: string, limit: number): Promise<WarrantyClaimRecord[]>;
+  listClaimsByStatus(statuses: string[], limit: number): Promise<WarrantyClaimRecord[]>;
+
+  replaceRecoveryCodes(userId: string, hashes: string[]): Promise<void>;
+  listRecoveryCodes(userId: string): Promise<AdminRecoveryCodeRecord[]>;
+  burnRecoveryCode(id: string, ip: string | null): Promise<void>;
+
+  recordExport(r: New<DataExportRequestRecord>): Promise<DataExportRequestRecord>;
+}
+
 /** Receipts, saved providers, promo codes and referrals. */
 export interface GrowthRepo {
   createInvoice(i: New<InvoiceRecord>): Promise<InvoiceRecord>;
@@ -1097,6 +1158,14 @@ export interface ExecutionRepo {
   updateThread(id: string, patch: Partial<ChatThreadRecord>): Promise<ChatThreadRecord>;
   addMessage(m: New<ChatMessageRecord>): Promise<ChatMessageRecord>;
   listMessages(threadId: string, limit: number): Promise<ChatMessageRecord[]>;
+  /**
+   * Flagged messages nobody has read yet, oldest first. A queue worked newest-first leaves the
+   * worst cases at the bottom forever.
+   */
+  listFlaggedMessages(limit: number): Promise<ChatMessageRecord[]>;
+  /** The one exception to chat immutability: the review fields, and only from unset to set. */
+  markMessageReviewed(id: string, patch: { reviewed_by: string; review_outcome: string }): Promise<ChatMessageRecord>;
+  getMessage(id: string): Promise<ChatMessageRecord | null>;
   markRead(threadId: string, readerId: string): Promise<number>;
   unreadCount(threadId: string, readerId: string): Promise<number>;
 }
@@ -1204,6 +1273,7 @@ export interface DataStore {
   notifications: NotificationsRepo;
   reach: ReachRepo;
   growth: GrowthRepo;
+  trust: TrustRepo;
   retention: RetentionRepo;
   idempotency: IdempotencyRepo;
   /** Run fn atomically. Memory store runs it serially; Postgres uses a transaction. */

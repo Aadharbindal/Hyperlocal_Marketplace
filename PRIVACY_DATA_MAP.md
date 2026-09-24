@@ -13,6 +13,9 @@
 | Addresses + GPS | customer | service delivery | `addresses`, `jobs.address_snapshot` | customer, confirmed provider (after confirmation only), support | address: until deleted by user; job snapshot: 7 y (finance) with GPS truncated to 3 decimals after 90 d |
 | Provider base location & radius | provider | matching | `provider_profiles` | provider, system, admin | account life |
 | KYC documents | provider, technician, vendor | verification | encrypted object storage; metadata in `kyc_records` | KYC reviewers only, every access audited | 5 y after account closure or as required by law; never shown to customers |
+| Warranty claims | customer, provider | honouring the warranty | description and photos, kept as evidence the promise was met | both parties, support | job life + 2 y |
+| Moderation decisions | message sender | policing off-platform contact | outcome, reviewer and reason on the message row | support | message life |
+| Data export requests | all users | proving the right of access was answered | who asked, when, and how many records - never the records themselves | support | 3 y |
 | Push device tokens | all users | delivering notifications | stored, never returned by any endpoint; disabled rather than deleted so a returning device is recognised | notification delivery | until the device is removed |
 | Call metadata | parties on a job | dispute evidence, abuse limits | job, both user ids, virtual number, status, duration. **No recording, and neither real number** | support, dispute review | job life + 2 y |
 | Reschedule history | customer, provider | showing why a booking moved | append-only, never deleted | parties on the job, support | job life |

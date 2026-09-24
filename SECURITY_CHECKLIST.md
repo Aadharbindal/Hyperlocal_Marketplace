@@ -55,6 +55,15 @@ migration proves it; anything half-done says so and says what is missing.
 - [x] Call metadata (who, whom, when, how long) is kept as dispute evidence; **calls are deliberately not recorded** - no consent was taken for it and no process exists to handle it [post-M9]
 - [x] Money and account notifications cannot be switched off, so nobody discovers a failed payout by noticing the money never arrived [post-M9]
 
+## Trust, moderation and the law
+- [x] A public provider profile carries no phone number, no address, no identity document and no exact location - only a rounded distance [post-M9]
+- [x] Flagged chat messages have a queue somebody works, oldest first, with an overdue marker: a flag nobody reads is the appearance of moderation without the fact of it [post-M9]
+- [x] A moderation outcome with a consequence requires a reason; `ALLOWED` does not, because most flags are innocent [post-M9]
+- [x] Admin MFA recovery codes are stored hashed and shown exactly once; the API can say a code was accepted and can never say what somebody's codes are [post-M9]
+- [x] A recovery code is burnt on use whatever happens next, and a rejected one is audited [post-M9]
+- [x] `GET /me/export` returns the caller's own data only - never the other side of a conversation, never identity documents, never internal fraud signals - and names each exclusion rather than silently dropping it [post-M9]
+- [x] A warranty revisit carries no money in either direction, so a free return visit cannot become a charge [post-M9]
+
 ## Audit & immutability
 - [x] `audit_logs` append-only (no UPDATE/DELETE grants) [M1]
 - [x] `job_status_events`, `ledger_entries`, `payment_events`, `dispute_evidence`, `strikes` and `kyc_access_log` are append-only (UPDATE/DELETE revoked); chat messages allow only a read receipt to change [M2, M5, M7, M8]

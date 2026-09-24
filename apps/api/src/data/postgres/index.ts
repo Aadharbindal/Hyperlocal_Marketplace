@@ -6,6 +6,7 @@ import { createPostgresExecutionRepo } from './execution';
 import { createPostgresAdminRepo } from './admin';
 import { createPostgresFinanceRepo } from './finance';
 import { createPostgresGrowthRepo } from './growth';
+import { createPostgresTrustRepo } from './trust';
 import { createPostgresMaterialsRepo } from './materials';
 import { createPostgresNegotiationRepo, createPostgresPaymentsRepo } from './negotiation';
 import type {
@@ -329,6 +330,7 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     },
 
     growth: createPostgresGrowthRepo(q),
+    trust: createPostgresTrustRepo(q),
 
     reach: {
       async upsertDevice(d) {

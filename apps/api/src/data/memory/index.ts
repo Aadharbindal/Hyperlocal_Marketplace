@@ -7,6 +7,7 @@ import { createMemoryExecutionRepo } from './execution';
 import { createMemoryAdminRepo } from './admin';
 import { createMemoryFinanceRepo } from './finance';
 import { createMemoryGrowthRepo } from './growth';
+import { createMemoryTrustRepo } from './trust';
 import { createMemoryMaterialsRepo } from './materials';
 import { createMemoryNegotiationRepo, createMemoryPaymentsRepo } from './negotiation';
 import type {
@@ -442,6 +443,7 @@ export function createMemoryStore(): DataStore {
     },
 
     growth: createMemoryGrowthRepo(),
+    trust: createMemoryTrustRepo(),
 
     retention: {
       async schedule(e) {

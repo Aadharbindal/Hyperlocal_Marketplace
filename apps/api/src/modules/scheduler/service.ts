@@ -14,6 +14,7 @@ import type { DataStore, JobRecord } from '../../data/types';
 import type { FinanceService } from '../finance/service';
 import type { JobService, TransitionContext } from '../jobs/service';
 import type { NegotiationService } from '../negotiation/service';
+import type { WarrantyService } from '../warranty/service';
 
 export interface SchedulerDeps {
   env: Env;
@@ -22,6 +23,7 @@ export interface SchedulerDeps {
   jobs: JobService;
   finance: FinanceService;
   negotiation: NegotiationService;
+  warranty: WarrantyService;
 }
 
 export interface TaskResult {
@@ -226,6 +228,14 @@ export function schedulerService(d: SchedulerDeps) {
   }
 
   /** Retention events whose time has come (PRIVACY_DATA_MAP). */
+  /**
+   * Claims a professional has left unanswered past the response window. Silence must not be a
+   * way to run down somebody's warranty clock, so support decides on the customer's behalf.
+   */
+  async function escalateWarranty(): Promise<number> {
+    return (await d.warranty.sweepUnanswered(BATCH)).length;
+  }
+
   async function retentionSweep(now: Date): Promise<number> {
     const due = await store.retention.listDue(now, BATCH);
     let handled = 0;
@@ -258,6 +268,7 @@ export function schedulerService(d: SchedulerDeps) {
     'reconcile-payments': reconcilePayments,
     'chase-approvals': chaseApprovals,
     'retention-sweep': retentionSweep,
+    'escalate-warranty': escalateWarranty,
   };
 
   let running = false;

@@ -16,6 +16,7 @@ export const SCHEDULED_TASKS = [
   'reconcile-payments',
   'chase-approvals',
   'retention-sweep',
+  'escalate-warranty',
 ] as const;
 export type ScheduledTask = (typeof SCHEDULED_TASKS)[number];
 
@@ -35,6 +36,7 @@ export const TASK_SCHEDULE: readonly TaskSpec[] = [
   { task: 'reconcile-payments', everySeconds: 120, description: 'Ask the gateway about payments whose webhook never arrived' },
   { task: 'chase-approvals', everySeconds: 3600, description: 'Remind a customer sitting on a finished job, and hand it to support if they keep sitting' },
   { task: 'retention-sweep', everySeconds: 3600, description: 'Execute retention events whose time has come' },
+  { task: 'escalate-warranty', everySeconds: 3600, description: 'Hand support the warranty claims a professional has left unanswered' },
 ];
 
 /** How long a draft is left alone before it is treated as abandoned. */

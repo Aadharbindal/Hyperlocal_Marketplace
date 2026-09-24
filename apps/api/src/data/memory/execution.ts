@@ -155,5 +155,32 @@ export function createMemoryExecutionRepo(): ExecutionRepo {
     async unreadCount(threadId, readerId) {
       return [...messages.values()].filter((m) => m.thread_id === threadId && m.sender_id !== readerId && !m.read_at).length;
     },
+
+    async getMessage(id) {
+      return messages.get(id) ?? null;
+    },
+    async listFlaggedMessages(limit) {
+      // Oldest first, deliberately: a queue worked newest-first leaves the worst cases at the
+      // bottom forever, which is how a moderation queue becomes decorative.
+      return [...messages.values()]
+        .filter((m) => m.flagged && !m.reviewed_at)
+        .sort((a, b) => a.created_at.getTime() - b.created_at.getTime())
+        .slice(0, limit);
+    },
+    async markMessageReviewed(id, patch) {
+      const m = messages.get(id);
+      if (!m) throw new Error('message not found');
+      // mirrors chat_messages_immutable: the review columns are the one exception, and only ever
+      // move from unset to set.
+      if (m.reviewed_at) throw conflict({ reason: 'already_reviewed' });
+      const next: ChatMessageRecord = {
+        ...m,
+        reviewed_by: patch.reviewed_by,
+        reviewed_at: now(),
+        review_outcome: patch.review_outcome as ChatMessageRecord['review_outcome'],
+      };
+      messages.set(id, next);
+      return next;
+    },
   };
 }

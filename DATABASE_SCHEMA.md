@@ -21,6 +21,8 @@ PostgreSQL 15 (Supabase). Conventions:
 | `0005_execution` | M5 | start_otps, price_revision_requests, job_completions, chat_threads, chat_messages (+ revision-actor, chat-sender and message-immutability triggers) |
 | `0006_materials` | M6 | material_requests, material_quotes, material_orders (+ requester, vendor-verified and invoice-match triggers) |
 | `0008_admin` | M8 | admin_mfa, kyc_access_log (+ sessions.mfa_verified_at, dispute queue columns, the two-person suspension trigger) |
+| `0012_warranty_and_trust` | post-M9 | warranty_claims, admin_recovery_codes, data_export_requests (+ review columns on chat_messages, `jobs.warranty_claim_id`) |
+| `0011_receipts_and_growth` | post-M9 | invoices, favourite_providers, promo_codes, promo_redemptions, referrals (+ `booking_quotes.discount_paise`, `users.referral_code`) |
 | `0010_delivery_and_reach` | post-M9 | device_tokens, masked_calls, job_reschedules (+ notification switches on users, `jobs.reschedule_count`) |
 | `0009_payout_accounts` | post-M9 | payout_accounts (+ the trigger that stops a settlement being *sent* to a payee the payout rail has never heard of) |
 | `0007_finance` | M7 | ledger_entries, settlements, refunds, disputes, dispute_evidence, strikes, reviews, support_tickets (+ payment_status gains RELEASED, and the completion, invoice, refund-cap, two-person and review triggers) |
@@ -230,6 +232,11 @@ check its age (8 hours) rather than trusting a role claim alone.
 | One active booking quote per job | partial unique on `booking_quotes(job_id) where status='ACTIVE'` |
 | No settlement before valid completion | trigger `settlements_require_completion` |
 | No payout to an unregistered payee | trigger `settlements_need_payout_account` - what is owed can always be recorded, but a settlement cannot move to INITIATED or PAID without a VERIFIED `payout_accounts` row carrying a provider fund account id |
+| A warranty claim cannot outlive its cover | trigger `warranty_claim_in_window` - "was this still under warranty" is exactly what somebody will argue about later |
+| One open warranty claim per job | partial unique on `warranty_claims(job_id) where status in ('OPEN','ACCEPTED','REVISIT_BOOKED','ESCALATED')` |
+| One promo code per booking | unique `promo_redemptions(job_id)` |
+| Nobody refers themselves, and nobody is referred twice | check `referral_not_self`, unique `referrals(referred_id)` |
+| One receipt per job, numbered per financial year | unique `invoices(job_id)`, unique `invoices(number)` |
 | One device token belongs to one account | unique `device_tokens(token)`; registering it elsewhere moves it, so a resold handset stops notifying its old owner |
 | One payout account in use per person | partial unique on `payout_accounts(user_id) where status in ('PENDING','VERIFIED')` |
 | No vendor payout without approved order | trigger on settlements where payee_role='VENDOR' |

@@ -626,6 +626,10 @@ export function executionService(d: ExecutionDeps) {
         flagged: !!flag,
         flag_reason: flag,
         read_at: null,
+        // Flagged is not reviewed. These stay unset until somebody in support actually reads it.
+        reviewed_by: null,
+        reviewed_at: null,
+        review_outcome: null,
       });
       const { customerId, providerIds } = await partiesFor(job);
       const others = [customerId, ...providerIds].filter((id) => id !== senderId);

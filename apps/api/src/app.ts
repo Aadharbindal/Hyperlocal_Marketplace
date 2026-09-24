@@ -24,6 +24,9 @@ import { eventsService, type EventsService } from './modules/events/service';
 import { executionRoutes } from './modules/execution/routes';
 import { financeRoutes } from './modules/finance/routes';
 import { contractorRoutes } from './modules/contractor/routes';
+import { trustRoutes } from './modules/trust/routes';
+import { warrantyRoutes } from './modules/warranty/routes';
+import { warrantyService, type WarrantyService } from './modules/warranty/service';
 import { growthRoutes } from './modules/growth/routes';
 import { growthService, type GrowthService } from './modules/growth/service';
 import { schedulerService, type SchedulerService } from './modules/scheduler/service';
@@ -54,6 +57,7 @@ export interface AppContext {
     materials: MaterialsService;
     finance: FinanceService;
     growth: GrowthService;
+    warranty: WarrantyService;
     admin: AdminService;
     events: EventsService;
     scheduler: SchedulerService;
@@ -148,6 +152,7 @@ export async function buildApp(opts: BuildOptions = {}) {
   const finance = financeService({ env, store, adapters, jobs });
   const adminSvc = adminService({ env, store, adapters });
   const growth = growthService({ env, store, adapters });
+  const warranty = warrantyService({ env, store, adapters, jobs });
   // Capture, settlement and refunds live in one place: the other modules hand the money
   // moment over rather than touching payments themselves.
   const execution = executionService({
@@ -185,12 +190,12 @@ export async function buildApp(opts: BuildOptions = {}) {
     },
   });
   // The background worker is built last: it drives the other services rather than the reverse.
-  const scheduler = schedulerService({ env, store, adapters, jobs, finance, negotiation });
+  const scheduler = schedulerService({ env, store, adapters, jobs, finance, negotiation, warranty });
   const ctx: AppContext = {
     env,
     store,
     adapters,
-    services: { auth, audit, jobs, provider, negotiation, execution, materials, finance, growth, admin: adminSvc, events, scheduler },
+    services: { auth, audit, jobs, provider, negotiation, execution, materials, finance, growth, warranty, admin: adminSvc, events, scheduler },
   };
 
   if (opts.seed ?? (env.DATA_MODE === 'memory' && env.APP_ENV !== 'test')) {
@@ -342,6 +347,8 @@ export async function buildApp(opts: BuildOptions = {}) {
     await financeRoutes(scope, ctx);
     await growthRoutes(scope, ctx);
     await contractorRoutes(scope, ctx);
+    await warrantyRoutes(scope, ctx);
+    await trustRoutes(scope, ctx);
     await eventRoutes(scope, ctx);
     await adminRoutes(scope, ctx);
     await adminConsoleRoutes(scope, ctx);

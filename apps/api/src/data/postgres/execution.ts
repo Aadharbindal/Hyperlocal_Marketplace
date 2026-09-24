@@ -6,6 +6,7 @@ import type {
   PriceRevisionRecord,
   StartOtpRecord,
 } from '../types';
+import { conflict } from '../../lib/errors';
 
 type Queryable = { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number | null }> };
 
@@ -95,6 +96,24 @@ export function createPostgresExecutionRepo(q: Queryable): ExecutionRepo {
          values ($1,$2,$3,$4,$5,$6,$7,$8) returning *`,
         [m.thread_id, m.sender_id, m.sender_party, m.body, m.media_id, m.flagged, m.flag_reason, m.read_at],
       ))!;
+    },
+    getMessage: (id) => one<ChatMessageRecord>('select * from chat_messages where id = $1', [id]),
+    listFlaggedMessages: (limit) =>
+      // Oldest first, and only what nobody has read: a queue worked newest-first leaves the worst
+      // cases at the bottom forever. The partial index in 0012 matches this exactly.
+      many<ChatMessageRecord>(
+        'select * from chat_messages where flagged and reviewed_at is null order by created_at asc limit $1',
+        [limit],
+      ),
+    async markMessageReviewed(id, patch) {
+      const row = await one<ChatMessageRecord>(
+        `update chat_messages set reviewed_by = $2, reviewed_at = now(), review_outcome = $3
+         where id = $1 and reviewed_at is null returning *`,
+        [id, patch.reviewed_by, patch.review_outcome],
+      );
+      // Null means somebody else got there first, which is a conflict rather than a failure.
+      if (!row) throw conflict({ reason: 'already_reviewed' });
+      return row;
     },
     async listMessages(threadId, limit) {
       const rows = await many<ChatMessageRecord>(

@@ -92,8 +92,10 @@ Until this run the SQL had never executed. Every one of these was invisible in m
 | Push, masked calling, rescheduling | `reach.test.ts` | 17 |
 | Receipts, favourites, promos, referrals, feed filters | `growth.test.ts` | 21 |
 | Contractors and their crews | `contractor.test.ts` | 11 |
-| **API integration total** | | **233** |
-| Domain rules | `packages/core/src/**/*.test.ts` | **164** |
+| Warranty, provider profiles, search, moderation, export, recovery | `warranty.test.ts` | 23 |
+| **API integration total** | | **256** |
+| Domain rules | `packages/core/src/**/*.test.ts` | **187** |
+| Mobile components | `apps/mobile/src/**/*.test.tsx` | **18** |
 
 Run everything with `npm test`; `npm run typecheck && npm run lint && npm run migrate:check &&
 npm run build` is the rest of the gate. All of it runs in CI on every push.
@@ -113,8 +115,11 @@ people using it:
 
 ### Gaps, stated plainly
 
-- **No mobile component tests.** The app is exercised by hand and through the web build; there is
-  no jest-expo suite yet. This is the largest gap in the plan above.
+- **Mobile component coverage is thin.** There is now a jest-expo suite - 18 tests over the
+  shared UI primitives and the warranty card - but it is a beginning rather than coverage. Two
+  things are worth knowing before adding to it: `render` is **asynchronous** in React Native
+  Testing Library v14, and React Native's `Modal` renders nothing under the test renderer, so
+  `jest.setup.jsx` stands in for it.
 - ~~**Postgres repositories are written but untested.**~~ Closed. All 184 API tests now pass
   against a real PostgreSQL 17, and the run found four bugs that memory mode could not (see
   above). The gap that remains is that it is a manual run: it is not yet in CI.

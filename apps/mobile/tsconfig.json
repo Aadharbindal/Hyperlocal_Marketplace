@@ -5,7 +5,7 @@
     "noUncheckedIndexedAccess": true,
     "jsx": "react-jsx",
     "paths": { "@/*": ["./src/*"] },
-    "types": []
+    "types": ["jest"]
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
   "exclude": ["node_modules", "dist"]

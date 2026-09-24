@@ -60,7 +60,13 @@ export default function HomeScreen() {
       {/* Search */}
       <View style={styles.searchRow}>
         <View style={styles.searchField}>
-          <TextField pill icon="search-outline" placeholder={t('home.search')} returnKeyType="search" onFocus={comingSoon} />
+          {/* A read-only field that opens the real search screen: tapping into a box that then
+              has to fetch feels slower than opening one that is already listening. */}
+          <Pressable onPress={() => router.push('/search')} accessibilityRole="button" accessibilityLabel={t('home.search')}>
+            <View pointerEvents="none">
+              <TextField pill icon="search-outline" placeholder={t('home.search')} editable={false} />
+            </View>
+          </Pressable>
         </View>
         <IconButton icon="options-outline" tone="primary" size={layout.touchTarget + 4} accessibilityLabel="Filters" onPress={comingSoon} />
       </View>
