@@ -23,6 +23,8 @@ import { eventRoutes } from './modules/events/routes';
 import { eventsService, type EventsService } from './modules/events/service';
 import { executionRoutes } from './modules/execution/routes';
 import { financeRoutes } from './modules/finance/routes';
+import { growthRoutes } from './modules/growth/routes';
+import { growthService, type GrowthService } from './modules/growth/service';
 import { schedulerService, type SchedulerService } from './modules/scheduler/service';
 import { financeService, type FinanceService } from './modules/finance/service';
 import { executionService, type ExecutionService } from './modules/execution/service';
@@ -50,6 +52,7 @@ export interface AppContext {
     execution: ExecutionService;
     materials: MaterialsService;
     finance: FinanceService;
+    growth: GrowthService;
     admin: AdminService;
     events: EventsService;
     scheduler: SchedulerService;
@@ -143,6 +146,7 @@ export async function buildApp(opts: BuildOptions = {}) {
   const provider = providerService({ env, store, adapters });
   const finance = financeService({ env, store, adapters, jobs });
   const adminSvc = adminService({ env, store, adapters });
+  const growth = growthService({ env, store, adapters });
   // Capture, settlement and refunds live in one place: the other modules hand the money
   // moment over rather than touching payments themselves.
   const execution = executionService({
@@ -150,7 +154,14 @@ export async function buildApp(opts: BuildOptions = {}) {
     store,
     adapters,
     jobs,
-    onJobCompleted: (job, ctx) => finance.captureForJob(job, ctx).then(() => undefined),
+    onJobCompleted: async (job, ctx) => {
+      await finance.captureForJob(job, ctx);
+      // The receipt is issued the moment the money is taken, not when somebody asks for it:
+      // a customer should already have their bill when they go looking.
+      await growth.issueInvoice(job);
+      // And a referral pays out on completed work, which is now.
+      await growth.onJobCompleted(job);
+    },
   });
   const materials = materialsService({
     env,
@@ -178,7 +189,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     env,
     store,
     adapters,
-    services: { auth, audit, jobs, provider, negotiation, execution, materials, finance, admin: adminSvc, events, scheduler },
+    services: { auth, audit, jobs, provider, negotiation, execution, materials, finance, growth, admin: adminSvc, events, scheduler },
   };
 
   if (opts.seed ?? (env.DATA_MODE === 'memory' && env.APP_ENV !== 'test')) {
@@ -328,6 +339,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     await executionRoutes(scope, ctx);
     await materialRoutes(scope, ctx);
     await financeRoutes(scope, ctx);
+    await growthRoutes(scope, ctx);
     await eventRoutes(scope, ctx);
     await adminRoutes(scope, ctx);
     await adminConsoleRoutes(scope, ctx);

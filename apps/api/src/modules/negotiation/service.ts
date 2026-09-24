@@ -316,7 +316,22 @@ export function negotiationService(d: NegotiationDeps) {
      * offer on the job, records the assignment and creates the payment authorization, so two
      * providers can never both win (PRODUCT_SPEC section 10, BID-12).
      */
-    async accept(job: JobRecord, bid: BidRecord, customerId: string, ctx: TransitionContext, idempotencyKey?: string) {
+    /**
+     * What this offer would come to, before any discount. Exposed so a promo code can be priced
+     * against the real total rather than against whatever number the client sends.
+     */
+    async quoteTotalFor(bid: BidRecord): Promise<number> {
+      return quoteFor(await currentTerms(bid)).totalPaise;
+    },
+
+    async accept(
+      job: JobRecord,
+      bid: BidRecord,
+      customerId: string,
+      ctx: TransitionContext,
+      idempotencyKey?: string,
+      promo?: { promoId: string; code: string; discountPaise: number },
+    ) {
       const activeQuote = await store.negotiation.getActiveQuote(job.id);
       const blockers = checkCanAccept({
         jobAcceptsAcceptance: ACCEPTABLE.includes(job.status),
@@ -328,6 +343,15 @@ export function negotiationService(d: NegotiationDeps) {
 
       const terms = await currentTerms(bid);
       const priced = quoteFor(terms);
+
+      /**
+       * A promo code comes off what the **customer** pays and nothing else. The provider's
+       * payable is untouched: a professional is paid exactly what the accepted quote said,
+       * whatever marketing we ran. The difference is the platform's cost, and the ledger
+       * records it that way.
+       */
+      const discountPaise = Math.min(promo?.discountPaise ?? 0, priced.totalPaise);
+      const chargePaise = priced.totalPaise - discountPaise;
 
       const { quote, payment } = await store.transaction(async (tx) => {
         // re-read inside the transaction: another tap may have won in between
@@ -354,6 +378,8 @@ export function negotiationService(d: NegotiationDeps) {
           tax_paise: priced.taxPaise,
           total_paise: priced.totalPaise,
           provider_payable_paise: priced.providerPayablePaise,
+          discount_paise: discountPaise,
+          promo_code: promo?.code ?? null,
           warranty_days: terms.warranty_days,
           eta_minutes: terms.eta_minutes,
           material_responsibility: terms.material_responsibility,
@@ -382,8 +408,19 @@ export function negotiationService(d: NegotiationDeps) {
         });
 
         const key = idempotencyKey ?? `booking:${job.id}:${q.id}`;
+        if (promo && discountPaise > 0) {
+          // Redeemed inside the same transaction as the quote: a code that took money off a
+          // booking that then failed to be created would be a code quietly burnt for nothing.
+          await tx.growth.redeemPromo({
+            promo_id: promo.promoId,
+            customer_id: customerId,
+            job_id: job.id,
+            discount_paise: discountPaise,
+          });
+        }
+
         const order = await adapters.payment.createOrder({
-          amountPaise: priced.totalPaise,
+          amountPaise: chargePaise,
           currency: 'INR',
           receipt: key,
           notes: { jobId: job.id, quoteId: q.id },
@@ -393,7 +430,7 @@ export function negotiationService(d: NegotiationDeps) {
           payer_id: customerId,
           quote_id: q.id,
           purpose: 'BOOKING',
-          amount_paise: priced.totalPaise,
+          amount_paise: chargePaise,
           currency: 'INR',
           provider: adapters.payment.provider,
           provider_order_id: order.providerOrderId,

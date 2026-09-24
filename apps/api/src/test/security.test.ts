@@ -81,10 +81,18 @@ describe('accepted-quote tampering', () => {
     const p = await makeProvider('+919222000002');
     const offer = await app.inject({ method: 'POST', url: `/jobs/${c.jobId}/bids`, headers: p.headers, payload: BID });
 
-    // the attacker sends their own idea of the price along with the acceptance
-    const accepted = await app.inject({
+    // The attacker sends their own idea of the price along with the acceptance. The body is
+    // strict, so it is refused outright rather than silently ignored - and refusing is the
+    // better answer, because a client sending a price is either broken or hostile.
+    const tampered = await app.inject({
       method: 'POST', url: `/bids/${offer.json().id}/accept`, headers: c.headers,
       payload: { labourPaise: 1, totalPaise: 1, amountPaise: 1 },
+    });
+    expect(tampered.statusCode).toBe(400);
+
+    // and the honest acceptance is charged at the locked quote, whatever was attempted before
+    const accepted = await app.inject({
+      method: 'POST', url: `/bids/${offer.json().id}/accept`, headers: c.headers, payload: {},
     });
     expect(accepted.statusCode).toBe(200);
     expect(accepted.json().quote.labourPaise).toBe(BID.labourPaise);

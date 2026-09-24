@@ -6,6 +6,7 @@ import { createMemoryJobsRepo } from './jobs';
 import { createMemoryExecutionRepo } from './execution';
 import { createMemoryAdminRepo } from './admin';
 import { createMemoryFinanceRepo } from './finance';
+import { createMemoryGrowthRepo } from './growth';
 import { createMemoryMaterialsRepo } from './materials';
 import { createMemoryNegotiationRepo, createMemoryPaymentsRepo } from './negotiation';
 import type {
@@ -77,6 +78,10 @@ export function createMemoryStore(): DataStore {
       async findById(id) {
         return users.get(id) ?? null;
       },
+      async findByReferralCode(code) {
+        for (const u of users.values()) if (u.referral_code === code) return u;
+        return null;
+      },
       async findByPhone(phone) {
         for (const u of users.values()) if (u.phone_e164 === phone) return u;
         return null;
@@ -97,6 +102,7 @@ export function createMemoryStore(): DataStore {
           push_job_updates: true,
           push_offers: true,
           push_marketing: false,
+          referral_code: null,
           last_login_at: null,
           deleted_at: null,
           created_at: now(),
@@ -434,6 +440,8 @@ export function createMemoryStore(): DataStore {
         return reschedules.filter((r) => r.job_id === jobId).sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
       },
     },
+
+    growth: createMemoryGrowthRepo(),
 
     retention: {
       async schedule(e) {

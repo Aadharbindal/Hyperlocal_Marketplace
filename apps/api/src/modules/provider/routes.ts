@@ -4,8 +4,11 @@ import {
   BidCreate,
   BidRevise,
   BidWithdrawBody,
+  FeedFilterQuery,
   KycSubmitBody,
   ProviderProfileUpdate,
+  type JobPriority,
+  type JobRequestType,
   type Language,
 } from '@hyperlocal/core';
 import { z } from 'zod';
@@ -15,7 +18,6 @@ import { requireAction, requireAuth } from '../../plugins/auth';
 import type { AppContext } from '../../app';
 
 const IdParam = z.object({ id: z.string().uuid() });
-const FeedQuery = z.object({ limit: z.coerce.number().int().min(1).max(50).default(20) });
 
 function langOf(req: FastifyRequest): Language {
   return req.auth?.user.preferred_language ?? (req.headers['accept-language']?.toString().startsWith('hi') ? 'hi' : 'en');
@@ -69,8 +71,19 @@ export async function providerRoutes(app: FastifyInstance, ctx: AppContext) {
   // ---------------------------------------------------------------- nearby feed
   app.get('/provider/jobs/nearby', { preHandler: requireAction('job.feed.read') }, async (req) => {
     const auth = requireAuth(req);
-    const { limit } = parse(FeedQuery, req.query);
-    return provider.nearbyFeed(auth.userId, langOf(req), limit);
+    const q = parse(FeedFilterQuery, req.query);
+    // Comma-separated in the URL, arrays everywhere else.
+    const split = (v?: string) => (v ? v.split(',').map((x) => x.trim()).filter(Boolean) : undefined);
+    return provider.nearbyFeed(auth.userId, langOf(req), q.limit, {
+      categoryIds: split(q.categoryIds),
+      maxDistanceKm: q.maxDistanceKm,
+      priorities: split(q.priorities) as JobPriority[] | undefined,
+      requestTypes: split(q.requestTypes) as JobRequestType[] | undefined,
+      maxBids: q.maxBids,
+      hideMyBids: q.hideMyBids,
+      withMediaOnly: q.withMediaOnly,
+      sort: q.sort,
+    });
   });
 
   // ---------------------------------------------------------------- bids

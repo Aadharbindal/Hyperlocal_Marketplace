@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { BidView, NearbyJobItem, OfferView, ProviderProfileView } from '@hyperlocal/core';
+import type { BidView, FeedFacetsView, FeedFilters, NearbyJobItem, OfferView, ProviderProfileView } from '@hyperlocal/core';
 import { api, newIdempotencyKey } from './client';
+import { feedQueryFrom } from './growth';
 import { FALLBACK_POLL_MS } from './polling';
 
 export const providerKeys = {
@@ -71,12 +72,26 @@ export function useSubmitKyc() {
   });
 }
 
-export function useNearbyJobs() {
+export interface NearbyFeedResponse {
+  items: NearbyJobItem[];
+  blockers: string[];
+  facets: FeedFacetsView;
+  /** Why a filtered feed came back empty - never shown when there is simply no work. */
+  emptyReason: string | null;
+}
+
+/**
+ * The nearby feed, optionally narrowed. Filtering happens on the server: the feed is already
+ * trimmed to what this provider is eligible for, and a filter can only narrow that further.
+ */
+export function useNearbyJobs(filters: FeedFilters = {}) {
   return useQuery({
-    queryKey: providerKeys.feed,
-    queryFn: () => api<{ items: NearbyJobItem[]; blockers: string[] }>('/provider/jobs/nearby'),
+    queryKey: [...providerKeys.feed, filters],
+    queryFn: () => api<NearbyFeedResponse>(`/provider/jobs/nearby?${feedQueryFrom(filters)}`),
     // New work arrives on the server, so keep the feed fresh while it is open.
     refetchInterval: FALLBACK_POLL_MS,
+    // A filter change should not blank the screen on the way to the new list.
+    placeholderData: (previous) => previous,
   });
 }
 

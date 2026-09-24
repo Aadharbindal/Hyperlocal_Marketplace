@@ -5,6 +5,7 @@ import { createPostgresJobsRepo } from './jobs';
 import { createPostgresExecutionRepo } from './execution';
 import { createPostgresAdminRepo } from './admin';
 import { createPostgresFinanceRepo } from './finance';
+import { createPostgresGrowthRepo } from './growth';
 import { createPostgresMaterialsRepo } from './materials';
 import { createPostgresNegotiationRepo, createPostgresPaymentsRepo } from './negotiation';
 import type {
@@ -93,6 +94,7 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     users: {
       findById: (id) => one<UserRecord>('select * from users where id = $1', [id]),
       findByPhone: (phone) => one<UserRecord>('select * from users where phone_e164 = $1', [phone]),
+      findByReferralCode: (code) => one<UserRecord>('select * from users where referral_code = $1', [code]),
       async create(input) {
         return (await one<UserRecord>(
           'insert into users (phone_e164, display_name, preferred_language) values ($1,$2,$3) returning *',
@@ -325,6 +327,8 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
         return res.rowCount ?? 0;
       },
     },
+
+    growth: createPostgresGrowthRepo(q),
 
     reach: {
       async upsertDevice(d) {

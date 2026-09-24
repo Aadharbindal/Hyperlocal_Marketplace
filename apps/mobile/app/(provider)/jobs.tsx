@@ -3,9 +3,11 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { formatInr, type NearbyJobItem } from '@hyperlocal/core';
+import { formatInr, type FeedFilters, type NearbyJobItem } from '@hyperlocal/core';
+import { activeFilterCount } from '@/api/growth';
 import { useNearbyJobs, useProviderProfile, useSetAvailability } from '@/api/provider';
 import { BidSheet } from '@/features/provider/BidSheet';
+import { FeedFilterSheet } from '@/features/provider/FeedFilterSheet';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
@@ -42,9 +44,12 @@ export default function ProviderJobsScreen() {
   const t = useStrings();
   const router = useRouter();
   const profile = useProviderProfile();
-  const feed = useNearbyJobs();
+  const [filters, setFilters] = useState<FeedFilters>({});
+  const feed = useNearbyJobs(filters);
   const availability = useSetAvailability();
   const [bidding, setBidding] = useState<NearbyJobItem | null>(null);
+  const [filtering, setFiltering] = useState(false);
+  const activeFilters = activeFilterCount(filters);
 
   const blockers = feed.data?.blockers ?? profile.data?.blockers ?? [];
   const primaryBlocker = blockers.find((b) => b !== 'AVAILABILITY_OFF') ?? blockers[0];
@@ -61,6 +66,23 @@ export default function ProviderJobsScreen() {
             {profile.data?.businessName ?? 'Your business'}
           </Text>
         </View>
+        {/* Only offered once there is a feed to narrow. */}
+        {feed.data && feed.data.facets.total > 0 ? (
+          <Pressable
+            onPress={() => setFiltering(true)}
+            accessibilityRole="button"
+            accessibilityLabel={activeFilters > 0 ? `Filters, ${activeFilters} active` : 'Filter jobs'}
+            style={[styles.filterButton, activeFilters > 0 && styles.filterButtonOn]}
+            hitSlop={8}
+          >
+            <Ionicons name="options-outline" size={18} color={activeFilters > 0 ? palette.textOnPrimary : palette.primaryDeep} />
+            {activeFilters > 0 ? (
+              <Text variant="micro" weight="bold" style={{ color: palette.textOnPrimary }}>
+                {activeFilters}
+              </Text>
+            ) : null}
+          </Pressable>
+        ) : null}
         <View style={styles.availability}>
           <Text variant="micro" weight="semibold" tone={profile.data?.isAvailable ? 'primary' : 'muted'}>
             {profile.data?.isAvailable ? 'ONLINE' : 'OFFLINE'}
@@ -130,7 +152,15 @@ export default function ProviderJobsScreen() {
           onAction={() => router.push('/(provider)/profile')}
         />
       ) : feed.data.items.length === 0 ? (
-        <EmptyState icon="briefcase-outline" title={t('jobs.empty.title')} body="New jobs near you will appear here as customers post them." />
+        <EmptyState
+          icon={activeFilters > 0 ? 'funnel-outline' : 'briefcase-outline'}
+          title={activeFilters > 0 ? 'Nothing matches those filters' : t('jobs.empty.title')}
+          // An empty feed with no explanation reads as "there is no work", which is a different
+          // and much worse message than "your filters are narrow".
+          body={feed.data.emptyReason ?? 'New jobs near you will appear here as customers post them.'}
+          actionLabel={activeFilters > 0 ? 'Clear filters' : undefined}
+          onAction={activeFilters > 0 ? () => setFilters({}) : undefined}
+        />
       ) : (
         <View style={styles.list}>
           {feed.data.items.map((job, i) => (
@@ -142,6 +172,13 @@ export default function ProviderJobsScreen() {
       )}
 
       <BidSheet job={bidding} onClose={() => setBidding(null)} />
+      <FeedFilterSheet
+        visible={filtering}
+        onClose={() => setFiltering(false)}
+        filters={filters}
+        facets={feed.data?.facets}
+        onApply={setFilters}
+      />
     </Screen>
   );
 }
@@ -210,6 +247,16 @@ function JobCard({ job, onBid }: { job: NearbyJobItem; onBid: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    backgroundColor: '#E8F6F1',
+  },
+  filterButtonOn: { backgroundColor: palette.primary },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   headerText: { flex: 1 },
   availability: { alignItems: 'center', gap: 2 },

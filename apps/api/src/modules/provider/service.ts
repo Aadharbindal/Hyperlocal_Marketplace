@@ -2,12 +2,18 @@ import {
   DEFAULT_FEE_POLICY,
   MAX_BID_REVISIONS,
   MAX_ACTIVE_BIDS_PER_JOB,
+  compareForSort,
   computeQuote,
+  explainEmptyFeed,
   haversineKm,
+  matchesFilters,
   providerEligibility,
   rankScore,
   validateBid,
   type BidView,
+  type FeedFacetsView,
+  type FeedFilters,
+  type FilterableJob,
   type Language,
   type NearbyJobItem,
   type OfferView,
@@ -219,7 +225,14 @@ export function providerService(d: ProviderDeps) {
     },
 
     /** Jobs this provider may quote on right now, nearest first. */
-    async nearbyFeed(userId: string, lang: Language, limit: number) {
+    /**
+     * The feed, optionally narrowed.
+     *
+     * Filtering happens here rather than in the app for a reason that matters: the feed is
+     * already trimmed to what this provider is *eligible* for, and eligibility is not something
+     * a client gets to widen. A filter can only narrow what the server already decided to show.
+     */
+    async nearbyFeed(userId: string, lang: Language, limit: number, filters: FeedFilters = {}) {
       const p = await profileOrThrow(userId);
       const skills = await skillsOf(userId);
       const skillIds = skills.map((s) => s.id);
@@ -230,6 +243,8 @@ export function providerService(d: ProviderDeps) {
       const [jobs, cats] = await Promise.all([store.jobs.listOpenForFeed({ categoryIds, limit: limit * 3 }), store.categories.listEnabled()]);
 
       const items: NearbyJobItem[] = [];
+      // Kept alongside `items` so a filter reads from the same order as the view it narrows.
+      const candidates: FilterableJob[] = [];
       for (const job of jobs) {
         const { eligible, distanceKm } = await eligibilityFor(job, p, skillIds);
         if (!eligible) continue;
@@ -242,6 +257,24 @@ export function providerService(d: ProviderDeps) {
         ]);
         const cat = cats.find((c) => c.id === job.category_id);
         const snap = job.address_snapshot as { societyName?: string | null; city?: string } | null;
+        candidates.push({
+          categoryId: job.category_id,
+          distanceKm: Math.round(distanceKm * 10) / 10,
+          priority: job.priority,
+          requestType: job.request_type,
+          bidCount: bids.length,
+          hasMyBid: !!mine,
+          hasMedia: media.length > 0,
+          postedAt: job.submitted_at ?? job.created_at,
+          preferredStart: job.preferred_start,
+          // Before anyone bids there is no price, so the customer's own signal is the best
+          // guess there is: an urgent job is usually a bigger one.
+          estimatedValuePaise: bids.length
+            ? Math.round(bids.reduce((t, b) => t + Number(b.labour_paise), 0) / bids.length)
+            : job.priority === 'URGENT'
+              ? 150_000
+              : 80_000,
+        });
         items.push({
           jobId: job.id,
           categoryName: cat ? (lang === 'hi' ? cat.name_hi : cat.name_en) : 'Service',
@@ -263,10 +296,29 @@ export function providerService(d: ProviderDeps) {
             : null,
           postedAt: (job.submitted_at ?? job.created_at).toISOString(),
         });
-        if (items.length >= limit) break;
+        // Deliberately not `>= limit` here: filters are applied afterwards, so stopping at the
+        // limit before filtering would return a short page whenever a filter is on.
+        if (items.length >= limit * 3) break;
       }
-      items.sort((a, b) => a.distanceKm - b.distanceKm);
-      return { items, blockers: [] };
+
+      const eligibleCount = items.length;
+      const kept = items.filter((_item, i) => matchesFilters(candidates[i]!, filters));
+      const keptCandidates = candidates.filter((c) => matchesFilters(c, filters));
+
+      // Sorted together so the two arrays stay aligned.
+      const order = keptCandidates
+        .map((c, i) => ({ c, i }))
+        .sort((a, b) => compareForSort(filters.sort ?? 'NEAREST')(a.c, b.c))
+        .map((x) => x.i);
+
+      return {
+        items: order.slice(0, limit).map((i) => kept[i]!),
+        blockers: [],
+        facets: facetsFor(candidates, items, eligibleCount),
+        // An empty feed with no explanation reads as "there is no work", which is a different
+        // and much worse message than "your filters are narrow".
+        emptyReason: order.length === 0 ? explainEmptyFeed(filters, eligibleCount > 0) : null,
+      };
     },
 
     /** Places a new offer. The first offer on a job also moves it to BID_RECEIVED. */
@@ -419,6 +471,32 @@ export function providerService(d: ProviderDeps) {
     },
 
     MAX_ACTIVE_BIDS_PER_JOB,
+  };
+}
+
+/**
+ * The filter values worth offering, built from what is actually in this provider's feed today
+ * rather than from the whole catalog. A filter for a category with nothing in it is a dead end
+ * somebody has to discover by tapping it.
+ */
+function facetsFor(candidates: FilterableJob[], items: Array<{ categoryName: string }>, total: number): FeedFacetsView {
+  const categories = new Map<string, { name: string; count: number }>();
+  const priorities = new Map<FilterableJob['priority'], number>();
+  const requestTypes = new Map<FilterableJob['requestType'], number>();
+
+  candidates.forEach((c, i) => {
+    const existing = categories.get(c.categoryId);
+    categories.set(c.categoryId, { name: existing?.name ?? items[i]?.categoryName ?? 'Service', count: (existing?.count ?? 0) + 1 });
+    priorities.set(c.priority, (priorities.get(c.priority) ?? 0) + 1);
+    requestTypes.set(c.requestType, (requestTypes.get(c.requestType) ?? 0) + 1);
+  });
+
+  return {
+    categories: [...categories.entries()].map(([id, v]) => ({ id, name: v.name, count: v.count })).sort((a, b) => b.count - a.count),
+    priorities: [...priorities.entries()].map(([value, count]) => ({ value, count })),
+    requestTypes: [...requestTypes.entries()].map(([value, count]) => ({ value, count })),
+    furthestKm: candidates.reduce((max, c) => Math.max(max, c.distanceKm), 0),
+    total,
   };
 }
 

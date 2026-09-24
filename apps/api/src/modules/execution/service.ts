@@ -411,6 +411,11 @@ export function executionService(d: ExecutionDeps) {
           tax_paise: priced.taxPaise,
           total_paise: priced.totalPaise,
           provider_payable_paise: priced.providerPayablePaise,
+          // A discount already given is carried forward, not re-applied and not withdrawn: the
+          // extra work is charged at full price, and what was taken off the original booking
+          // stays taken off.
+          discount_paise: Number(oldQuote.discount_paise),
+          promo_code: oldQuote.promo_code,
           warranty_days: oldQuote.warranty_days,
           eta_minutes: oldQuote.eta_minutes + Number(fresh.extra_time_minutes),
           material_responsibility: oldQuote.material_responsibility,

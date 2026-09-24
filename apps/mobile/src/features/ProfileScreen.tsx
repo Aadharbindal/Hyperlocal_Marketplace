@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { Language, UserRole } from '@hyperlocal/core';
 import { useLogout, useMe, useUpdateMe } from '@/api/hooks';
@@ -19,6 +20,7 @@ const VERIFICATION_TONE: Record<string, 'success' | 'warning' | 'danger' | 'neut
 /** Shared profile screen for every role group. */
 export function ProfileScreen() {
   const t = useStrings();
+  const router = useRouter();
   const me = useMe();
   const user = useSession((s) => s.user);
   const activeRole = useSession((s) => s.activeRole);
@@ -99,13 +101,54 @@ export function ProfileScreen() {
         </View>
       </View>
 
+      {/* Everything else a person owns, in one place. Shown per role, because a vendor has no
+          use for a list of saved plumbers. */}
+      <View style={styles.section}>
+        <Text variant="subheading">{t('settings.account')}</Text>
+        <Card style={styles.links}>
+          <Link icon="notifications-outline" label={t('settings.notifications')} onPress={() => router.push('/notification-settings')} />
+          {activeRole === 'CUSTOMER' ? (
+            <>
+              <Link icon="receipt-outline" label={t('settings.receipts')} onPress={() => router.push('/receipts')} />
+              <Link icon="heart-outline" label={t('settings.saved')} onPress={() => router.push('/favourites')} />
+            </>
+          ) : null}
+          <Link icon="gift-outline" label={t('settings.invite')} onPress={() => router.push('/referrals')} last />
+        </Card>
+      </View>
+
       <Spacer h={spacing.xxl} />
       <Button title={t('profile.signOut')} variant="danger" size="md" icon="log-out-outline" loading={logout.isPending} onPress={() => logout.mutate()} />
     </Screen>
   );
 }
 
+function Link({
+  icon,
+  label,
+  onPress,
+  last,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  last?: boolean;
+}) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" style={[styles.link, !last && styles.linkDivider]}>
+      <Ionicons name={icon} size={20} color={palette.textMuted} />
+      <Text variant="label" weight="medium" style={{ flex: 1 }}>
+        {label}
+      </Text>
+      <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  links: { gap: 0, paddingVertical: 0 },
+  link: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
+  linkDivider: { borderBottomWidth: 1, borderBottomColor: '#EEF4F2' },
   identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   identityText: { flex: 1, gap: 4 },
   section: { marginTop: spacing.xxl, gap: spacing.md },

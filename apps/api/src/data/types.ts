@@ -45,6 +45,8 @@ export interface UserRecord {
   push_job_updates: boolean;
   push_offers: boolean;
   push_marketing: boolean;
+  /** Derived from the user id on first read, so there is nothing to allocate and none to run out of. */
+  referral_code: string | null;
   last_login_at: Date | null;
   deleted_at: Date | null;
   created_at: Date;
@@ -388,6 +390,9 @@ export interface BookingQuoteRecord {
   tax_paise: number;
   total_paise: number;
   provider_payable_paise: number;
+  /** What a promo code took off. The platform's cost, never the provider's. */
+  discount_paise: number;
+  promo_code: string | null;
   warranty_days: number;
   eta_minutes: number;
   material_responsibility: MaterialResponsibility;
@@ -751,6 +756,7 @@ export type New<T> = Omit<T, 'id' | 'created_at' | 'updated_at'> & Partial<Pick<
 export interface UsersRepo {
   findById(id: string): Promise<UserRecord | null>;
   findByPhone(phoneE164: string): Promise<UserRecord | null>;
+  findByReferralCode(code: string): Promise<UserRecord | null>;
   create(input: { phone_e164: string; display_name?: string | null; preferred_language?: Language }): Promise<UserRecord>;
   update(id: string, patch: Partial<Omit<UserRecord, 'id' | 'created_at'>>): Promise<UserRecord>;
   search(q: string, limit: number): Promise<UserRecord[]>;
@@ -860,6 +866,106 @@ export interface JobRescheduleRecord {
   new_end: Date | null;
   reason: string | null;
   created_at: Date;
+}
+
+export interface InvoiceRecord {
+  id: string;
+  job_id: string;
+  customer_id: string;
+  number: string;
+  labour_paise: number;
+  visit_fee_paise: number;
+  material_paise: number;
+  delivery_paise: number;
+  platform_fee_paise: number;
+  protection_fee_paise: number;
+  tax_paise: number;
+  total_paise: number;
+  refunded_paise: number;
+  provider_name: string;
+  category_name: string;
+  service_address: string | null;
+  issued_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface FavouriteProviderRecord {
+  customer_id: string;
+  provider_id: string;
+  note: string | null;
+  created_at: Date;
+}
+
+export interface PromoCodeRecord {
+  id: string;
+  code: string;
+  kind: 'FLAT' | 'PERCENT';
+  value: number;
+  max_discount_paise: number | null;
+  min_order_paise: number;
+  funded_by: string;
+  starts_at: Date;
+  ends_at: Date | null;
+  max_redemptions: number | null;
+  max_per_customer: number;
+  first_job_only: boolean;
+  redemption_count: number;
+  active: boolean;
+  created_by: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PromoRedemptionRecord {
+  id: string;
+  promo_id: string;
+  customer_id: string;
+  job_id: string;
+  discount_paise: number;
+  created_at: Date;
+}
+
+export interface ReferralRecord {
+  id: string;
+  referrer_id: string;
+  referred_id: string;
+  code: string;
+  status: 'PENDING' | 'QUALIFIED' | 'REWARDED' | 'REJECTED';
+  qualifying_job_id: string | null;
+  reward_paise: number;
+  rewarded_at: Date | null;
+  rejection_reason: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/** Receipts, saved providers, promo codes and referrals. */
+export interface GrowthRepo {
+  createInvoice(i: New<InvoiceRecord>): Promise<InvoiceRecord>;
+  getInvoiceForJob(jobId: string): Promise<InvoiceRecord | null>;
+  listInvoices(customerId: string, limit: number): Promise<InvoiceRecord[]>;
+  updateInvoice(id: string, patch: Partial<InvoiceRecord>): Promise<InvoiceRecord>;
+  /** The next receipt number in a financial year. Sequential, because that is what it is for. */
+  nextInvoiceSequence(financialYear: string): Promise<number>;
+
+  addFavourite(f: New<FavouriteProviderRecord>): Promise<FavouriteProviderRecord>;
+  removeFavourite(customerId: string, providerId: string): Promise<void>;
+  listFavourites(customerId: string): Promise<FavouriteProviderRecord[]>;
+  isFavourite(customerId: string, providerId: string): Promise<boolean>;
+
+  createPromo(p: New<PromoCodeRecord>): Promise<PromoCodeRecord>;
+  findPromo(code: string): Promise<PromoCodeRecord | null>;
+  listPromos(limit: number): Promise<PromoCodeRecord[]>;
+  updatePromo(id: string, patch: Partial<PromoCodeRecord>): Promise<PromoCodeRecord>;
+  countRedemptions(promoId: string, customerId: string): Promise<number>;
+  redeemPromo(r: New<PromoRedemptionRecord>): Promise<PromoRedemptionRecord>;
+  findRedemptionForJob(jobId: string): Promise<PromoRedemptionRecord | null>;
+
+  createReferral(r: New<ReferralRecord>): Promise<ReferralRecord>;
+  findReferralForUser(referredId: string): Promise<ReferralRecord | null>;
+  listReferralsBy(referrerId: string): Promise<ReferralRecord[]>;
+  updateReferral(id: string, patch: Partial<ReferralRecord>): Promise<ReferralRecord>;
 }
 
 /** Devices, calls and reschedules: the three ways a job reaches beyond the app. */
@@ -1095,6 +1201,7 @@ export interface DataStore {
   audit: AuditRepo;
   notifications: NotificationsRepo;
   reach: ReachRepo;
+  growth: GrowthRepo;
   retention: RetentionRepo;
   idempotency: IdempotencyRepo;
   /** Run fn atomically. Memory store runs it serially; Postgres uses a transaction. */

@@ -9,6 +9,8 @@ import type { AppContext } from '../../app';
 import type { TransitionContext } from '../jobs/service';
 
 const IdParam = z.object({ id: z.string().uuid() });
+/** Accepting takes no body normally; a promo code is the one thing it may carry. */
+const AcceptBody = z.object({ promoCode: z.string().trim().min(3).max(24).optional() }).strict();
 
 export async function negotiationRoutes(app: FastifyInstance, ctx: AppContext) {
   const { store, services, adapters, env } = ctx;
@@ -71,12 +73,25 @@ export async function negotiationRoutes(app: FastifyInstance, ctx: AppContext) {
     const job = await jobs.ownedJob(bid.job_id, auth.userId);
 
     const key = typeof req.headers['idempotency-key'] === 'string' ? `booking:${job.id}:${req.headers['idempotency-key']}` : undefined;
-    const { quote, payment } = await negotiation.accept(job, bid, auth.userId, transitionCtx(req), key);
+
+    // A promo code is re-checked here, at the moment of acceptance, not trusted from whatever
+    // the app showed earlier: the answer can change between looking and booking.
+    const { promoCode } = parse(AcceptBody, req.body ?? {});
+    const promo = promoCode
+      ? await services.growth.resolvePromoForAcceptance(auth.userId, promoCode, await negotiation.quoteTotalFor(bid))
+      : undefined;
+
+    const { quote, payment } = await negotiation.accept(job, bid, auth.userId, transitionCtx(req), key, promo);
     await services.audit.record(req.auditCtx(), {
       action: 'bid.accepted',
       entityType: 'job',
       entityId: job.id,
-      after: { bidId: bid.id, quoteId: quote.id, totalPaise: Number(quote.total_paise) },
+      after: {
+        bidId: bid.id,
+        quoteId: quote.id,
+        totalPaise: Number(quote.total_paise),
+        ...(promo ? { promoCode: promo.code, discountPaise: promo.discountPaise } : {}),
+      },
     });
     return {
       quote: await negotiation.toQuoteView(quote),
