@@ -62,6 +62,11 @@ initialised in a Windows-1252 locale refuses `0001` outright:
 createdb hyperlocal --encoding=UTF8 --template=template0
 ```
 
+CI runs both: the memory suite on every push, and - since the first real run found four bugs the
+memory suite structurally could not - a second job that applies every migration to PostgreSQL 17
+and runs the whole API suite against it. `npm run migrate:apply` is the same step, for a local
+database.
+
 ### What the first real Postgres run found
 
 Until this run the SQL had never executed. Every one of these was invisible in memory mode:

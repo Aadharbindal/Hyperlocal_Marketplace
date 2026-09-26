@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { Language, UserRole } from '@hyperlocal/core';
 import { useLogout, useMe, useUpdateMe } from '@/api/hooks';
+import { useWarrantyClaims } from '@/api/warranty';
 import { useStrings } from '@/i18n';
 import { useSession } from '@/store/session';
 import { palette, radius, spacing } from '@/theme';
@@ -29,6 +30,9 @@ export function ProfileScreen() {
   const setLanguage = useSession((s) => s.setLanguage);
   const updateMe = useUpdateMe();
   const logout = useLogout();
+  // Only asked for by the roles that can answer a claim.
+  const claims = useWarrantyClaims();
+  const openClaims = (claims.data ?? []).filter((c) => c.status === 'OPEN').length;
 
   const changeLanguage = (l: Language) => {
     setLanguage(l);
@@ -107,6 +111,15 @@ export function ProfileScreen() {
         <Text variant="subheading">{t('settings.account')}</Text>
         <Card style={styles.links}>
           <Link icon="notifications-outline" label={t('settings.notifications')} onPress={() => router.push('/notification-settings')} />
+          {/* A claim carries a 48-hour clock, so it is badged rather than buried. */}
+          {activeRole === 'PROVIDER' || activeRole === 'CONTRACTOR' ? (
+            <Link
+              icon="shield-checkmark-outline"
+              label={t('settings.warrantyClaims')}
+              badge={openClaims > 0 ? openClaims : undefined}
+              onPress={() => router.push('/warranty-claims')}
+            />
+          ) : null}
           {activeRole === 'CUSTOMER' ? (
             <>
               <Link icon="receipt-outline" label={t('settings.receipts')} onPress={() => router.push('/receipts')} />
@@ -128,18 +141,32 @@ function Link({
   label,
   onPress,
   last,
+  badge,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
   last?: boolean;
+  badge?: number;
 }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={[styles.link, !last && styles.linkDivider]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={badge ? `${label}, ${badge} waiting` : label}
+      style={[styles.link, !last && styles.linkDivider]}
+    >
       <Ionicons name={icon} size={20} color={palette.textMuted} />
       <Text variant="label" weight="medium" style={{ flex: 1 }}>
         {label}
       </Text>
+      {badge ? (
+        <View style={styles.linkBadge}>
+          <Text variant="micro" weight="bold" style={{ color: palette.textOnPrimary }}>
+            {badge}
+          </Text>
+        </View>
+      ) : null}
       <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
     </Pressable>
   );
@@ -149,6 +176,7 @@ const styles = StyleSheet.create({
   links: { gap: 0, paddingVertical: 0 },
   link: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
   linkDivider: { borderBottomWidth: 1, borderBottomColor: '#EEF4F2' },
+  linkBadge: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primary },
   identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   identityText: { flex: 1, gap: 4 },
   section: { marginTop: spacing.xxl, gap: spacing.md },

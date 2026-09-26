@@ -19,3 +19,39 @@ jobs:
       - run: npm run build
       - run: npm run migrate:check
       - run: npm audit --audit-level=high || true
+
+  # The in-memory store mirrors every SQL constraint by hand, and hand-written mirrors drift.
+  # The first run against a real database found four bugs the memory suite could not; this is
+  # what stops the fifth reaching main.
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          # UTF-8 matters: the service catalog carries Devanagari, and a Windows-1252 cluster
+          # refuses migration 0001 outright.
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Apply every migration in order
+        run: node scripts/apply-migrations.mjs
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      - name: Run the API suite against real Postgres
+        run: npm run test:integration
+        env:
+          DATA_MODE: postgres
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres

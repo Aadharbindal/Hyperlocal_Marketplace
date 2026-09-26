@@ -19,7 +19,8 @@
     "api:dev": "npm run dev --workspace apps/api",
     "mobile:start": "npm run start --workspace apps/mobile",
     "seed:demo": "npm run seed --workspace apps/api",
-    "mobile:web": "npm run web --workspace apps/mobile"
+    "mobile:web": "npm run web --workspace apps/mobile",
+    "migrate:apply": "node scripts/apply-migrations.mjs"
   },
   "engines": {
     "node": ">=20.0.0",

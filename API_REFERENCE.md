@@ -420,5 +420,26 @@ A claim the professional leaves unanswered for 48 hours is escalated to support 
 | GET | `/admin/mfa/recovery-codes` | ADMIN, SUPPORT | How many are left. Never the codes |
 | POST | `/admin/mfa/recover` | ADMIN, SUPPORT | `{ code }`. Burnt on use whatever happens next *audited* |
 
+## Where each admin route is reachable from
+
+Eleven route groups existed and three had screens; the rest meant running curl against
+production, which is slow and is how a wrong id ends up in a destructive call.
+
+| Screen | Covers |
+| --- | --- |
+| Disputes (`queue`) | `/admin/disputes`, resolution, strikes |
+| Verify | `/admin/kyc` |
+| Money | `/admin/jobs/:id/ledger`, refunds |
+| **Chat** | `/admin/flagged-messages` and its review |
+| **Console → Overview** | `/admin/reports/overview` |
+| **Console → People** | `/admin/users`, `/admin/audit-logs` |
+| **Console → Payouts** | `/admin/settlements`, retry |
+| **Console → Promos** | `/admin/promos`, deactivate |
+| **Console → Background** | `/admin/scheduler`, run one task |
+| **Console → Security** | `/admin/mfa/recovery-codes` |
+
+Suspension is deliberately **not** a button in the console: it needs a second approver's id, and
+doing it properly means the dispute or verification screen where that person is already involved.
+
 ## Planned (by milestone)
 _Nothing is left planned: all nine milestones are implemented. What is still missing is listed in `KNOWN_LIMITATIONS.md`._

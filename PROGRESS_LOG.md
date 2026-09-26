@@ -4,6 +4,81 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Making the built things reachable
+
+**Milestone:** post-M9 - screens for features that already worked and nobody could get to
+**Date:** 2026-09-26
+**Status:** Complete
+
+**Why this exists:** a review of what was still missing turned up something uncomfortable - the
+two biggest gaps were mine. I had built the warranty claim flow and the flagged-message queue on
+the server in the previous session and shipped neither to a screen. A feature that exists and
+cannot be reached is not a feature; it is a test that passes.
+
+**Implemented:**
+
+*The professional can answer a warranty claim.* The claim API, the 48-hour clock and the
+escalation to support all existed, and the only thing a professional could do about a claim was
+fail to answer it - which is a strange way to treat somebody whose reputation is on the line.
+The screen puts the clock in front of them, counts down, and turns amber in the last twelve
+hours. Declining is offered exactly as plainly as accepting: not everything that breaks a week
+later is the same fault, and a screen that only offered "accept" would push honest people into
+either eating the cost or ignoring the claim. The decline sheet says what a useful reason looks
+like, because "not my fault" helps nobody and "a different pipe, upstream of the joint I
+replaced" settles it.
+
+The entry point carries a count, so a claim with a deadline is not something you have to go
+looking for.
+
+*The flagged-message queue has a screen.* This is the one that stung: the previous session's
+whole argument was that a flag nobody reads is the appearance of moderation without the fact of
+it, and then the queue shipped with no way to read it. Clearing a message is deliberately the
+easiest action on the screen - most flags are somebody sharing a number so a delivery can be let
+through the gate, and a queue where the innocent case is fiddly is a queue that stops being
+worked. The message is shown verbatim: a reviewer deciding on a summary is deciding on somebody
+else's reading of it.
+
+*The rest of the console.* Eleven admin route groups existed and three were reachable; everything
+else meant running curl against production, which is slow and is exactly how a wrong id ends up
+in a destructive call. One screen with six sections - overview, people, payouts, promos,
+background tasks, security - rather than six tabs, because this is a place people come during an
+incident to answer one question, and a tab bar of six things is six guesses about where the
+answer lives. Suspension is deliberately **not** a button there: it needs a second approver, and
+doing it properly means the dispute or verification screen where that person is already involved.
+
+*Postgres in CI.* The in-memory store mirrors every SQL constraint by hand, and hand-written
+mirrors drift - the first real run found four bugs the memory suite structurally could not. CI
+now applies every migration to PostgreSQL 17 and runs the whole API suite against it, alongside
+the memory run. `scripts/apply-migrations.mjs` is deliberately dumb: it runs the files in name
+order and stops at the first failure with the filename and the error. It also recognises the one
+failure that looks cryptic and has an obvious cause - a Windows-1252 cluster cannot hold the
+Devanagari in the service catalog - and says how to fix it.
+
+**Changed files:** `.github/workflows/ci.yml`, `scripts/apply-migrations.mjs`, `package.json`,
+`apps/mobile/{app/warranty-claims.tsx,app/(admin)/{moderation,console,_layout}.tsx,src/api/{admin-trust,admin-console}.ts,src/features/ProfileScreen.tsx,src/i18n/index.ts}`,
+and the documents below.
+
+**Database changes:** none.
+
+**API changes:** none - this milestone is entirely about reaching what already existed.
+
+**Tests added / passed:** none added; this is UI over tested routes. Totals unchanged:
+**256/256 API**, **187/187 core**, **18/18 mobile**. Type check clean in 3/3 workspaces, lint 0
+errors.
+
+**One thing to watch:** the mobile suite failed once in a combined workspace run and has passed
+five times since, including four more combined runs. It looks like a cold-transform timing issue
+under load rather than a real fault, but it is written down here rather than shrugged at - if it
+returns, the jest transform cache is the first place to look.
+
+**Known limitations:** the app still has not been run on a physical device since the SDK 57
+upgrade, which remains the largest single risk. There is no crash reporting in the mobile app -
+the error boundary logs to the console and the Sentry adapter exists only on the server. Nothing
+queues actions taken while offline. The technician role still uses the provider screens, and a
+provider still cannot propose a new time - they can only cancel.
+
+---
+
 ## The warranty nobody could claim, and four other holes
 
 **Milestone:** post-M9 - the gaps a feature review found after the spec was already "done"
