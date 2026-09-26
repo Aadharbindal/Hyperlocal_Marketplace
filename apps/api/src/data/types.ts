@@ -1281,6 +1281,86 @@ export interface IdempotencyRepo {
   put(rec: IdempotencyRecord): Promise<void>;
 }
 
+/**
+ * The numbers an operator looks at, computed where the rows are.
+ *
+ * Every field is a whole-table answer rather than a sample. The previous implementation walked
+ * up to 500 customers, read up to 200 jobs each and then a ledger per job, which was slow at
+ * pilot size and quietly *wrong* past it: the 501st customer simply did not count, and nothing
+ * on the screen said so. An operator cannot tell an under-report from a quiet week.
+ */
+export interface OpsOverview {
+  jobsByStatus: Record<string, number>;
+  capturedPaise: number;
+  refundedPaise: number;
+  platformRevenuePaise: number;
+  payoutsPendingPaise: number;
+  payoutsPaidPaise: number;
+  disputesOpen: number;
+  disputesBreachingSla: number;
+  kycPending: number;
+  providersVerified: number;
+  providersSuspended: number;
+}
+
+export interface ReportsRepo {
+  opsOverview(now: Date): Promise<OpsOverview>;
+}
+
+/**
+ * The things that stop being true once there is more than one node.
+ *
+ * Three assumptions were baked in while the API was a single process: that a `setInterval` fires
+ * once, that an SSE subscriber is reachable from whichever node publishes, and that an in-memory
+ * counter is the whole rate limit. All three are wrong the moment a second node starts, and each
+ * fails quietly - duplicate scheduled work, a stream that goes silent, a limit that is really
+ * N times looser than it says.
+ *
+ * Postgres provides all three primitives, so the pilot needs no Redis and no queue.
+ */
+export interface ClusterRepo {
+  /**
+   * Run `fn` only if this node wins `key`. Returns `null` without running it if another node
+   * holds the lock - not an error, because losing the race is the normal case.
+   */
+  withLock<T>(key: string, fn: () => Promise<T>): Promise<T | null>;
+
+  /** Send to every node, including this one. */
+  broadcast(channel: string, payload: unknown): Promise<void>;
+
+  /** Receive what any node broadcast, including this one's own. Resolves to an unsubscribe. */
+  onBroadcast(channel: string, handler: (payload: unknown) => void): Promise<() => void>;
+
+  /**
+   * Count one hit against `key` and say how many are now in the window. Shared across nodes, so
+   * a limit that exists to stop an attack means what it says however many nodes are running.
+   */
+  countHit(key: string, windowSeconds: number, now: Date): Promise<number>;
+
+  /** Drop counter rows whose window has closed. Housekeeping, run by the scheduler. */
+  sweepHits(before: Date): Promise<number>;
+}
+
+export interface SchedulerRunRecord {
+  task: string;
+  last_run_at: Date;
+  last_duration_ms: number;
+  last_error: string | null;
+  runs: number;
+}
+
+/**
+ * When each background task last ran, as a fact about the cluster rather than about one process.
+ *
+ * Kept out of `ClusterRepo` on purpose: that holds coordination primitives, and this is domain
+ * state that happens to be shared. Read and written inside the scheduler's lock, so it needs no
+ * concurrency control of its own.
+ */
+export interface SchedulerRepo {
+  loadRuns(): Promise<SchedulerRunRecord[]>;
+  recordRun(rec: SchedulerRunRecord): Promise<void>;
+}
+
 export interface DataStore {
   readonly mode: 'memory' | 'postgres';
   users: UsersRepo;
@@ -1303,6 +1383,9 @@ export interface DataStore {
   trust: TrustRepo;
   retention: RetentionRepo;
   idempotency: IdempotencyRepo;
+  reports: ReportsRepo;
+  cluster: ClusterRepo;
+  scheduler: SchedulerRepo;
   /** Run fn atomically. Memory store runs it serially; Postgres uses a transaction. */
   transaction<T>(fn: (store: DataStore) => Promise<T>): Promise<T>;
   health(): Promise<{ ok: boolean; detail?: string }>;

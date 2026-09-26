@@ -6,7 +6,6 @@ import {
   checkAppeal,
   checkKycReview,
   checkSuspension,
-  countSlaBreaches,
   kycStatusAfter,
   maskPhone,
   mfaStillValid,
@@ -14,6 +13,7 @@ import {
   toBase32,
   verifyTotp,
   type DisputeQueueMove,
+  type JobStatus,
   type KycDecision,
 } from '@hyperlocal/core';
 import type { Adapters } from '../../adapters';
@@ -363,54 +363,29 @@ export function adminService(d: AdminDeps) {
     },
 
     // ------------------------------------------------------------------ reports
-    /** The numbers an operator actually looks at, straight from the records. */
+    /**
+     * The numbers an operator actually looks at.
+     *
+     * This used to walk the store: up to 500 customers, up to 200 jobs each, and a ledger read
+     * per job. Thousands of round trips for one screen, which was the smaller problem. The
+     * bigger one was that it truncated in silence - past 500 customers the report simply stopped
+     * counting, and nothing on the screen said so, which makes a quiet week and a missing
+     * thousand jobs look identical. The aggregates now run where the rows are and cover whole
+     * tables.
+     */
     async opsReport() {
-      const jobsByStatus: Record<string, number> = {};
-      let capturedPaise = 0;
-      let refundedPaise = 0;
-      let platformRevenuePaise = 0;
-
-      const customers = await store.users.search('', 500).catch(() => []);
-      const jobIds = new Set<string>();
-      for (const user of customers) {
-        for (const job of await store.jobs.listForCustomer(user.id, { limit: 200 })) {
-          if (jobIds.has(job.id)) continue;
-          jobIds.add(job.id);
-          jobsByStatus[job.status] = (jobsByStatus[job.status] ?? 0) + 1;
-          for (const e of await store.finance.listLedgerForJob(job.id)) {
-            const amount = Number(e.amount_paise);
-            if (e.entry_type === 'CUSTOMER_CHARGE') capturedPaise += amount;
-            if (e.entry_type === 'REFUND') refundedPaise += -amount;
-            if (e.entry_type === 'PLATFORM_REVENUE') platformRevenuePaise += -amount;
-          }
-        }
-      }
-
-      const [pending, initiated, paid, onHold, disputes, kyc] = await Promise.all([
-        store.finance.listSettlementsByStatus('PENDING', 500),
-        store.finance.listSettlementsByStatus('INITIATED', 500),
-        store.finance.listSettlementsByStatus('PAID', 500),
-        store.finance.listSettlementsByStatus('ON_HOLD', 500),
-        store.finance.listDisputesByStatus(['OPEN', 'UNDER_REVIEW', 'AWAITING_PARTY', 'ESCALATED', 'REOPENED'], 500),
-        store.kyc.listByStatus(['SUBMITTED', 'UNDER_REVIEW'], 500),
-      ]);
-
-      const live = ['OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING', 'PAYMENT_PENDING', 'CONFIRMED', 'PROVIDER_ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'STARTED', 'IN_PROGRESS'];
+      const o = await store.reports.opsOverview(new Date());
+      // What counts as "live" is a domain question, so it is answered here in one place rather
+      // than duplicated into the SQL and the memory mirror.
+      const live: readonly JobStatus[] = [
+        'OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING', 'PAYMENT_PENDING', 'CONFIRMED',
+        'PROVIDER_ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'STARTED', 'IN_PROGRESS',
+      ];
       return {
         generatedAt: new Date().toISOString(),
-        jobsByStatus,
-        liveJobs: live.reduce((t, s) => t + (jobsByStatus[s] ?? 0), 0),
-        completedJobs: (jobsByStatus.COMPLETED ?? 0) + (jobsByStatus.SETTLED ?? 0),
-        capturedPaise,
-        refundedPaise,
-        platformRevenuePaise,
-        payoutsPendingPaise: [...pending, ...initiated, ...onHold].reduce((t, s) => t + Number(s.amount_paise), 0),
-        payoutsPaidPaise: paid.reduce((t, s) => t + Number(s.amount_paise), 0),
-        disputesOpen: disputes.length,
-        disputesBreachingSla: countSlaBreaches(disputes.map((x) => ({ slaDueAt: x.sla_due_at, status: x.status }))),
-        kycPending: kyc.length,
-        providersVerified: 0,
-        providersSuspended: 0,
+        ...o,
+        liveJobs: live.reduce((t, s2) => t + (o.jobsByStatus[s2] ?? 0), 0),
+        completedJobs: (o.jobsByStatus.COMPLETED ?? 0) + (o.jobsByStatus.SETTLED ?? 0),
       };
     },
 

@@ -23,7 +23,7 @@ const OPEN_STATUSES: JobStatus[] = [
 ];
 
 /** In-memory jobs repository mirroring the constraints in 0002_jobs.sql. */
-export function createMemoryJobsRepo(): JobsRepo & { _events: JobStatusEventRecord[] } {
+export function createMemoryJobsRepo(): JobsRepo & { _events: JobStatusEventRecord[]; _all: () => JobRecord[] } {
   const jobs = new Map<string, JobRecord>();
   const media = new Map<string, JobMediaRecord>();
   const events: JobStatusEventRecord[] = [];
@@ -36,6 +36,8 @@ export function createMemoryJobsRepo(): JobsRepo & { _events: JobStatusEventReco
 
   return {
     _events: events,
+    /** Every job, for the ops report. The SQL side answers the same question with one aggregate. */
+    _all: () => [...jobs.values()],
 
     async create(j) {
       // mirrors jobs_one_draft_per_target_idx

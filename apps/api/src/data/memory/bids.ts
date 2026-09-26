@@ -56,12 +56,14 @@ export function createMemoryBidsRepo(): BidsRepo {
   };
 }
 
-export function createMemoryKycRepo(): KycRepo {
+export function createMemoryKycRepo(): KycRepo & { _all: () => KycRecord[] } {
   const records = new Map<string, KycRecord>();
   const now = () => new Date();
   const OPEN = ['SUBMITTED', 'UNDER_REVIEW'];
 
   return {
+    /** Every record, for the ops report, which must not answer with a truncated count. */
+    _all: () => [...records.values()],
     async submit(k) {
       // mirrors kyc_records_open_idx: one open submission per user and document type
       const open = [...records.values()].find((r) => r.user_id === k.user_id && r.document_type === k.document_type && OPEN.includes(r.status));

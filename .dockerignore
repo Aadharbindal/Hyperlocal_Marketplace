@@ -1,0 +1,30 @@
+# Everything the build does not need. This is not only about image size: the smaller the build
+# context, the less there is that can accidentally end up in a layer - and `.env` is on this list
+# for exactly that reason.
+node_modules
+**/node_modules
+dist
+**/dist
+.expo
+**/.expo
+.git
+.github
+coverage
+**/coverage
+
+# Secrets never enter the build context. `.env.example` is placeholders and is allowed.
+.env
+.env.*
+!.env.example
+
+# The mobile app is not part of the API image; only its package.json is copied, explicitly.
+apps/mobile/app
+apps/mobile/src
+apps/mobile/assets
+
+# Documentation, scratch and editor files.
+*.md
+!README.md
+.vscode
+.idea
+*.log

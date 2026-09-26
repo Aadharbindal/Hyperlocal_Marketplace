@@ -297,6 +297,39 @@ export function schedulerService(d: SchedulerDeps) {
 
   let running = false;
 
+  /**
+   * The cluster's view of when each task last ran.
+   *
+   * The in-process map remains as a cache so a single run does not re-read the table, but the
+   * store is the source of truth. That distinction is the whole point: with the state held per
+   * node, a second node believed nothing had ever run and fired every task on its first tick.
+   */
+  async function loadStates(): Promise<Map<ScheduledTask, TaskState>> {
+    const rows = await store.scheduler.loadRuns();
+    states.clear();
+    for (const r of rows) {
+      states.set(r.task as ScheduledTask, {
+        task: r.task as ScheduledTask,
+        lastRunAt: r.last_run_at,
+        lastDurationMs: r.last_duration_ms,
+        lastError: r.last_error,
+        runs: Number(r.runs),
+      });
+    }
+    return states;
+  }
+
+  async function record(state: TaskState) {
+    states.set(state.task, state);
+    await store.scheduler.recordRun({
+      task: state.task,
+      last_run_at: state.lastRunAt ?? new Date(),
+      last_duration_ms: state.lastDurationMs ?? 0,
+      last_error: state.lastError,
+      runs: state.runs,
+    });
+  }
+
   return {
     states,
 
@@ -307,7 +340,7 @@ export function schedulerService(d: SchedulerDeps) {
       try {
         const handled = await RUNNERS[task](now);
         const result: TaskResult = { task, handled, durationMs: Date.now() - started };
-        states.set(task, {
+        await record({
           task,
           lastRunAt: new Date(),
           lastDurationMs: result.durationMs,
@@ -318,7 +351,7 @@ export function schedulerService(d: SchedulerDeps) {
         return result;
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
-        states.set(task, {
+        await record({
           task,
           lastRunAt: new Date(),
           lastDurationMs: Date.now() - started,
@@ -331,25 +364,37 @@ export function schedulerService(d: SchedulerDeps) {
       }
     },
 
-    /** Runs everything that is due. Overlapping runs are skipped rather than queued. */
+    /**
+     * Runs everything that is due, and only on one node.
+     *
+     * The lock is what makes this safe to run everywhere: every node ticks, one wins, the rest
+     * return immediately. Losing the race is the normal case, not an error, so it is silent.
+     * Reading the schedule inside the lock means the winner sees what the last winner did,
+     * whichever node that was.
+     */
     async runDue(now: Date = new Date()): Promise<TaskResult[]> {
       if (running) return [];
       running = true;
       try {
-        const results: TaskResult[] = [];
-        for (const spec of dueTasks(states, now)) {
-          results.push(await this.runTask(spec.task, now));
-        }
-        return results;
+        const results = await store.cluster.withLock('scheduler:tick', async () => {
+          const loaded = await loadStates();
+          const out: TaskResult[] = [];
+          for (const spec of dueTasks(loaded, now)) {
+            out.push(await this.runTask(spec.task, now));
+          }
+          return out;
+        });
+        return results ?? [];
       } finally {
         running = false;
       }
     },
 
     /** What an operator sees: every task, when it last ran and whether it complained. */
-    status() {
+    async status() {
+      const loaded = await loadStates();
       return TASK_SCHEDULE.map((spec) => {
-        const state = states.get(spec.task);
+        const state = loaded.get(spec.task);
         return {
           task: spec.task,
           everySeconds: spec.everySeconds,

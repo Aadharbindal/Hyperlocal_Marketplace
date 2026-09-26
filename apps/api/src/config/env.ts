@@ -29,6 +29,30 @@ const EnvSchema = z.object({
   DATA_MODE: z.enum(['memory', 'postgres']).default('memory'),
   DATABASE_URL: z.string().optional(),
 
+  /**
+   * Connection pool, per node.
+   *
+   * The number that matters is not this one but this one times the number of nodes, plus one
+   * more per node for the LISTEN connection the event bus holds open permanently. That total has
+   * to stay comfortably under the server's `max_connections`, and on a managed Postgres it is
+   * usually far lower than people expect - a small instance often allows around 100, shared with
+   * backups, migrations and whatever is connected from a laptop.
+   *
+   * Ten per node is chosen to be obviously safe for a pilot at four nodes rather than to be
+   * optimal. It is worth raising only alongside a measurement showing requests waiting on the
+   * pool, because a pool larger than the database can serve moves the queue rather than
+   * shortening it.
+   */
+  DATABASE_POOL_MAX: z.coerce.number().int().min(2).max(100).default(10),
+  DATABASE_POOL_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30_000),
+  /** Fail fast rather than piling up requests behind an exhausted pool. */
+  DATABASE_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(500).default(5_000),
+  /**
+   * A ceiling on any single statement. Without it one pathological query holds a connection
+   * until somebody notices, and with a small pool that is an outage rather than a slow page.
+   */
+  DATABASE_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(1000).default(15_000),
+
   SUPABASE_URL: z.string().optional(),
   SUPABASE_ANON_KEY: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),

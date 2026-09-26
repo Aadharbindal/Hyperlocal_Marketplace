@@ -1,19 +1,48 @@
 import type { FastifyInstance } from 'fastify';
 import { LogoutBody, RefreshBody, RequestOtpBody, VerifyOtpBody } from '@hyperlocal/core';
+import { sharedLimit } from '../../lib/shared-limit';
 import { parse } from '../../lib/validate';
 import { requireAuth } from '../../plugins/auth';
 import type { AppContext } from '../../app';
 
 export async function authRoutes(app: FastifyInstance, ctx: AppContext) {
-  const otpLimit = { config: { rateLimit: { max: 30, timeWindow: '1 hour' } } };
+  /**
+   * Counted in the database rather than in this process.
+   *
+   * The framework limiter keeps its count in a Map, which is exactly right for one node and
+   * twice as generous as it reads on two. The OTP limits underneath this - per phone and per IP,
+   * in `otp_challenges` - were always shared and are the control that actually stops an attack;
+   * this one is the cheap gate in front of them, and it should not be the looser of the two.
+   */
+  const requestLimit = sharedLimit(ctx.store, {
+    name: 'otp.request',
+    max: 30,
+    windowSeconds: 3600,
+    key: (req) => {
+      const body = req.body as { phone?: unknown } | null;
+      return typeof body?.phone === 'string' ? body.phone : req.ip;
+    },
+  });
 
-  app.post('/auth/request-otp', otpLimit, async (req, reply) => {
+  // Keyed by challenge, because guessing a code is an attack on one challenge at a time and the
+  // attempt counter on the row is what finally stops it.
+  const verifyLimit = sharedLimit(ctx.store, {
+    name: 'otp.verify',
+    max: 30,
+    windowSeconds: 3600,
+    key: (req) => {
+      const body = req.body as { challengeId?: unknown } | null;
+      return typeof body?.challengeId === 'string' ? body.challengeId : req.ip;
+    },
+  });
+
+  app.post('/auth/request-otp', { preHandler: requestLimit }, async (req, reply) => {
     const body = parse(RequestOtpBody, req.body);
     const res = await ctx.services.auth.requestOtp({ phoneE164: body.phone, ip: req.ip, requestId: req.id });
     return reply.code(200).send(res);
   });
 
-  app.post('/auth/verify-otp', otpLimit, async (req, reply) => {
+  app.post('/auth/verify-otp', { preHandler: verifyLimit }, async (req, reply) => {
     const body = parse(VerifyOtpBody, req.body);
     const res = await ctx.services.auth.verifyOtp({
       challengeId: body.challengeId,

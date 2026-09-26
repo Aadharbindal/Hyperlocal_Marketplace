@@ -40,7 +40,7 @@ export async function eventRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get('/admin/scheduler', async (req) => {
     const auth = requireAuth(req);
     services.admin.requireStaff(auth.activeRole);
-    return { tasks: services.scheduler.status(), streams: services.events.stats() };
+    return { tasks: await services.scheduler.status(), streams: services.events.stats() };
   });
 
   /**

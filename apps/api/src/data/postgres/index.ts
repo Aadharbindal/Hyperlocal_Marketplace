@@ -1,3 +1,5 @@
+import { postgresCluster } from './cluster';
+import { postgresReports } from './reports';
 import pg from 'pg';
 import { conflict } from '../../lib/errors';
 import { createPostgresBidsRepo, createPostgresKycRepo } from './bids';
@@ -22,6 +24,7 @@ import type {
   SessionRecord,
   UserRecord,
   UserRoleRecord,
+  SchedulerRunRecord,
 } from '../types';
 
 type Queryable = { query: (text: string, params?: unknown[]) => Promise<pg.QueryResult> };
@@ -70,14 +73,40 @@ function translateDbError(e: unknown): never {
   throw e;
 }
 
-export function createPostgresStore(databaseUrl: string): DataStore {
+export interface PoolOptions {
+  max?: number;
+  idleTimeoutMillis?: number;
+  connectionTimeoutMillis?: number;
+  statementTimeoutMs?: number;
+}
+
+export function createPostgresStore(databaseUrl: string, opts: PoolOptions = {}): DataStore {
   useNumericTypes();
-  const pool = new pg.Pool({ connectionString: databaseUrl, max: 10 });
+  const pool = new pg.Pool({
+    connectionString: databaseUrl,
+    max: opts.max ?? 10,
+    idleTimeoutMillis: opts.idleTimeoutMillis ?? 30_000,
+    // Fail fast instead of queueing behind an exhausted pool: a request that waits thirty
+    // seconds for a connection has already lost the person who made it.
+    connectionTimeoutMillis: opts.connectionTimeoutMillis ?? 5_000,
+    // Applied per connection by the server, so one pathological query cannot hold a slot open
+    // indefinitely. With a small pool that is the difference between a slow page and an outage.
+    statement_timeout: opts.statementTimeoutMs ?? 15_000,
+  });
+  // A pool error - the server going away, a connection reset - is emitted on the pool rather
+  // than on any request, and an unhandled 'error' event on an EventEmitter takes the process
+  // down. Logged and swallowed: pg discards the bad connection and the next request gets a new
+  // one, which is a recovery rather than a reason to stop serving.
+  pool.on('error', (err) => {
+    console.error(JSON.stringify({ level: 'error', msg: 'postgres pool error', err: err.message }));
+  });
   const guarded: Queryable = { query: (text, params) => pool.query(text, params).catch(translateDbError) };
   return buildStore(guarded, pool);
 }
 
 function buildStore(q: Queryable, pool: pg.Pool): DataStore {
+  const cluster = postgresCluster(pool);
+
   const one = async <T>(text: string, params: unknown[] = []): Promise<T | null> => {
     const r = await q.query(text, params);
     return (r.rows[0] as T) ?? null;
@@ -92,6 +121,25 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
 
   const store: DataStore = {
     mode: 'postgres',
+
+    reports: postgresReports(q),
+    cluster,
+
+    scheduler: {
+      loadRuns: () => many<SchedulerRunRecord>('select * from scheduler_runs'),
+      async recordRun(rec) {
+        await q.query(
+          `insert into scheduler_runs (task, last_run_at, last_duration_ms, last_error, runs)
+           values ($1,$2,$3,$4,$5)
+           on conflict (task) do update set
+             last_run_at = excluded.last_run_at,
+             last_duration_ms = excluded.last_duration_ms,
+             last_error = excluded.last_error,
+             runs = excluded.runs`,
+          [rec.task, rec.last_run_at, rec.last_duration_ms, rec.last_error, rec.runs],
+        );
+      },
+    },
 
     users: {
       findById: (id) => one<UserRecord>('select * from users where id = $1', [id]),
@@ -464,6 +512,7 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
       }
     },
     async close() {
+      cluster._close();
       await pool.end();
     },
   };

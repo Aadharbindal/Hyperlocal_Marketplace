@@ -2,6 +2,8 @@ import { newId } from '../../lib/crypto';
 import { conflict } from '../../lib/errors';
 import { CATEGORY_SEED, SKILL_SEED } from '../catalog';
 import { createMemoryBidsRepo, createMemoryKycRepo } from './bids';
+import { createMemoryCluster } from './cluster';
+import { createMemoryReports } from './reports';
 import { createMemoryJobsRepo } from './jobs';
 import { createMemoryExecutionRepo } from './execution';
 import { createMemoryAdminRepo } from './admin';
@@ -27,6 +29,7 @@ import type {
   ProviderProfileRecord,
   TechnicianProfileRecord,
   RetentionEventRecord,
+  SchedulerRunRecord,
   SessionRecord,
   UserRecord,
   UserRoleRecord,
@@ -68,6 +71,17 @@ export function createMemoryStore(): DataStore {
   const financeRepo = createMemoryFinanceRepo();
   const adminRepo = createMemoryAdminRepo();
   const paymentsRepo = createMemoryPaymentsRepo();
+  const cluster = createMemoryCluster();
+  const schedulerRuns = new Map<string, SchedulerRunRecord>();
+  const reports = createMemoryReports({
+    jobs: () => jobsRepo._all(),
+    ledger: () => financeRepo._ledger(),
+    settlements: () => financeRepo._settlements(),
+    disputes: () => financeRepo._disputes(),
+    kyc: () => kycRepo._all(),
+    providerProfiles: () => [...providerProfiles.values()],
+    users: () => [...users.values()],
+  });
 
   // Serialise "transactions" with a simple promise chain so concurrent acceptances cannot interleave.
   let chain: Promise<unknown> = Promise.resolve();
@@ -494,6 +508,19 @@ export function createMemoryStore(): DataStore {
         const next = { ...retention[idx]!, executed_at: at };
         retention[idx] = next;
         return next;
+      },
+    },
+
+    reports,
+    cluster,
+
+    scheduler: {
+      // The same shape the SQL table has, so the scheduler cannot behave differently here.
+      async loadRuns() {
+        return [...schedulerRuns.values()].map((r) => ({ ...r }));
+      },
+      async recordRun(rec) {
+        schedulerRuns.set(rec.task, { ...rec });
       },
     },
 

@@ -88,7 +88,13 @@ export async function buildApp(opts: BuildOptions = {}) {
   const tokens = tokenService(env);
   const audit = auditService(store);
   const auth = authService({ env, store, adapters, audit, tokens });
-  const events = eventsService();
+  const events = eventsService(store.cluster, (e) => {
+    // A bus that has stopped working is invisible from the outside: every request still
+    // succeeds and every live screen simply stops moving. It has to be loud somewhere.
+    app.log.error({ err: e }, 'live event bus publish failed');
+    adapters.monitoring.captureError(e, { area: 'events' });
+  });
+  await events.start();
 
   // Every in-app notification is also a nudge on the live stream, and - if the person has a
   // device registered and has not asked us not to - a push. Wrapping the repository here keeps
@@ -312,15 +318,56 @@ export async function buildApp(opts: BuildOptions = {}) {
 
   app.setNotFoundHandler((req, reply) => reply.code(404).send(new AppError('NOT_FOUND').toBody(req.id, 'en')));
 
+  /**
+   * Liveness. Deliberately answers from nothing but the process being able to answer.
+   *
+   * A liveness probe that checks a dependency is a way of turning a database blip into a
+   * restart loop across every node at once, which is strictly worse than the blip.
+   */
   app.get('/health', async () => ({ ok: true, service: 'api', env: env.APP_ENV }));
-  app.get('/ready', async (_req, reply) => {
-    const db = await store.health();
-    const adapterStatus = await Promise.all(
+
+  /**
+   * Readiness, and the diagnostic an operator reads.
+   *
+   * Two things here were wrong for anything with a load balancer in front of it.
+   *
+   * The first is that it pinged every adapter on every call. With live credentials that is eight
+   * outbound API calls per probe per node, several with five-second timeouts - enough to rate
+   * limit us at the provider, and enough that the probe is slower than the interval it is
+   * called on.
+   *
+   * The second is worse: a failing adapter made this return 503, so a load balancer would pull
+   * the node out. If a payment provider has a bad ten minutes, every node reports itself unready
+   * at the same moment and the whole service goes down - including the great majority of
+   * requests that never touch payments. A third party's outage became ours, and automatically.
+   *
+   * So readiness is now about what this node can answer for: itself, and its database. Adapter
+   * health is still reported, because an operator needs to see it, but it is swept on a cache
+   * and it does not decide anything. `?deep=1` forces a fresh sweep for when somebody is
+   * actually looking.
+   */
+  let adapterCache: { at: number; rows: Array<{ name: string; provider: string; isMock: boolean; ok: boolean; detail?: string }> } | null = null;
+  const ADAPTER_CACHE_MS = 30_000;
+
+  async function adapterHealth(fresh: boolean) {
+    if (!fresh && adapterCache && Date.now() - adapterCache.at < ADAPTER_CACHE_MS) return adapterCache.rows;
+    const rows = await Promise.all(
       Object.values(adapters).map(async (a) => ({ name: a.name, provider: a.provider, isMock: a.isMock, ...(await a.health()) })),
     );
-    const ok = db.ok && adapterStatus.every((a) => a.ok);
+    adapterCache = { at: Date.now(), rows };
+    return rows;
+  }
+
+  app.get('/ready', async (req, reply) => {
+    const deep = (req.query as { deep?: string } | null)?.deep === '1';
+    const db = await store.health();
+    const adapterStatus = await adapterHealth(deep);
+
+    // Only the database gates readiness. Everything else is reported, not enforced.
+    const ok = db.ok;
     return reply.code(ok ? 200 : 503).send({
       ok,
+      degradedAdapters: adapterStatus.filter((a) => !a.ok).map((a) => a.name),
       env: env.APP_ENV,
       dataMode: store.mode,
       db,
@@ -328,7 +375,7 @@ export async function buildApp(opts: BuildOptions = {}) {
       mockedAdapters: adapterStatus.filter((a) => a.isMock).map((a) => a.name),
       maintenanceMode: env.MAINTENANCE_MODE,
       minAppVersion: env.MIN_APP_VERSION,
-      scheduler: env.SCHEDULER_ENABLED ? scheduler.status() : 'disabled',
+      scheduler: env.SCHEDULER_ENABLED ? await scheduler.status() : 'disabled',
       liveStreams: events.stats(),
       // An operator should be able to see at a glance that the console's second factor is off.
       adminMfaRequired: env.ADMIN_MFA_REQUIRED,

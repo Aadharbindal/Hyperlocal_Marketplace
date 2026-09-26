@@ -156,7 +156,7 @@ describe('the worker itself', () => {
     expect(results.length).toBeGreaterThan(0);
     expect(results.every((r) => typeof r.durationMs === 'number')).toBe(true);
 
-    const status = app.ctx.services.scheduler.status();
+    const status = await app.ctx.services.scheduler.status();
     // Every task in TASK_SCHEDULE is wired: a task in the schedule with no handler would be a
     // silent no-op, which is the failure mode a scheduler is least able to tell you about.
     expect(status.length).toBe(TASK_SCHEDULE.length);
@@ -166,9 +166,9 @@ describe('the worker itself', () => {
 
   it('does not run a task again before it is due', async () => {
     await app.ctx.services.scheduler.runTask('abandon-drafts');
-    const before = app.ctx.services.scheduler.status().find((t) => t.task === 'abandon-drafts')!.runs;
+    const before = (await app.ctx.services.scheduler.status()).find((t) => t.task === 'abandon-drafts')!.runs;
     await app.ctx.services.scheduler.runDue();
-    const after = app.ctx.services.scheduler.status().find((t) => t.task === 'abandon-drafts')!.runs;
+    const after = (await app.ctx.services.scheduler.status()).find((t) => t.task === 'abandon-drafts')!.runs;
     expect(after).toBe(before);
   });
 

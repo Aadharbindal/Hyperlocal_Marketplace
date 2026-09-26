@@ -16,7 +16,11 @@ import type {
 const OPEN_DISPUTE: readonly string[] = ['OPEN', 'UNDER_REVIEW', 'AWAITING_PARTY', 'ESCALATED', 'REOPENED'];
 
 /** In-memory finance repository mirroring the constraints in 0007_finance.sql. */
-export function createMemoryFinanceRepo(): FinanceRepo {
+export function createMemoryFinanceRepo(): FinanceRepo & {
+  _ledger: () => LedgerEntryRecord[];
+  _settlements: () => SettlementRecord[];
+  _disputes: () => DisputeRecord[];
+} {
   const ledger: LedgerEntryRecord[] = [];
   const settlements = new Map<string, SettlementRecord>();
   const refunds = new Map<string, RefundRecord>();
@@ -40,6 +44,12 @@ export function createMemoryFinanceRepo(): FinanceRepo {
   }
 
   return {
+    // Whole-collection reads for the ops report. Postgres answers the same three questions
+    // with aggregates; these exist so memory mode reports the same numbers rather than
+    // approximations of them.
+    _ledger: () => [...ledger],
+    _settlements: () => [...settlements.values()],
+    _disputes: () => [...disputes.values()],
     async appendLedger(batch) {
       if (batch.length === 0) return [];
       // mirrors ledger_entries_idempotency_idx: a replayed batch writes nothing
