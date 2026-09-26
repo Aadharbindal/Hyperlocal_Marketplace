@@ -174,6 +174,9 @@ export async function growthRoutes(app: FastifyInstance, ctx: AppContext) {
       first_job_only: body.firstJobOnly,
       redemption_count: 0,
       active: true,
+      // A campaign code is for everybody; reserved ones are issued by the referral path.
+      reserved_for_user_id: null,
+      referral_id: null,
       created_by: auth.userId,
     });
     await services.audit.record(req.auditCtx(), {

@@ -63,10 +63,29 @@ Any phone number works in mock SMS mode; the OTP is printed in the API log and i
 ```bash
 npm run typecheck
 npm run lint
+npm run a11y          # WCAG contrast + screen-reader labelling; fails on a miss
 npm run test
 npm run build
 npm run migrate:check
+
+npm run check         # all of the above, in order
 ```
+
+Two of these are worth a word. `npm run a11y` computes the contrast of every colour pairing the
+app actually renders, reading the palette straight out of `tokens.ts` so it cannot drift from the
+real values, and also refuses an icon-only control with no label. It is arithmetic, so it belongs
+in CI rather than in a review.
+
+`npm run load-test` is not in the gates because it needs a running API and a real database:
+
+```bash
+DATA_MODE=postgres DATABASE_URL=... npm run api:dev
+node scripts/load-test.mjs --users 100 --ramp 5000
+```
+
+Each virtual user walks a whole booking rather than hitting one endpoint, because nothing in this
+product is a single request. It reports per-endpoint percentiles and counts anything slower than
+three seconds.
 
 ## What is built
 

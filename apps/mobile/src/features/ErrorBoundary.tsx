@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { View } from 'react-native';
+import { reportCrash } from '@/api/crash';
 import { palette } from '@/theme';
 import { ErrorState } from '@/ui';
 
@@ -16,8 +17,9 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   }
 
   override componentDidCatch(error: Error) {
-    // Monitoring adapter hook: replaced by Sentry in production (KNOWN_LIMITATIONS.md).
-    console.error('[ErrorBoundary]', error);
+    // A crash on somebody's phone in another city is the one failure we can never reproduce and
+    // never hear about, so it goes somewhere rather than to the console.
+    void reportCrash(error, { screen: 'render' });
   }
 
   override render() {

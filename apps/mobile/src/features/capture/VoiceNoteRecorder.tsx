@@ -171,7 +171,7 @@ export function VoiceNoteRecorder({
         <Text variant="caption" weight="semibold" style={state.isRecording ? { color: palette.textOnPrimary } : undefined}>
           {state.isRecording ? 'Recording… tap to stop' : 'Say what the problem is'}
         </Text>
-        <Text variant="micro" style={state.isRecording ? { color: '#DFF3EC' } : { color: palette.textMuted }}>
+        <Text variant="micro" style={state.isRecording ? { color: palette.textOnPrimaryMuted } : { color: palette.textMuted }}>
           {state.isRecording
             ? `${seconds}s · ${MAX_VOICE_NOTE_SECONDS - seconds}s left`
             : `Up to ${MAX_VOICE_NOTE_SECONDS} seconds. Easier than typing it out.`}

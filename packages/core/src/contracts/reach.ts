@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { NOTIFICATION_CATEGORIES } from '../ops/reach';
+import { NOTIFICATION_CATEGORIES, SCHEDULE_PROPOSAL_STATUSES } from '../ops/reach';
 
 // ---------------------------------------------------------------------------
 // Devices
@@ -124,6 +124,40 @@ export const RescheduleBody = z
   })
   .strict();
 export type RescheduleBody = z.infer<typeof RescheduleBody>;
+
+// ---------------------------------------------------------------------------
+// A professional proposing a new time
+// ---------------------------------------------------------------------------
+
+export const ProposeTimeBody = z
+  .object({
+    newStart: z.string().datetime(),
+    newEnd: z.string().datetime().optional(),
+    /** Required: a customer rearranging their day deserves to know why it moved. */
+    reason: z.string().trim().min(10).max(300),
+  })
+  .strict();
+export type ProposeTimeBody = z.infer<typeof ProposeTimeBody>;
+
+export const RespondToProposalBody = z
+  .object({ accept: z.boolean(), reason: z.string().trim().max(300).optional() })
+  .strict();
+export type RespondToProposalBody = z.infer<typeof RespondToProposalBody>;
+
+export const ScheduleProposalView = z.object({
+  id: z.string().uuid(),
+  jobId: z.string().uuid(),
+  previousStart: z.string().nullable(),
+  newStart: z.string(),
+  newEnd: z.string().nullable(),
+  reason: z.string(),
+  status: z.enum(SCHEDULE_PROPOSAL_STATUSES),
+  /** Set for the person who has to answer, so the app can say how long they have. */
+  expiresAt: z.string(),
+  mine: z.boolean(),
+  createdAt: z.string(),
+});
+export type ScheduleProposalView = z.infer<typeof ScheduleProposalView>;
 
 export const RescheduleView = z.object({
   jobId: z.string().uuid(),

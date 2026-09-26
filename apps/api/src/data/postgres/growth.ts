@@ -69,14 +69,20 @@ export function createPostgresGrowthRepo(q: Queryable): GrowthRepo {
     async createPromo(p) {
       return (await one<PromoCodeRecord>(
         `insert into promo_codes (code, kind, value, max_discount_paise, min_order_paise, starts_at, ends_at,
-           max_redemptions, max_per_customer, first_job_only, active, created_by)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) returning *`,
+           max_redemptions, max_per_customer, first_job_only, active, created_by, reserved_for_user_id, referral_id)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning *`,
         [p.code, p.kind, p.value, p.max_discount_paise, p.min_order_paise, p.starts_at, p.ends_at,
-          p.max_redemptions, p.max_per_customer, p.first_job_only, p.active, p.created_by],
+          p.max_redemptions, p.max_per_customer, p.first_job_only, p.active, p.created_by,
+          p.reserved_for_user_id, p.referral_id],
       ))!;
     },
     findPromo: (code) => one<PromoCodeRecord>('select * from promo_codes where upper(code) = upper($1)', [code.trim()]),
-    listPromos: (limit) => many<PromoCodeRecord>('select * from promo_codes order by created_at desc limit $1', [limit]),
+    // Reserved codes are somebody's personal reward, not part of the campaign list.
+    listPromos: (limit) =>
+      many<PromoCodeRecord>(
+        'select * from promo_codes where reserved_for_user_id is null order by created_at desc limit $1',
+        [limit],
+      ),
     async updatePromo(id, patch) {
       const keys = Object.keys(patch);
       const sets = keys.map((k, idx) => `${k} = $${idx + 2}`).join(', ');

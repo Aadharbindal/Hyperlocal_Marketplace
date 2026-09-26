@@ -14,13 +14,15 @@
     "test:unit": "npm run test --workspace packages/core",
     "test:integration": "npm run test --workspace apps/api",
     "build": "npm run build --workspaces --if-present",
-    "check": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "check": "npm run typecheck && npm run lint && npm run a11y && npm run test && npm run build",
     "migrate:check": "node scripts/check-migrations.mjs",
     "api:dev": "npm run dev --workspace apps/api",
     "mobile:start": "npm run start --workspace apps/mobile",
     "seed:demo": "npm run seed --workspace apps/api",
     "mobile:web": "npm run web --workspace apps/mobile",
-    "migrate:apply": "node scripts/apply-migrations.mjs"
+    "migrate:apply": "node scripts/apply-migrations.mjs",
+    "load-test": "node scripts/load-test.mjs",
+    "a11y": "node scripts/a11y-audit.mjs"
   },
   "engines": {
     "node": ">=20.0.0",

@@ -918,6 +918,9 @@ export interface PromoCodeRecord {
   first_job_only: boolean;
   redemption_count: number;
   active: boolean;
+  /** Set when the code was issued to one person - a referral reward, or goodwill from support. */
+  reserved_for_user_id: string | null;
+  referral_id: string | null;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
@@ -982,6 +985,22 @@ export interface DataExportRequestRecord {
   status: 'READY' | 'FAILED';
   requested_at: Date;
   record_counts: Record<string, number>;
+}
+
+export interface ScheduleProposalRecord {
+  id: string;
+  job_id: string;
+  proposed_by: string;
+  previous_start: Date | null;
+  new_start: Date;
+  new_end: Date | null;
+  reason: string;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'WITHDRAWN' | 'EXPIRED';
+  responded_at: Date | null;
+  decline_reason: string | null;
+  expires_at: Date;
+  created_at: Date;
+  updated_at: Date;
 }
 
 /** Warranty claims, flagged-message review, recovery codes and export requests. */
@@ -1049,6 +1068,12 @@ export interface ReachRepo {
 
   addReschedule(r: New<JobRescheduleRecord>): Promise<JobRescheduleRecord>;
   listReschedules(jobId: string): Promise<JobRescheduleRecord[]>;
+
+  createProposal(p: New<ScheduleProposalRecord>): Promise<ScheduleProposalRecord>;
+  getProposal(id: string): Promise<ScheduleProposalRecord | null>;
+  updateProposal(id: string, patch: Partial<ScheduleProposalRecord>): Promise<ScheduleProposalRecord>;
+  findOpenProposal(jobId: string): Promise<ScheduleProposalRecord | null>;
+  listExpiredProposals(now: Date, limit: number): Promise<ScheduleProposalRecord[]>;
 }
 
 export interface RetentionRepo {
@@ -1120,6 +1145,8 @@ export interface NegotiationRepo {
   getActiveAssignment(jobId: string): Promise<AssignmentRecord | null>;
   /** Every live assignment this provider or contractor holds - the screen they run a day from. */
   listAssignmentsForProvider(providerId: string, limit: number): Promise<AssignmentRecord[]>;
+  /** And the ones a technician was actually sent on, which is a different question. */
+  listAssignmentsForTechnician(technicianId: string, limit: number): Promise<AssignmentRecord[]>;
   updateAssignment(id: string, patch: Partial<AssignmentRecord>): Promise<AssignmentRecord>;
 }
 

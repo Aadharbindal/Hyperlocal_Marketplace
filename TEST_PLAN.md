@@ -128,8 +128,25 @@ people using it:
 - ~~**Postgres repositories are written but untested.**~~ Closed. All 184 API tests now pass
   against a real PostgreSQL 17, and the run found four bugs that memory mode could not (see
   above). The gap that remains is that it is a manual run: it is not yet in CI.
-- **No load or soak test.** Nothing has measured what happens at a hundred concurrent bookings,
-  and the ops report walks the store rather than querying aggregates, which will not hold at
-  scale.
-- **No accessibility audit.** Labels and hit areas were written with care; nobody has run a
-  screen reader through a booking.
+- ~~**No load or soak test.**~~ Closed for load, open for soak. `scripts/load-test.mjs` drives
+  whole bookings rather than a GET loop - sign in on both sides, post a job, bid, accept,
+  authorise - because nothing in this product is a single request. A hundred concurrent bookings
+  against real Postgres completed 100/100 in 10.9s at 120 req/s with nothing over three seconds;
+  the slowest p95 was `provider/profile` at 1.6s. The two failure classes it reports are both the
+  system working: an unverified provider can neither go available nor bid, and verification is a
+  staff action, so a cold start stops there by design. What has **not** been measured is a soak:
+  nothing has run for hours, so a slow leak or an index that degrades as tables fill would not
+  have shown up. The ops report still walks the store rather than querying aggregates.
+- **Accessibility: measured, not yet heard.** `npm run a11y` computes the WCAG contrast of every
+  pairing the app renders and fails on a miss, checks that no icon-only control is unlabelled, and
+  flags text colours written as literal hexes that miss AA on their own. It found eight real
+  contrast failures and they are fixed (D-014). It is in CI, so the line holds.
+
+  It also found six controls it *claimed* were unlabelled and were not - the first version mistook
+  the `>` in `onPress={() => ...}` for the end of the opening tag and never saw the
+  `accessibilityLabel` past it. Worth recording, because a checker that reports false findings is
+  worse than no checker: the fix was to parse the tag properly rather than to relax the rule.
+
+  What remains open is the part a script cannot answer. Nobody has run TalkBack or VoiceOver
+  through a booking, so reading order, focus after a sheet closes, and whether the labels read
+  naturally out loud are all unverified. That is part of the device pass.

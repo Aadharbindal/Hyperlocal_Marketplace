@@ -88,6 +88,12 @@ export function createMemoryNegotiationRepo(): NegotiationRepo {
       assignments.set(rec.id, rec);
       return rec;
     },
+    async listAssignmentsForTechnician(technicianId, limit) {
+      return [...assignments.values()]
+        .filter((a) => a.technician_id === technicianId && a.status === 'ACTIVE')
+        .sort((x, y) => y.created_at.getTime() - x.created_at.getTime())
+        .slice(0, limit);
+    },
     async listAssignmentsForProvider(providerId, limit) {
       return [...assignments.values()]
         .filter((a) => a.provider_id === providerId && a.status === 'ACTIVE')

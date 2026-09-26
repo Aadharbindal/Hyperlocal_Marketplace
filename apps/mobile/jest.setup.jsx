@@ -11,6 +11,12 @@
 // Reanimated's own mock; without it every animated component throws on the worklet runtime.
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
+// AsyncStorage is a native module, so under Jest it is null. The offline outbox reads it at
+// import time and the API client imports the outbox, which puts it behind almost every screen -
+// so this belongs here rather than in the handful of suites that happen to notice.
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
+
 // Safe-area insets come from the device. A fixed set keeps layout assertions stable.
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 44, bottom: 34, left: 0, right: 0 }),

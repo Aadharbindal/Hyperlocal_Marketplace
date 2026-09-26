@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import type { ApiError as ApiErrorBody, ErrorCode } from '@hyperlocal/core';
+import { enqueue, flush, isQueueable } from './outbox';
 import { useSession } from '@/store/session';
 
 function resolveBaseUrl(): string {
@@ -34,6 +35,8 @@ interface RequestOptions {
   auth?: boolean;
   idempotencyKey?: string;
   _retry?: boolean;
+  /** Set when the outbox is replaying: it must never queue its own retry back into itself. */
+  _replaying?: boolean;
 }
 
 let refreshing: Promise<boolean> | null = null;
@@ -78,6 +81,25 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   try {
     res = await fetch(`${API_URL}${path}`, { method: opts.method ?? 'GET', headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body) });
   } catch (e) {
+    const method = opts.method ?? 'GET';
+    // A tap that landed as the lift doors closed used to simply vanish. Writes that are safe to
+    // repeat are kept instead, with the idempotency key they already had - so the retry is the
+    // same request rather than a second one that looks similar.
+    //
+    // Money is deliberately not in the allow-list: a person needs to watch a payment succeed or
+    // fail while they are looking at it, and "we will send this later" is not an acceptable
+    // answer about somebody's money.
+    const queueable = opts._replaying ? null : isQueueable(path, method);
+    if (queueable) {
+      await enqueue({
+        path,
+        method: method as 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+        body: opts.body,
+        idempotencyKey: opts.idempotencyKey,
+        label: queueable.label,
+      });
+      throw new ApiError('NETWORK', 'Saved. We will send this the moment you are back online.', 0, e);
+    }
     throw new ApiError('NETWORK', 'Network request failed', 0, e);
   }
 
@@ -99,7 +121,19 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   return json as T;
 }
 
-export function newIdempotencyKey(): string {
-  const g = globalThis as { crypto?: { randomUUID?: () => string } };
-  return g.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+/**
+ * Replays whatever the outbox is holding. Called when the connection returns; safe to call at
+ * any time, because an empty outbox does nothing.
+ */
+export async function flushOutbox() {
+  return flush((entry) =>
+    api(entry.path, {
+      method: entry.method,
+      body: entry.body,
+      idempotencyKey: entry.idempotencyKey,
+      _replaying: true,
+    }).then(() => undefined),
+  );
 }
+
+export { newIdempotencyKey } from './ids';

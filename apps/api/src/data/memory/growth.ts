@@ -80,7 +80,11 @@ export function createMemoryGrowthRepo(): GrowthRepo {
       return [...promos.values()].find((p) => p.code.toUpperCase() === code.trim().toUpperCase()) ?? null;
     },
     async listPromos(limit) {
-      return [...promos.values()].sort((a, b) => b.created_at.getTime() - a.created_at.getTime()).slice(0, limit);
+      // Reserved codes are somebody's personal reward, not part of the campaign list.
+      return [...promos.values()]
+        .filter((p) => !p.reserved_for_user_id)
+        .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
+        .slice(0, limit);
     },
     async updatePromo(id, patch) {
       const p = promos.get(id);

@@ -18,7 +18,11 @@ import { useNetwork } from '@/store/network';
 import { useSession } from '@/store/session';
 import { palette } from '@/theme';
 import { useLiveUpdates } from '@/api/live';
+import { installGlobalCrashHandlers } from '@/api/crash';
 import { usePushRegistration } from '@/api/push';
+
+// Installed before anything renders, so a crash during startup is still reported.
+installGlobalCrashHandlers();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,8 +60,9 @@ function AuthGate() {
       if (segments[1] !== 'role') router.replace('/(auth)/role');
       return;
     }
-    // A contractor runs a crew, so they get their own area. A technician does not: they are
-    // sent jobs rather than winning them, so the provider screens are exactly right for them.
+    // Each role gets the app it needs. A technician used to be given the provider screens,
+    // which showed them a bidding feed they cannot use and earnings that belong to their
+    // contractor; they now have two tabs of their own.
     const target =
       activeRole === 'ADMIN' || activeRole === 'SUPPORT'
         ? '(admin)'
@@ -65,9 +70,11 @@ function AuthGate() {
           ? '(vendor)'
           : activeRole === 'CONTRACTOR'
             ? '(contractor)'
-            : activeRole === 'PROVIDER' || activeRole === 'TECHNICIAN'
-              ? '(provider)'
-              : '(customer)';
+            : activeRole === 'TECHNICIAN'
+              ? '(technician)'
+              : activeRole === 'PROVIDER'
+                ? '(provider)'
+                : '(customer)';
     const home =
       target === '(admin)'
         ? '/(admin)/queue'
@@ -75,9 +82,11 @@ function AuthGate() {
           ? '/(vendor)/requests'
           : target === '(contractor)'
             ? '/(contractor)/jobs'
-            : target === '(provider)'
-              ? '/(provider)/jobs'
-              : '/(customer)/home';
+            : target === '(technician)'
+              ? '/(technician)/jobs'
+              : target === '(provider)'
+                ? '/(provider)/jobs'
+                : '/(customer)/home';
     if (group !== target) router.replace(home as never);
   }, [hydrated, token, user, activeRole, segments, router]);
 

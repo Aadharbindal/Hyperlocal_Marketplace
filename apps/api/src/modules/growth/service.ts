@@ -7,8 +7,10 @@ import {
   invoiceNumber,
   promoDiscountPaise,
   receiptTotals,
+  REFERRAL_REWARD_VALID_DAYS,
   referralCodeFor,
   referralQualifies,
+  rewardCodeFor,
   type FavouriteProviderView,
   type InvoiceView,
   type PromoPreview,
@@ -45,6 +47,7 @@ export function growthService(d: GrowthDeps) {
     firstJobOnly: p.first_job_only,
     redemptionCount: p.redemption_count,
     active: p.active,
+    reservedForUserId: p.reserved_for_user_id,
   });
 
   /** How many jobs this person has actually seen through. Used by promo and referral rules. */
@@ -187,6 +190,7 @@ export function growthService(d: GrowthDeps) {
         customerRedemptions: redemptions,
         customerCompletedJobs: completed,
         now: new Date(),
+        customerId,
       });
       if (problem || !promo) {
         throw new AppError('VALIDATION_ERROR', {
@@ -244,7 +248,7 @@ export function growthService(d: GrowthDeps) {
       return {
         code,
         rewardPaise: REFERRAL_REWARD_PAISE,
-        terms: `You and your friend each get Rs ${REFERRAL_REWARD_PAISE / 100} once they complete their first booking.`,
+        terms: `When a friend finishes their first booking, you each get a code for Rs ${REFERRAL_REWARD_PAISE / 100} off your next one.`,
         invited: rows.length,
         qualified: rows.filter((r) => r.status === 'QUALIFIED' || r.status === 'REWARDED').length,
         earnedPaise: rows.filter((r) => r.status === 'REWARDED').reduce((t, r) => t + Number(r.reward_paise), 0),
@@ -300,21 +304,73 @@ export function growthService(d: GrowthDeps) {
         reward_paise: REFERRAL_REWARD_PAISE,
       });
 
-      // Both sides are told. The reward itself is credited by support for now, which is stated
-      // in KNOWN_LIMITATIONS rather than implied by a number on a screen.
-      for (const userId of [referral.referrer_id, referral.referred_id]) {
+      /**
+       * The reward pays itself, as a promo code reserved for each side.
+       *
+       * This used to stop at QUALIFIED and leave support to credit it by hand - a promise made
+       * on a screen and kept in a spreadsheet, which is the kind of thing that stops happening
+       * in a busy week.
+       *
+       * A code rather than a wallet balance on purpose: the promo path already says "the
+       * platform paid for this and the professional is paid in full", and a second money
+       * primitive would be a second ledger path with its own rounding and its own bugs.
+       */
+      const endsAt = new Date(Date.now() + REFERRAL_REWARD_VALID_DAYS * 24 * 3600_000);
+      const sides: Array<{ userId: string; side: 'REFERRER' | 'FRIEND'; body: string }> = [
+        {
+          userId: referral.referrer_id,
+          side: 'REFERRER',
+          body: `A friend you invited finished their first booking. Here is Rs ${REFERRAL_REWARD_PAISE / 100} off your next one.`,
+        },
+        {
+          userId: referral.referred_id,
+          side: 'FRIEND',
+          body: `Thanks for your first booking. Here is Rs ${REFERRAL_REWARD_PAISE / 100} off your next one.`,
+        },
+      ];
+
+      for (const { userId, side, body } of sides) {
+        const owner = await store.users.findById(userId);
+        if (!owner) continue;
+        const code = rewardCodeFor(await this.codeFor(owner), side);
+
+        // Issuing twice would be issuing twice: a replayed completion must not mint a second
+        // reward, and the unique index on the code is what makes that true.
+        if (!(await store.growth.findPromo(code))) {
+          await store.growth.createPromo({
+            code,
+            kind: 'FLAT',
+            value: REFERRAL_REWARD_PAISE,
+            max_discount_paise: null,
+            min_order_paise: 0,
+            funded_by: 'PLATFORM',
+            starts_at: new Date(),
+            ends_at: endsAt,
+            max_redemptions: 1,
+            max_per_customer: 1,
+            first_job_only: false,
+            redemption_count: 0,
+            active: true,
+            reserved_for_user_id: userId,
+            referral_id: referral.id,
+            created_by: null,
+          });
+        }
+
         await store.notifications.create({
           user_id: userId,
-          type: 'promo.referral_qualified',
-          title: 'Your referral reward is on its way',
-          body: 'A friend you invited completed their first booking. Your reward will be credited shortly.',
-          data: { jobId: job.id },
+          type: 'promo.referral_reward',
+          title: `Your reward: ${code}`,
+          body,
+          data: { jobId: job.id, code },
           channel: 'IN_APP',
           read_at: null,
           sent_at: new Date(),
         });
       }
-      adapters.analytics.track('referral_qualified', { userId: referral.referrer_id, jobId: job.id });
+
+      await store.growth.updateReferral(referral.id, { status: 'REWARDED', rewarded_at: new Date() });
+      adapters.analytics.track('referral_rewarded', { userId: referral.referrer_id, jobId: job.id });
     },
   };
 }

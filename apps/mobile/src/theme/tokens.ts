@@ -6,6 +6,17 @@
  * white pill tab bar. Screens never hard-code these values; they consume components from
  * `src/ui`, which read from here. The final design handoff swaps this file (and component
  * styling) without touching business logic.
+ *
+ * Several foregrounds are a shade darker than the reference. `scripts/a11y-audit.mjs` computes
+ * the WCAG contrast of every pairing the app actually renders, and these are the values that
+ * clear AA against the hardest background they sit on. Only the foregrounds moved: the mint
+ * grounds, the white cards and the pastel chip backgrounds are untouched, because they are what
+ * the design looks like, while the text on top of them is what it is for.
+ *
+ * `primary` is a fill - buttons, icons, borders - and is held to the 3:1 that WCAG asks of
+ * non-text, plus enough to carry white label text. Teal *text* on a light ground cannot reach
+ * 4.5:1 without ceasing to be the brand teal, so it does not try: `Text` renders tone="primary"
+ * in `primaryDeep` instead.
  */
 
 export const palette = {
@@ -18,35 +29,39 @@ export const palette = {
   borderStrong: '#C3D9CE',
 
   // Brand teal
-  primary: '#0E8A6A',
+  primary: '#0D8265',      // AA against white for a button label; the reference teal, a shade down
   primaryPressed: '#0B6F55',
   primaryDeep: '#0A5E48',
   primarySoft: '#D9F1E7',   // icon chip / badge background
   primaryGlow: 'rgba(14, 138, 106, 0.16)',
   gradientStart: '#0B7C5F',
-  gradientEnd: '#15A883',
+  // The hero gradient's light end. It is darker than the reference, and that is the one place
+  // accessibility cost the design something: the original end was light enough that 13px white
+  // caption text on it sat at 2.5:1. The sweep is narrower now, but every word on the hero is
+  // legible, including the muted ones.
+  gradientEnd: '#108065',
 
   // Text
   text: '#10231C',
   textSecondary: '#5B6E67',
-  textMuted: '#8FA39B',
+  textMuted: '#63706B',
   textOnPrimary: '#FFFFFF',
-  textOnPrimaryMuted: 'rgba(255,255,255,0.82)',
+  textOnPrimaryMuted: 'rgba(255,255,255,0.94)',
 
   // Semantic
-  success: '#16A34A',
+  success: '#117D39',
   successSoft: '#DCF5E6',
-  warning: '#E0A400',
+  warning: '#8D6700',
   warningSoft: '#FFF2CC',
-  danger: '#E5484D',
+  danger: '#BB3B3F',
   dangerSoft: '#FDE2E3',
-  info: '#2F6FED',
+  info: '#2A62D2',
   infoSoft: '#DCE9FF',
 
   // Accent chips for categories (pastel background + saturated icon)
   chip: {
     teal: { bg: '#CDEFE3', fg: '#0E8A6A' },
-    amber: { bg: '#FFF0CC', fg: '#E58E00' },
+    amber: { bg: '#FFF0CC', fg: '#C57A00' },
     slate: { bg: '#ECEFF1', fg: '#5F6B72' },
     blue: { bg: '#DCEBFF', fg: '#2F6FED' },
     pink: { bg: '#FDE1EC', fg: '#E0457B' },

@@ -21,6 +21,7 @@ PostgreSQL 15 (Supabase). Conventions:
 | `0005_execution` | M5 | start_otps, price_revision_requests, job_completions, chat_threads, chat_messages (+ revision-actor, chat-sender and message-immutability triggers) |
 | `0006_materials` | M6 | material_requests, material_quotes, material_orders (+ requester, vendor-verified and invoice-match triggers) |
 | `0008_admin` | M8 | admin_mfa, kyc_access_log (+ sessions.mfa_verified_at, dispute queue columns, the two-person suspension trigger) |
+| `0013_rewards_and_scheduling` | post-M9 | schedule_proposals (+ `promo_codes.reserved_for_user_id` and `referral_id`, and the one-open-proposal partial unique) |
 | `0012_warranty_and_trust` | post-M9 | warranty_claims, admin_recovery_codes, data_export_requests (+ review columns on chat_messages, `jobs.warranty_claim_id`) |
 | `0011_receipts_and_growth` | post-M9 | invoices, favourite_providers, promo_codes, promo_redemptions, referrals (+ `booking_quotes.discount_paise`, `users.referral_code`) |
 | `0010_delivery_and_reach` | post-M9 | device_tokens, masked_calls, job_reschedules (+ notification switches on users, `jobs.reschedule_count`) |
@@ -224,6 +225,20 @@ check its age (8 hours) rather than trusting a role claim alone.
 ### support_tickets (M7)
 `(id, opened_by, job_id, category, subject, body, status, assigned_to, priority, closed_at)`.
 
+### schedule_proposals (post-M9)
+`(id, job_id, proposed_by, previous_start, new_start, new_end, reason, status, responded_at,
+decline_reason, expires_at)`. A provider who cannot make the agreed time **proposes** rather than
+reschedules: the customer's time is theirs, so nothing on the job moves until they answer.
+`previous_start` is kept on the row so the history still reads correctly after the job itself has
+moved on. Accepting writes a real `job_reschedules` row, which is what makes a provider-initiated
+change and a customer-initiated one read identically afterwards.
+
+### promo_codes (post-M9 additions)
+`reserved_for_user_id`, `referral_id` - a referral reward is issued as a code belonging to one
+person rather than as a wallet balance. A second money primitive would have needed its own ledger
+path and its own rounding; a reserved code needs neither. Reserved codes are refused to anybody
+else and are excluded from the general promo list.
+
 ## Critical constraints (enforced in SQL + code)
 
 | Rule | Mechanism |
@@ -247,6 +262,8 @@ check its age (8 hours) rather than trusting a role claim alone.
 | An invoice must match its order | trigger `material_invoice_matches_order` |
 | No review before completion | trigger `reviews_require_completion` |
 | No technician assignment without verification | trigger `assignment_requires_verified_technician` |
+| One open time proposal per job | partial unique on `schedule_proposals(job_id) where status = 'PENDING'` |
+| A reward code belongs to one person | `promo_codes.reserved_for_user_id`, checked server-side before redemption |
 | One open price revision per job | partial unique on `price_revision_requests(job_id) where status in ('PENDING','CLARIFICATION')` |
 | A revision must cost more and add something | checks `price_revision_is_higher`, `price_revision_adds_something` |
 | Only the customer answers a revision | trigger `price_revision_actors_valid` |

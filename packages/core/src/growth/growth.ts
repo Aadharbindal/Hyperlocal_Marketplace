@@ -23,7 +23,8 @@ export type PromoBlocker =
   | 'FULLY_REDEEMED'
   | 'ALREADY_USED'
   | 'FIRST_JOB_ONLY'
-  | 'ORDER_TOO_SMALL';
+  | 'ORDER_TOO_SMALL'
+  | 'NOT_YOURS';
 
 export interface PromoTerms {
   kind: PromoKind;
@@ -38,13 +39,18 @@ export interface PromoTerms {
   firstJobOnly: boolean;
   redemptionCount: number;
   active: boolean;
+  /** Set when the code was issued to one person - a referral reward, or goodwill from support. */
+  reservedForUserId?: string | null;
 }
 
 export function checkPromo(
   promo: PromoTerms | null,
-  context: { orderPaise: number; customerRedemptions: number; customerCompletedJobs: number; now: Date },
+  context: { orderPaise: number; customerRedemptions: number; customerCompletedJobs: number; now: Date; customerId?: string },
 ): PromoBlocker | null {
   if (!promo) return 'NOT_FOUND';
+  // A reserved code is somebody else's reward. Reported as NOT_YOURS rather than NOT_FOUND so
+  // the person who was given it is not told their own code does not exist.
+  if (promo.reservedForUserId && promo.reservedForUserId !== context.customerId) return 'NOT_YOURS';
   if (!promo.active) return 'INACTIVE';
   if (promo.startsAt > context.now) return 'NOT_STARTED';
   if (promo.endsAt && promo.endsAt <= context.now) return 'EXPIRED';
@@ -83,6 +89,8 @@ export function explainPromoBlocker(blocker: PromoBlocker, minOrderPaise = 0): s
       return 'That code is for a first booking only.';
     case 'ORDER_TOO_SMALL':
       return `That code applies to bookings over ${formatInrShort(minOrderPaise)}.`;
+    case 'NOT_YOURS':
+      return 'That code was issued to somebody else.';
   }
 }
 
@@ -152,6 +160,21 @@ export const REFERRAL_REWARD_PAISE = 10_000; // Rs 100 to each side
 export function referralQualifies(input: { referredCompletedJobs: number; jobWasDisputed: boolean }): boolean {
   return input.referredCompletedJobs >= 1 && !input.jobWasDisputed;
 }
+
+/**
+ * A referral reward is paid as a promo code reserved for one person, rather than as a wallet
+ * balance. The promo path is already built and tested - including the rule that a discount is
+ * the platform's cost and never the provider's - and a second money primitive would be a second
+ * ledger path with its own rounding and its own bugs, expressing something this one already says.
+ *
+ * The code carries the person's own referral code inside it so it reads as theirs.
+ */
+export function rewardCodeFor(referralCode: string, side: 'REFERRER' | 'FRIEND'): string {
+  return `${side === 'REFERRER' ? 'THANKS' : 'WELCOME'}${referralCode}`;
+}
+
+/** How long somebody has to spend a reward before it lapses. */
+export const REFERRAL_REWARD_VALID_DAYS = 90;
 
 // ---------------------------------------------------------------------------
 // Receipts

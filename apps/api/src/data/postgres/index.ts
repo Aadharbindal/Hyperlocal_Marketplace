@@ -17,6 +17,7 @@ import type {
   DeviceTokenRecord,
   JobRescheduleRecord,
   MaskedCallRecord,
+  ScheduleProposalRecord,
   OtpChallengeRecord,
   SessionRecord,
   UserRecord,
@@ -390,6 +391,28 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
       },
       listReschedules: (jobId) =>
         many<JobRescheduleRecord>('select * from job_reschedules where job_id = $1 order by created_at desc', [jobId]),
+
+      async createProposal(p) {
+        return (await one<ScheduleProposalRecord>(
+          `insert into schedule_proposals (job_id, proposed_by, previous_start, new_start, new_end, reason, status,
+             responded_at, decline_reason, expires_at)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning *`,
+          [p.job_id, p.proposed_by, p.previous_start, p.new_start, p.new_end, p.reason, p.status,
+            p.responded_at, p.decline_reason, p.expires_at],
+        ))!;
+      },
+      getProposal: (id) => one<ScheduleProposalRecord>('select * from schedule_proposals where id = $1', [id]),
+      async updateProposal(id, patch) {
+        const { sets, values } = patchSql(patch as Record<string, unknown>, 2);
+        return (await one<ScheduleProposalRecord>(`update schedule_proposals set ${sets} where id = $1 returning *`, [id, ...values]))!;
+      },
+      findOpenProposal: (jobId) =>
+        one<ScheduleProposalRecord>(`select * from schedule_proposals where job_id = $1 and status = 'PENDING'`, [jobId]),
+      listExpiredProposals: (at, limit) =>
+        many<ScheduleProposalRecord>(
+          `select * from schedule_proposals where status = 'PENDING' and expires_at <= $1 order by expires_at asc limit $2`,
+          [at, limit],
+        ),
     },
 
     retention: {

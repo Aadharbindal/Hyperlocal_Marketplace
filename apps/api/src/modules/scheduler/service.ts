@@ -236,6 +236,29 @@ export function schedulerService(d: SchedulerDeps) {
     return (await d.warranty.sweepUnanswered(BATCH)).length;
   }
 
+  /**
+   * Suggested times nobody answered. A proposal left open forever would leave a customer looking
+   * at a question they can no longer usefully answer, and a professional unsure whether the
+   * original time still stands.
+   */
+  async function expireProposals(now: Date): Promise<number> {
+    const due = await store.reach.listExpiredProposals(now, BATCH);
+    for (const proposal of due) {
+      await store.reach.updateProposal(proposal.id, { status: 'EXPIRED' });
+      await store.notifications.create({
+        user_id: proposal.proposed_by,
+        type: 'job.time_expired',
+        title: 'Your suggested time lapsed',
+        body: 'The customer did not answer, so the original time still stands.',
+        data: { jobId: proposal.job_id },
+        channel: 'IN_APP',
+        read_at: null,
+        sent_at: new Date(),
+      });
+    }
+    return due.length;
+  }
+
   async function retentionSweep(now: Date): Promise<number> {
     const due = await store.retention.listDue(now, BATCH);
     let handled = 0;
@@ -269,6 +292,7 @@ export function schedulerService(d: SchedulerDeps) {
     'chase-approvals': chaseApprovals,
     'retention-sweep': retentionSweep,
     'escalate-warranty': escalateWarranty,
+    'expire-proposals': expireProposals,
   };
 
   let running = false;

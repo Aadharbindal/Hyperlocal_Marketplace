@@ -211,6 +211,79 @@ export function checkCanReschedule(input: {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// A professional proposing a new time
+// ---------------------------------------------------------------------------
+
+/**
+ * Rescheduling has been the customer's alone since it was built, which left a professional whose
+ * van broke down with exactly one option: cancel. That costs them the job, costs the customer
+ * their booking, and writes a cancellation onto a record that should have shown a rearranged
+ * visit.
+ *
+ * A proposal is deliberately **not** a reschedule. The customer's time is theirs to arrange, so
+ * this asks rather than tells, and nothing moves until they answer.
+ */
+export const SCHEDULE_PROPOSAL_STATUSES = ['PENDING', 'ACCEPTED', 'DECLINED', 'WITHDRAWN', 'EXPIRED'] as const;
+export type ScheduleProposalStatus = (typeof SCHEDULE_PROPOSAL_STATUSES)[number];
+
+export type ProposalBlocker =
+  | 'NOT_ON_THIS_JOB'
+  | 'JOB_NOT_SCHEDULED'
+  | 'ALREADY_PROPOSED'
+  | 'IN_THE_PAST'
+  | 'TOO_FAR_AHEAD'
+  | 'REASON_REQUIRED';
+
+/** A time can only be proposed on a booking that has one and has not started. */
+const PROPOSABLE: readonly JobStatus[] = ['CONFIRMED', 'PROVIDER_ASSIGNED'];
+
+/** A proposal nobody answers cannot hang over a booking forever. */
+export const PROPOSAL_EXPIRES_HOURS = 24;
+
+export function checkCanProposeTime(input: {
+  jobStatus: JobStatus;
+  isProviderOnJob: boolean;
+  hasOpenProposal: boolean;
+  newStart: Date;
+  reason: string;
+  now: Date;
+}): ProposalBlocker | null {
+  if (!input.isProviderOnJob) return 'NOT_ON_THIS_JOB';
+  if (!PROPOSABLE.includes(input.jobStatus)) return 'JOB_NOT_SCHEDULED';
+  // A second open proposal would leave the customer choosing between two times the professional
+  // may no longer both have free.
+  if (input.hasOpenProposal) return 'ALREADY_PROPOSED';
+  // A customer deciding whether to accept a new time deserves to know why it moved.
+  if (input.reason.trim().length < 10) return 'REASON_REQUIRED';
+
+  const ms = input.newStart.getTime() - input.now.getTime();
+  if (ms <= 0) return 'IN_THE_PAST';
+  if (ms > RESCHEDULE_HORIZON_DAYS * 24 * 3600_000) return 'TOO_FAR_AHEAD';
+  return null;
+}
+
+export function explainProposalBlocker(blocker: ProposalBlocker): string {
+  switch (blocker) {
+    case 'NOT_ON_THIS_JOB':
+      return 'Only the professional booked for this job can suggest a new time.';
+    case 'JOB_NOT_SCHEDULED':
+      return 'This booking has no agreed time to move, or the work has already started.';
+    case 'ALREADY_PROPOSED':
+      return 'You have already suggested a time. Wait for their answer, or withdraw it first.';
+    case 'IN_THE_PAST':
+      return 'Suggest a time in the future.';
+    case 'TOO_FAR_AHEAD':
+      return 'Suggest a time within the next month.';
+    case 'REASON_REQUIRED':
+      return 'Say why the time needs to move - the customer is rearranging their day around this.';
+  }
+}
+
+export function proposalExpiresAt(createdAt: Date): Date {
+  return new Date(createdAt.getTime() + PROPOSAL_EXPIRES_HOURS * 3600_000);
+}
+
 /** What the customer is told, in the terms they think in rather than the ones the code uses. */
 export function explainRescheduleBlocker(blocker: RescheduleBlocker): string {
   switch (blocker) {

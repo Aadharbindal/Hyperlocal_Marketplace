@@ -3,6 +3,8 @@ import {
   REFERRAL_REWARD_PAISE,
   checkPromo,
   checkReferral,
+  explainPromoBlocker,
+  rewardCodeFor,
   financialYearOf,
   invoiceNumber,
   promoDiscountPaise,
@@ -58,6 +60,15 @@ describe('promo codes', () => {
     expect(promoDiscountPaise(percent, 500_000)).toBe(15_000); // would be 1000, capped at 150
   });
 
+  it('will not let somebody spend a reward issued to another person', () => {
+    // Reported as NOT_YOURS rather than NOT_FOUND, so the person it belongs to is never told
+    // their own code does not exist.
+    const reserved: PromoTerms = { ...flat, reservedForUserId: 'user-a' };
+    expect(checkPromo(reserved, { ...context, customerId: 'user-b' })).toBe('NOT_YOURS');
+    expect(checkPromo(reserved, { ...context, customerId: 'user-a' })).toBeNull();
+    expect(explainPromoBlocker('NOT_YOURS')).toContain('somebody else');
+  });
+
   it('never discounts more than the bill', () => {
     // Paying somebody to book is not a discount, and a negative total is not a thing the
     // ledger can hold.
@@ -84,6 +95,13 @@ describe('referrals', () => {
     expect(checkReferral({ ...base, referrerId: null })).toBe('CODE_NOT_FOUND');
     // Somebody who already books here was coming anyway
     expect(checkReferral({ ...base, referredCompletedJobs: 2 })).toBe('NOT_A_NEW_USER');
+  });
+
+  it('pays the reward as a code that reads as theirs', () => {
+    // A code, not a wallet balance: the promo path already expresses "the platform paid for
+    // this, and the professional is paid in full" and a second money primitive would not.
+    expect(rewardCodeFor('AB2345', 'REFERRER')).toBe('THANKSAB2345');
+    expect(rewardCodeFor('AB2345', 'FRIEND')).toBe('WELCOMEAB2345');
   });
 
   it('pays out on completed work, never on a signup', () => {

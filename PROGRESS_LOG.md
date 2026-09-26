@@ -4,6 +4,131 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## The seven gaps, closed except the one that needs a phone
+
+**Milestone:** post-M9 - the remaining launch-readiness list
+**Date:** 2026-09-26
+**Status:** Complete except the device run, which was deliberately left for last
+
+**Why this exists:** a gap table had seven rows on it. Six were work; the seventh was running the
+app on a physical phone, which was held back until the rest was finished.
+
+**Implemented:**
+
+*A technician can see where they are going.* Until now they were handed the provider app: a
+bidding feed they cannot use and an earnings tab showing money that belongs to their contractor.
+Every "my jobs" route in the system filters on `provider_id`, and a technician is never the
+provider, so the honest answer to "what am I doing today" was that the app could not tell them.
+They now have two tabs of their own. The full address is on the card on purpose - somebody who
+has been assigned has to be able to arrive, and a screen that shows them "Green Park, Delhi" is a
+screen they work around by ringing the customer, which is the one number they must not have.
+
+*A provider who cannot make it proposes instead of cancelling.* Modelled as a proposal rather
+than a reschedule, because the customer's time is theirs: nothing moves until they answer. One
+open proposal per job, enforced by a partial unique index rather than by the service remembering
+to check. Accepting writes a real `job_reschedules` row, so the history reads the same whoever
+asked for the change.
+
+*The referral reward credits itself.* It was support crediting something by hand. It is now a
+promo code reserved to one person, refused to anybody else, expiring in 90 days and excluded from
+the general promo list. A reserved code rather than a wallet balance on purpose: a second money
+primitive would need its own ledger path and its own rounding, and this needs neither.
+
+*Work survives a dead connection.* Status updates, chat, photos, completion and availability
+queue and replay with the idempotency key they were given, so a reply nobody saw cannot produce a
+second anything. Money never queues - a person needs to watch a payment succeed or fail while
+they are looking at the screen, and "we will send this later" is not an acceptable thing to say
+about somebody else's money. It is an allow-list, so a route added next month is not silently
+queueable.
+
+*Crashes report themselves, with the personal parts removed.* A hand-written Sentry envelope POST
+rather than the native SDK, which keeps the build simple. Phone numbers, emails and bearer tokens
+are scrubbed from messages and stack frames before anything leaves the device. With no DSN set it
+logs to the console and sends nothing.
+
+*Load was measured by booking, not by pinging.* Each virtual user walks a whole booking, because
+nothing here is a single request and requests-per-second on a GET loop would answer a question
+nobody asked.
+
+*Accessibility became a check instead of an opinion.* See below - it is the part of this entry
+that found the most.
+
+**Changed files:** `apps/mobile/app/(technician)/*`, `apps/mobile/src/api/{technician,crash,outbox,ids}.ts`,
+`apps/api/src/modules/technician/routes.ts`, `apps/api/src/modules/jobs/service.ts`,
+`apps/api/src/modules/growth/service.ts`, `packages/core/src/{growth/growth,ops/reach}.ts`,
+`supabase/migrations/0013_rewards_and_scheduling.sql`, `scripts/{load-test,a11y-audit}.mjs`,
+`apps/mobile/src/theme/tokens.ts`, `apps/mobile/src/ui/Text.tsx`, `apps/mobile/app/(auth)/{phone,otp}.tsx`,
+`apps/mobile/src/features/capture/VoiceNoteRecorder.tsx`, `apps/mobile/jest.setup.jsx`,
+`.github/workflows/ci.yml`, `package.json`. Deleted: `apps/mobile/src/features/auth/` (dead).
+
+**Database changes:** `0013_rewards_and_scheduling.sql` - `promo_codes.reserved_for_user_id` and
+`referral_id`; `schedule_proposals` with a partial unique index allowing one PENDING row per job.
+Forward-only; 13/13 apply cleanly to a real PostgreSQL 17.
+
+**API changes:** `GET /technician/profile`, `GET /technician/jobs`; propose / respond / withdraw
+on a job's schedule proposal.
+
+**Tests added:** 12 API tests covering proposals and referral auto-credit (including a reward code
+refused to somebody it was not reserved for, and reserved codes staying out of `/admin/promos`);
+11 mobile tests over the outbox, asserting among other things that no money endpoint is queueable.
+
+**Tests passed:** 493 - core 196, API 268, mobile 29. The API suite also passes 268/268 against a
+real PostgreSQL 17, not only in memory mode. Typecheck clean across three workspaces, lint clean,
+build clean, migrations 13/13 valid, `npm run a11y` reports zero findings.
+
+**Manual verification completed:** load test against real Postgres at 25 and 100 concurrent
+booking walks. At 100: 100/100 completed in 10.9s, 1302 requests at 120 req/s, nothing over three
+seconds, slowest p95 `provider/profile` at 1.6s. The two reported failure classes are the system
+working as specified - an unverified provider can neither go available nor bid, and verification
+is a staff action - so a cold start stops there by design. The load script now says so at both
+call sites, having previously explained only one of them.
+
+**What the accessibility audit actually found.** Eight real contrast failures, and they are fixed:
+muted text at 2.3:1, success and danger text and the warning and info badges all under the line,
+a 3.4:1 tagline on the sign-in screen written as a literal hex where the palette could not see it,
+and 13px white caption text at 2.5:1 on the light end of the hero gradient. Foregrounds moved;
+the mint grounds, white cards and pastel chip fills did not. Teal is now split by role - `primary`
+is a fill and clears the 3:1 WCAG asks of non-text plus enough to carry a white label at 4.77:1,
+while teal as ink renders as `primaryDeep`, because teal text on a mint ground cannot reach 4.5:1
+and still be the brand teal. One thing was genuinely lost: the hero gradient's light end darkened
+from `#15A883` to `#108065`, which narrows the sweep visibly. That was a prettier gradient against
+a legible caption about a live booking.
+
+The audit also reported six unlabelled controls that were labelled all along: the first version
+mistook the `>` in an inline arrow handler for the end of the opening tag and never read the
+`accessibilityLabel` sitting past it. The fix was to parse the tag properly, not to relax the
+rule - a checker that reports things which are not true teaches people to ignore it. It now reads
+the palette straight out of `tokens.ts` for the same reason: a checker with its own private copy
+of the colours passes while the app fails.
+
+Two incidental findings. `apps/mobile/src/features/auth/` was dead code - nothing imported it -
+and it still contained the "Better Homes Happier Lives" text that was removed from the welcome
+screen earlier; the component went, the orphan file stayed. Deleted. And the mobile test suite was
+broken by my own earlier change: `client.ts` imports the outbox, which reads AsyncStorage at
+import time, which is null under Jest. The outbox's own test mocked it and passed, so the break
+only showed in two unrelated suites. Mocked globally in `jest.setup.jsx`.
+
+**Known limitations:** no screen-reader pass - the audit reads source and cannot tell whether the
+reading order makes sense, where focus lands after a sheet closes, or whether a label reads
+naturally out loud. No soak test: 100 concurrent bookings pass, but nothing has run for hours, so
+a slow leak or an index degrading as tables fill would not have appeared. Every live adapter is
+still credential-less and fails loudly at boot rather than falling back. Full list in
+`KNOWN_LIMITATIONS.md`.
+
+**Security considerations:** the technician view deliberately includes the full address and
+deliberately excludes price, payout and the customer's surname. Reserved promo codes are refused
+to anybody they were not issued to, checked server-side. The crash reporter scrubs phone numbers,
+emails and bearer tokens before transmission. The outbox will not replay anything that moves
+money.
+
+**External integrations mocked or live:** unchanged - all mocked. Sentry is wired but inert
+without a DSN.
+
+**Next milestone:** the device run - the app on a physical phone on SDK 57, which is also when
+TalkBack and VoiceOver get walked through a booking.
+
+---
+
 ## Making the built things reachable
 
 **Milestone:** post-M9 - screens for features that already worked and nobody could get to

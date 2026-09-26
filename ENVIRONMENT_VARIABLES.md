@@ -77,3 +77,4 @@ values and, in `production`, refuses `mock` adapters for SMS and payments unless
 | `EXPO_PUBLIC_API_URL` | API base URL |
 | `EXPO_PUBLIC_APP_ENV` | environment label |
 | `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` | realtime/storage (later) |
+| `EXPO_PUBLIC_SENTRY_DSN` | crash reporting. Unset means crashes log to the console and go nowhere, which is the right default for development |

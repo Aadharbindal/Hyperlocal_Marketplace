@@ -7,7 +7,10 @@ import {
   checkSubmittable,
   detectHazards,
   MAX_RESCHEDULES,
+  checkCanProposeTime,
+  explainProposalBlocker,
   explainRescheduleBlocker,
+  proposalExpiresAt,
   isLikelyDuplicate,
   maskPhone,
   mediaPhaseFor,
@@ -517,6 +520,143 @@ export function jobService(d: JobDeps) {
         movesLeft: Math.max(0, MAX_RESCHEDULES - updated.reschedule_count),
         providerNotified: !!providerId,
       };
+    },
+
+    /**
+     * A professional suggesting a new time.
+     *
+     * Deliberately a proposal, not a reschedule. The customer's time is theirs to arrange, so
+     * this asks rather than tells and nothing moves until they answer. Before it existed, a
+     * professional whose van broke down had exactly one option - cancel - which cost them the
+     * job, cost the customer their booking, and wrote a cancellation onto a record that should
+     * have shown a rearranged visit.
+     */
+    async proposeTime(job: JobRecord, providerId: string, input: { newStart: string; newEnd?: string; reason: string }) {
+      const assignment = await store.negotiation.getActiveAssignment(job.id);
+      const onJob = [assignment?.provider_id, assignment?.technician_id, assignment?.contractor_id]
+        .filter(Boolean)
+        .includes(providerId);
+
+      const newStart = new Date(input.newStart);
+      const problem = checkCanProposeTime({
+        jobStatus: job.status,
+        isProviderOnJob: onJob || job.confirmed_provider_id === providerId,
+        hasOpenProposal: !!(await store.reach.findOpenProposal(job.id)),
+        newStart,
+        reason: input.reason,
+        now: new Date(),
+      });
+      if (problem === 'NOT_ON_THIS_JOB') throw forbidden('not booked for this job');
+      if (problem) {
+        throw new AppError('VALIDATION_ERROR', {
+          details: { proposal: [problem], message: explainProposalBlocker(problem) },
+        });
+      }
+
+      const now = new Date();
+      const proposal = await store.reach.createProposal({
+        job_id: job.id,
+        proposed_by: providerId,
+        previous_start: job.preferred_start,
+        new_start: newStart,
+        new_end: input.newEnd ? new Date(input.newEnd) : null,
+        reason: input.reason.trim(),
+        status: 'PENDING',
+        responded_at: null,
+        decline_reason: null,
+        expires_at: proposalExpiresAt(now),
+      });
+
+      const when = newStart.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+      await store.notifications.create({
+        user_id: job.customer_id,
+        type: 'job.time_proposed',
+        title: 'Your professional suggested a new time',
+        body: `They have asked to move the visit to ${when}. Nothing changes until you answer.`,
+        data: { jobId: job.id },
+        channel: 'IN_APP',
+        read_at: null,
+        sent_at: new Date(),
+      });
+      adapters.analytics.track('schedule_proposed', { userId: providerId, jobId: job.id });
+      return proposal;
+    },
+
+    /** The customer's answer. Accepting is the only thing that actually moves the booking. */
+    async respondToProposal(proposalId: string, customerId: string, input: { accept: boolean; reason?: string }) {
+      const proposal = await store.reach.getProposal(proposalId);
+      if (!proposal) throw notFound('proposal');
+      const job = await store.jobs.get(proposal.job_id);
+      if (!job) throw notFound('job');
+      if (job.customer_id !== customerId) throw forbidden('not your booking');
+      if (proposal.status !== 'PENDING') {
+        throw new AppError('VALIDATION_ERROR', { details: { proposal: ['ALREADY_ANSWERED'], status: proposal.status } });
+      }
+
+      if (!input.accept) {
+        const declined = await store.reach.updateProposal(proposal.id, {
+          status: 'DECLINED',
+          responded_at: new Date(),
+          decline_reason: input.reason ?? null,
+        });
+        await store.notifications.create({
+          user_id: proposal.proposed_by,
+          type: 'job.time_declined',
+          title: 'The customer kept the original time',
+          body: 'They would rather not move the visit. Message them if you cannot make it.',
+          data: { jobId: job.id },
+          channel: 'IN_APP',
+          read_at: null,
+          sent_at: new Date(),
+        });
+        return { proposal: declined, job };
+      }
+
+      // Accepting is a real reschedule, so it is recorded as one - the history of when a job was
+      // meant to happen should read the same whoever asked for the change.
+      await store.reach.addReschedule({
+        job_id: job.id,
+        requested_by: proposal.proposed_by,
+        previous_start: job.preferred_start,
+        previous_end: job.preferred_end,
+        new_start: proposal.new_start,
+        new_end: proposal.new_end,
+        reason: proposal.reason,
+      });
+      const updated = await store.jobs.update(job.id, {
+        preferred_start: proposal.new_start,
+        preferred_end: proposal.new_end,
+      });
+      const accepted = await store.reach.updateProposal(proposal.id, { status: 'ACCEPTED', responded_at: new Date() });
+
+      await store.notifications.create({
+        user_id: proposal.proposed_by,
+        type: 'job.time_accepted',
+        title: 'The customer agreed to the new time',
+        body: 'The visit has moved. Check your schedule.',
+        data: { jobId: job.id },
+        channel: 'IN_APP',
+        read_at: null,
+        sent_at: new Date(),
+      });
+      adapters.analytics.track('schedule_proposal_accepted', { userId: customerId, jobId: job.id });
+      return { proposal: accepted, job: updated };
+    },
+
+    /** The professional changing their mind before the customer answers. */
+    async withdrawProposal(proposalId: string, providerId: string) {
+      const proposal = await store.reach.getProposal(proposalId);
+      if (!proposal) throw notFound('proposal');
+      if (proposal.proposed_by !== providerId) throw forbidden('not your suggestion');
+      if (proposal.status !== 'PENDING') {
+        throw new AppError('VALIDATION_ERROR', { details: { proposal: ['ALREADY_ANSWERED'] } });
+      }
+      return store.reach.updateProposal(proposal.id, { status: 'WITHDRAWN', responded_at: new Date() });
+    },
+
+    /** The open proposal on a job, for whichever side is looking. */
+    async openProposal(jobId: string) {
+      return store.reach.findOpenProposal(jobId);
     },
 
     async cancelByCustomer(job: JobRecord, reason: string, ctx: TransitionContext) {

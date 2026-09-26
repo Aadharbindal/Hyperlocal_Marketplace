@@ -420,6 +420,30 @@ A claim the professional leaves unanswered for 48 hours is escalated to support 
 | GET | `/admin/mfa/recovery-codes` | ADMIN, SUPPORT | How many are left. Never the codes |
 | POST | `/admin/mfa/recover` | ADMIN, SUPPORT | `{ code }`. Burnt on use whatever happens next *audited* |
 
+## Technicians and moving a booking (post-M9)
+
+### What a technician can see
+A technician does not win work, quote for it or get paid by us - their contractor does all three.
+Every other "my jobs" route in the system filters on `provider_id`, and a technician is never the
+provider, so until these existed the app could not answer "where am I going today".
+
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/technician/profile` | TECHNICIAN | Their name, verification status, and the team answerable for them. An unverified technician is told so plainly, because "no jobs" would be the wrong explanation |
+| GET | `/technician/jobs` | TECHNICIAN | The jobs they were assigned, live ones first. **Includes the full address on purpose** - somebody who has been sent has to be able to arrive, and a screen showing only "Green Park, Delhi" is a screen they work around by ringing the customer. The customer's **first name only**, and **no price and no payout**: that is the contractor's business, not theirs |
+
+### A provider who cannot make the time proposes a new one
+Modelled as a proposal rather than a reschedule. The customer's time is theirs: nothing on the job
+moves until they answer. Previously a provider who could not make it had to cancel, which recorded
+the wrong thing about what happened.
+
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/jobs/:id/time-proposal` | the assigned provider | `{ newStart, newEnd?, reason }`. Only while the job is CONFIRMED or PROVIDER_ASSIGNED - once work is under way the answer is a conversation, not a form. **One open proposal per job**, enforced by a partial unique index rather than by the service remembering to check. Expires in 24 hours *audited* |
+| GET | `/jobs/:id/time-proposal` | either party | The open proposal, or `null` |
+| POST | `/time-proposals/:id/respond` | the customer | `{ accept, declineReason? }`. Accepting writes a real `job_reschedules` row, so the history reads the same whoever asked for the change *audited* |
+| POST | `/time-proposals/:id/withdraw` | the provider who proposed it | For when the reason stops applying *audited* |
+
 ## Where each admin route is reachable from
 
 Eleven route groups existed and three had screens; the rest meant running curl against

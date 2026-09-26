@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
   badgeGloss: { position: 'absolute', top: 0, left: 0, right: 0, height: 40, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
 
   title: { fontSize: 27, lineHeight: 34, color: '#0B1512', letterSpacing: -0.7, textAlign: 'center', marginTop: spacing.xl },
-  subtitle: { fontSize: 14, lineHeight: 21, color: '#788B84', textAlign: 'center', marginTop: spacing.xs },
+  subtitle: { fontSize: 14, lineHeight: 21, color: palette.textSecondary, textAlign: 'center', marginTop: spacing.xs },
   phone: { color: '#16241F' },
   changeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: spacing.sm, minHeight: 36 },
   change: { fontSize: 13.5, color: palette.primary },
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   hidden: { position: 'absolute', opacity: 0, width: 1, height: 1 },
 
   noteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: spacing.lg },
-  note: { fontSize: 12.5, color: '#93A69E', textAlign: 'center' },
+  note: { fontSize: 12.5, color: palette.textMuted, textAlign: 'center' },
   timer: { color: '#16241F' },
   demo: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 6, marginTop: spacing.lg, backgroundColor: '#FFF3D4', paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.pill },
   demoText: { fontSize: 12.5, color: '#8A6400' },

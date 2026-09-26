@@ -99,3 +99,35 @@ the pilot comes only from the labour platform fee. If a margin is introduced lat
 as its own line in the breakdown, never as a silent mark-up on the vendor's price, and the
 migration will have to split `vendor_payable_paise` away from `total_paise` rather than assume
 they are equal.
+
+## D-014: Accessibility is arithmetic, so it is a check rather than a review
+
+**Context.** "Is this readable?" had been answered by looking at it. Looking at it is how the
+sign-in screen ended up with a 3.4:1 tagline and the hero ended up with 13px white caption text
+at 2.5:1 on the light end of the gradient: each one looked fine to someone with good eyesight on
+a bright screen, which is the only test they were ever given.
+
+**Decision.** `scripts/a11y-audit.mjs` computes the WCAG contrast of every pairing the app
+actually renders, reads the palette out of `tokens.ts` so it cannot drift from the real values,
+and fails the build on a miss. It runs in `npm run check` and in CI. Two structural checks sit
+beside it: a control whose only child is an icon must carry a label, and a text colour written as
+a literal hex must clear AA on its own, since the palette cannot vouch for it.
+
+Foregrounds moved to clear the line; backgrounds did not. The mint grounds, the white cards and
+the pastel chip fills are what the design looks like, and they are untouched. `textMuted`,
+`success`, `warning`, `danger`, `info` and the amber chip icon are each a shade darker.
+
+Teal is split by role. `primary` is a fill - buttons, icons, borders - and needs the 3:1 WCAG
+asks of non-text plus enough to carry a white label, which it now has at 4.77:1. Teal as *ink*
+cannot reach 4.5:1 on a mint ground without ceasing to be the brand teal, so it does not try:
+`Text` renders `tone="primary"` in `primaryDeep`.
+
+**Consequences.** Every text pairing in the app clears AA, and a regression fails CI instead of
+shipping. One thing was genuinely lost: the hero gradient's light end had to darken from `#15A883`
+to `#108065`, which narrows the sweep visibly. That was the choice between a prettier gradient and
+a legible one, and the caption on top of it is real information about a live booking.
+
+What this does **not** establish is that the app is usable with a screen reader. The audit reads
+source; it cannot tell whether the reading order makes sense, whether focus goes somewhere useful
+after a sheet closes, or whether a label reads naturally out loud. That needs TalkBack and
+VoiceOver on a real device, and is still open.

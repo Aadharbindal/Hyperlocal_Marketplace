@@ -2,19 +2,23 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   JOB_STATUS_LABEL_KEY,
   JobCancelBody,
+  ProposeTimeBody,
   RescheduleBody,
+  RespondToProposalBody,
   JobCreate,
   JobMediaCreate,
   JobUpdate,
   type JobStatus,
   type JobTrackView,
   type Language,
+  type ScheduleProposalView,
 } from '@hyperlocal/core';
 import { z } from 'zod';
 import { forbidden, notFound } from '../../lib/errors';
 import { parse } from '../../lib/validate';
 import { requireAction, requireAuth } from '../../plugins/auth';
 import type { AppContext } from '../../app';
+import type { ScheduleProposalRecord } from '../../data/types';
 import type { TransitionContext } from './service';
 
 const IdParam = z.object({ id: z.string().uuid() });
@@ -172,6 +176,58 @@ export async function jobRoutes(app: FastifyInstance, ctx: AppContext) {
     return result;
   });
 
+  // ---------------------------------------------------------------- a new time, suggested
+  /**
+   * The professional asking to move a visit. It is a request, not a change: the customer's time
+   * is theirs to arrange, and nothing moves until they answer.
+   */
+  app.post('/jobs/:id/propose-time', async (req, reply) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const body = parse(ProposeTimeBody, req.body);
+    const job = await store.jobs.get(id);
+    if (!job) throw notFound('job');
+
+    const proposal = await jobs.proposeTime(job, auth.userId, body);
+    await services.audit.record(req.auditCtx(), {
+      action: 'job.time_proposed',
+      entityType: 'job',
+      entityId: job.id,
+      reason: body.reason,
+      after: { newStart: body.newStart },
+    });
+    return reply.code(201).send({ proposal: toProposalView(proposal, auth.userId) });
+  });
+
+  app.get('/jobs/:id/time-proposal', { preHandler: requireAction('job.read_own', { allowSuspended: true }) }, async (req) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const proposal = await jobs.openProposal(id);
+    return { proposal: proposal ? toProposalView(proposal, auth.userId) : null };
+  });
+
+  app.post('/time-proposals/:id/respond', async (req) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const body = parse(RespondToProposalBody, req.body);
+    const { proposal, job } = await jobs.respondToProposal(id, auth.userId, body);
+    await services.audit.record(req.auditCtx(), {
+      action: body.accept ? 'job.time_accepted' : 'job.time_declined',
+      entityType: 'job',
+      entityId: job.id,
+      reason: body.reason ?? null,
+      after: { preferredStart: job.preferred_start?.toISOString() ?? null },
+    });
+    return { proposal: toProposalView(proposal, auth.userId) };
+  });
+
+  app.post('/time-proposals/:id/withdraw', async (req) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const proposal = await jobs.withdrawProposal(id, auth.userId);
+    return { proposal: toProposalView(proposal, auth.userId) };
+  });
+
   // ---------------------------------------------------------------- cancel
   app.post('/jobs/:id/cancel', { preHandler: requireAction('job.cancel_as_customer') }, async (req) => {
     const auth = requireAuth(req);
@@ -237,4 +293,20 @@ export async function jobRoutes(app: FastifyInstance, ctx: AppContext) {
     };
     return view;
   });
+
+  /** `mine` lets one shape serve both sides: the person who suggested it sees a different card. */
+  function toProposalView(p: ScheduleProposalRecord, viewerId: string): ScheduleProposalView {
+    return {
+      id: p.id,
+      jobId: p.job_id,
+      previousStart: p.previous_start?.toISOString() ?? null,
+      newStart: p.new_start.toISOString(),
+      newEnd: p.new_end?.toISOString() ?? null,
+      reason: p.reason,
+      status: p.status,
+      expiresAt: p.expires_at.toISOString(),
+      mine: p.proposed_by === viewerId,
+      createdAt: p.created_at.toISOString(),
+    };
+  }
 }

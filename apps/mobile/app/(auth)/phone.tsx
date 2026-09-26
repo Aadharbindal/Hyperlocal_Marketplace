@@ -342,8 +342,8 @@ const styles = StyleSheet.create({
   },
   logoGloss: { position: 'absolute', top: 0, left: 0, right: 0, height: 26, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   brandName: { fontSize: 25, lineHeight: 31, color: '#0F1D18', letterSpacing: -0.4 },
-  brandAccent: { color: '#0E8A6A' },
-  brandTag: { fontSize: 13, lineHeight: 18, color: '#7C8F88', marginTop: 1 },
+  brandAccent: { color: palette.primary },
+  brandTag: { fontSize: 13, lineHeight: 18, color: palette.textMuted, marginTop: 1 },
 
   hero: { flex: 1, width: '100%', minHeight: 296, overflow: 'hidden' },
   heroArt: { position: 'absolute', right: 0, bottom: 0 },
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   heroCopy: { flex: 1, paddingHorizontal: spacing.screen, paddingTop: spacing.sm, justifyContent: 'space-between' },
   welcome: { fontSize: 43, lineHeight: 51, color: '#0B1512', letterSpacing: -1.2 },
   welcomeCompact: { fontSize: 35, lineHeight: 42 },
-  subtitle: { fontSize: 15.5, lineHeight: 23, color: '#788B84', marginTop: spacing.xs },
+  subtitle: { fontSize: 15.5, lineHeight: 23, color: palette.textSecondary, marginTop: spacing.xs },
   subtitleCompact: { fontSize: 13.5, lineHeight: 20 },
   features: { gap: spacing.lg },
   feature: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
   featureCompact: { fontSize: 13, lineHeight: 18.5 },
   featuresCompact: { gap: spacing.md },
   featureTitle: { fontSize: 14.5, lineHeight: 20, color: '#16241F' },
-  featureBody: { fontSize: 14.5, lineHeight: 20, color: '#7A8D86' },
+  featureBody: { fontSize: 14.5, lineHeight: 20, color: palette.textSecondary },
   glyph: { fontSize: 22, lineHeight: 26 },
 
   card: {
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
   fieldCompact: { height: 52 },
   ctaCompact: { height: 52 },
   cardTitle: { fontSize: 15, lineHeight: 22, letterSpacing: -0.2, color: '#0F1D18' },
-  fieldLabel: { fontSize: 12.5, color: '#8C9E97', marginTop: spacing.md + 2, marginBottom: spacing.xs + 2 },
+  fieldLabel: { fontSize: 12.5, color: palette.textMuted, marginTop: spacing.md + 2, marginBottom: spacing.xs + 2 },
   ring: { borderRadius: 19, padding: 4, marginHorizontal: -4 },
   field: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 56, borderRadius: 15, borderWidth: 1.5, backgroundColor: '#FFFFFF', paddingHorizontal: spacing.md },
   country: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44 },
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
   divider: { width: 1, height: 28, backgroundColor: '#E4EDE9' },
   input: { flex: 1, fontSize: 16.5, letterSpacing: 0.4, fontFamily: typography.family.medium, color: '#0F1D18', height: '100%' },
   noteRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: spacing.md },
-  note: { fontSize: 12.5, color: '#93A69E', flexShrink: 1 },
+  note: { fontSize: 12.5, color: palette.textMuted, flexShrink: 1 },
 
   ctaWrap: { marginTop: spacing.lg + 2, borderRadius: radius.pill, shadowColor: '#0A6A51', shadowOpacity: 0.32, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
   cta: { height: 56, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md, overflow: 'hidden' },

@@ -21,6 +21,7 @@ import type {
   IdempotencyRecord,
   JobRescheduleRecord,
   MaskedCallRecord,
+  ScheduleProposalRecord,
   NotificationRecord,
   OtpChallengeRecord,
   ProviderProfileRecord,
@@ -55,6 +56,7 @@ export function createMemoryStore(): DataStore {
   const devices: DeviceTokenRecord[] = [];
   const calls = new Map<string, MaskedCallRecord>();
   const reschedules: JobRescheduleRecord[] = [];
+  const proposals = new Map<string, ScheduleProposalRecord>();
   const retention: RetentionEventRecord[] = [];
   const idem = new Map<string, IdempotencyRecord>();
   const jobsRepo = createMemoryJobsRepo();
@@ -439,6 +441,35 @@ export function createMemoryStore(): DataStore {
       },
       async listReschedules(jobId) {
         return reschedules.filter((r) => r.job_id === jobId).sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+      },
+
+      async createProposal(p) {
+        // mirrors schedule_proposals_one_open_idx
+        if ([...proposals.values()].some((x) => x.job_id === p.job_id && x.status === 'PENDING')) {
+          throw conflict({ reason: 'proposal_already_open' });
+        }
+        const rec: ScheduleProposalRecord = { ...p, id: newId(), created_at: now(), updated_at: now() } as ScheduleProposalRecord;
+        proposals.set(rec.id, rec);
+        return rec;
+      },
+      async getProposal(id) {
+        return proposals.get(id) ?? null;
+      },
+      async updateProposal(id, patch) {
+        const p = proposals.get(id);
+        if (!p) throw new Error('proposal not found');
+        const next = { ...p, ...patch, updated_at: now() };
+        proposals.set(id, next);
+        return next;
+      },
+      async findOpenProposal(jobId) {
+        return [...proposals.values()].find((p) => p.job_id === jobId && p.status === 'PENDING') ?? null;
+      },
+      async listExpiredProposals(at, limit) {
+        return [...proposals.values()]
+          .filter((p) => p.status === 'PENDING' && p.expires_at <= at)
+          .sort((a, b) => a.expires_at.getTime() - b.expires_at.getTime())
+          .slice(0, limit);
       },
     },
 

@@ -16,7 +16,10 @@ const TONE: Record<Tone, string> = {
   default: palette.text,
   secondary: palette.textSecondary,
   muted: palette.textMuted,
-  primary: palette.primary,
+  // Teal text, not the teal fill. The brand teal carries white on top of it at AA, but read as
+  // ink on a light ground it lands around 4:1 - under the line, and this is the tone links and
+  // prices use. `primaryDeep` is the same hue with the contrast, so nothing looks off-brand.
+  primary: palette.primaryDeep,
   onPrimary: palette.textOnPrimary,
   onPrimaryMuted: palette.textOnPrimaryMuted,
   danger: palette.danger,
