@@ -87,6 +87,23 @@ Each virtual user walks a whole booking rather than hitting one endpoint, becaus
 product is a single request. It reports per-endpoint percentiles and counts anything slower than
 three seconds.
 
+## Running it as a container
+
+```bash
+docker build -t hyperlocal-api .
+```
+
+The image carries the bundled API, its dependencies and the migrations, and nothing else. What it
+expects, why the dependency install is unusual, how the health probes differ, and how to size the
+connection pool across nodes are all in `DEPLOYMENT.md`. The Dockerfile has not itself been built
+yet - see `KNOWN_LIMITATIONS.md`.
+
+## More than one node
+
+Safe to run. The scheduler excludes itself with a Postgres advisory lock and keeps its schedule in
+the database; live updates fan out over LISTEN/NOTIFY; the OTP limits count in shared storage. No
+Redis and no queue - the reasoning, and what was deliberately left per-node, is in DECISIONS D-015.
+
 ## What is built
 
 All nine milestones are complete. The whole journey works end to end:

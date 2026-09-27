@@ -136,7 +136,24 @@ people using it:
   system working: an unverified provider can neither go available nor bid, and verification is a
   staff action, so a cold start stops there by design. What has **not** been measured is a soak:
   nothing has run for hours, so a slow leak or an index that degrades as tables fill would not
-  have shown up. The ops report still walks the store rather than querying aggregates.
+  have shown up. The ops report no longer walks the store - it is six whole-table aggregates -
+  which also closes the part of this gap that was about the report itself.
+- **Multi-node behaviour is covered by tests that run two nodes.** `cluster.test.ts` builds two
+  apps; against Postgres they get two stores with two pools on one database, so the advisory lock
+  and LISTEN/NOTIFY are exercised rather than simulated. It asserts that only one node enters the
+  locked section, that the lock survives a throw inside it, that a second node does not re-run a
+  task the first already ran, that an event published on one node reaches a stream held by the
+  other **exactly once**, that it does not leak to another user, and that shared counters count
+  once for the cluster.
+
+  Worth recording how the first version of the lock test was wrong: it started both nodes at once
+  and asserted that only one body ran. It passed in memory mode and failed against Postgres - not
+  because the lock was broken, but because opening a pooled connection takes longer than the work
+  being guarded, so the first node had finished and released before the second one even asked. It
+  was measuring connection latency. A test that depends on who wins a race proves nothing on the
+  run where it happens to pass, so it is a barrier now: node A goes in and stays in until node B
+  has had its turn to try.
+
 - **Accessibility: measured, not yet heard.** `npm run a11y` computes the WCAG contrast of every
   pairing the app renders and fails on a miss, checks that no icon-only control is unlabelled, and
   flags text colours written as literal hexes that miss AA on their own. It found eight real

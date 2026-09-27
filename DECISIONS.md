@@ -131,3 +131,42 @@ What this does **not** establish is that the app is usable with a screen reader.
 source; it cannot tell whether the reading order makes sense, whether focus goes somewhere useful
 after a sheet closes, or whether a label reads naturally out loud. That needs TalkBack and
 VoiceOver on a real device, and is still open.
+
+## D-015: Postgres is the coordination layer, not a second piece of infrastructure
+
+**Context.** Three things were correct in one process and silently wrong in two: the scheduler
+ran its own `setInterval` with no exclusion, SSE subscribers were only reachable from the node
+holding them, and the rate limiter counted in a Map. None of the three fails loudly. The
+scheduler quietly does everything twice, a customer's live screen quietly stops updating, a limit
+is quietly N times looser than the number written beside it. `DEPLOYMENT.md` carried a workaround
+for the first one - run the scheduler on a single node - which traded a duplicate-work bug for a
+single point of failure that nothing would report.
+
+**Decision.** Use Postgres for all three rather than adding Redis or a queue.
+
+- Exclusion: `pg_try_advisory_lock`. Session-scoped, so a lock held by a node that dies is
+  released when its connection drops - no lease to expire, no stuck row to clear by hand.
+- Fan-out: LISTEN/NOTIFY, one channel with the topic inside a JSON envelope. The publishing node
+  does **not** also deliver locally, because NOTIFY delivers back to the sender.
+- Shared counters: a two-column table with fixed windows.
+- Cluster-wide schedule state: `scheduler_runs`, read and written inside the lock.
+
+**Consequences.** No new infrastructure to run, monitor, secure and fail over, against a database
+the pilot already has. The costs are real and bounded: one permanently held connection per node
+for LISTEN, which pool sizing has to account for; NOTIFY's 8 KB payload limit, which is checked
+rather than assumed; and no delivery guarantee, which is acceptable only because an event carries
+no data - a lost or duplicated one costs a client a redundant read, never a wrong screen.
+
+**What was *not* done, and why.** The global 300/minute limit stays per-node. It exists so one
+rude client cannot crowd out others on the node serving it; being N times more generous about
+fairness is a capacity question, and a database round trip on every request is a real cost to pay
+for tidiness. The limits that actually stop an attack were never the problem: `requestOtp` has
+always counted rows in `otp_challenges` per phone and per IP, and attempts live on the challenge
+row. That is worth recording because the obvious reading of "the rate limiter is in memory" is
+that the security control was weak, and it was not.
+
+**If the pilot outgrows this.** The advisory lock is the first thing to give - a task that must
+run at a precise time on a busy cluster wants a queue with visibility timeouts, not a lock. The
+shared counter is the second, at the point where its write rate is worth moving to Redis. The
+fan-out is the last, because it is already doing very little.
+

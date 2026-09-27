@@ -21,6 +21,7 @@ PostgreSQL 15 (Supabase). Conventions:
 | `0005_execution` | M5 | start_otps, price_revision_requests, job_completions, chat_threads, chat_messages (+ revision-actor, chat-sender and message-immutability triggers) |
 | `0006_materials` | M6 | material_requests, material_quotes, material_orders (+ requester, vendor-verified and invoice-match triggers) |
 | `0008_admin` | M8 | admin_mfa, kyc_access_log (+ sessions.mfa_verified_at, dispute queue columns, the two-person suspension trigger) |
+| `0014_multi_node` | post-M9 | rate_limit_hits, scheduler_runs (the tables that stop being optional once the API is more than one process) |
 | `0013_rewards_and_scheduling` | post-M9 | schedule_proposals (+ `promo_codes.reserved_for_user_id` and `referral_id`, and the one-open-proposal partial unique) |
 | `0012_warranty_and_trust` | post-M9 | warranty_claims, admin_recovery_codes, data_export_requests (+ review columns on chat_messages, `jobs.warranty_claim_id`) |
 | `0011_receipts_and_growth` | post-M9 | invoices, favourite_providers, promo_codes, promo_redemptions, referrals (+ `booking_quotes.discount_paise`, `users.referral_code`) |
@@ -238,6 +239,25 @@ change and a customer-initiated one read identically afterwards.
 person rather than as a wallet balance. A second money primitive would have needed its own ledger
 path and its own rounding; a reserved code needs neither. Reserved codes are refused to anybody
 else and are excluded from the general promo list.
+
+### rate_limit_hits (post-M9)
+`(key, window_start, hits)`, keyed on both. Fixed windows rather than a sliding log: a sliding
+window needs a row per request and a sweep to match, and buys a precision a brute-force limit
+does not need. Used where a limit is a security control; the global fairness limit stays in
+process. Swept by the scheduler.
+
+### scheduler_runs (post-M9)
+`(task, last_run_at, last_duration_ms, last_error, runs)`. The advisory lock stops two nodes
+running a task at the same moment; this stops the *second* node believing nothing has ever run.
+Without it each node kept the schedule in memory, so a new node fired every task on its first
+tick and again on the next - idempotent, so nothing broke, but `everySeconds` stopped describing
+reality, which is its whole job. Read and written inside the lock, so it needs no concurrency
+control of its own.
+
+**Two primitives here need no table.** Scheduler exclusion uses `pg_try_advisory_lock`, which
+lives in the session - a lock held by a node that dies is released when the connection drops,
+with no lease to expire and no stuck row for somebody to clear by hand at two in the morning.
+Stream fan-out uses LISTEN/NOTIFY.
 
 ## Critical constraints (enforced in SQL + code)
 

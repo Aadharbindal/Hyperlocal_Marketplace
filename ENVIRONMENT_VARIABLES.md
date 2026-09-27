@@ -30,6 +30,10 @@ values and, in `production`, refuses `mock` adapters for SMS and payments unless
 | `API_LOG_LEVEL` | info | pino level |
 | `DATA_MODE` | memory | `memory` (demo/tests) or `postgres` |
 | `DATABASE_URL` | local supabase | Postgres connection (postgres mode) |
+| `DATABASE_POOL_MAX` | 10 | Pooled connections **per node**. The number that matters is `(this + 1) x nodes` staying under the server's `max_connections`; the `+1` is the connection each node holds open for LISTEN. See DEPLOYMENT.md |
+| `DATABASE_POOL_IDLE_TIMEOUT_MS` | 30000 | How long an unused connection is kept |
+| `DATABASE_CONNECTION_TIMEOUT_MS` | 5000 | Fail fast instead of queueing behind an exhausted pool: a request that waits thirty seconds for a connection has already lost the person who made it |
+| `DATABASE_STATEMENT_TIMEOUT_MS` | 15000 | Ceiling on any single statement. Without it one pathological query holds a connection until somebody notices, which with a small pool is an outage rather than a slow page |
 
 ## Supabase
 | Name | Purpose |

@@ -4,6 +4,134 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Assuming there is only one of us
+
+**Milestone:** post-M9 - multi-node correctness, the ops report, and something to deploy
+**Date:** 2026-09-27
+**Status:** Complete except a `docker build`, which the environment could not run
+
+**Why this exists:** a list of six remaining items, of which three were already done. The other
+three turned out to be one theme and two of them were the same mistake in different places:
+code that is obviously correct in one process and silently wrong in two.
+
+Silently is the important word. None of these fail loudly. The scheduler quietly does everything
+twice. A customer's live screen quietly stops updating. A limit is quietly N times looser than
+the number written next to it. Nothing throws, no request fails, and no test running in a single
+process can see any of it.
+
+**Implemented:**
+
+*One scheduler, whichever node you ask.* Every node ran its own `setInterval` with no exclusion.
+A Postgres advisory lock now admits one and turns the rest away as `null` rather than an error,
+because losing that race is the normal case and happens on every tick of every node but one. The
+lock on its own was not enough, and this is the part worth remembering: each node kept "when did
+this last run" in a Map, so a second node believed nothing had ever run and would fire every task
+on its first tick, and again on the next, and the next. The work is idempotent so nothing broke -
+but `everySeconds` stopped describing reality, which is its whole job. That state moved into
+`scheduler_runs`, read and written inside the lock.
+
+The old advice in `DEPLOYMENT.md` was to run the scheduler on exactly one node. That worked, and
+it traded a duplicate-work bug for a single point of failure nothing would report: the one node
+with it enabled dies, payouts quietly stop, every other node looks healthy.
+
+*Streams that reach the person watching.* A stream is held open by one node; the write that
+causes an event is handled by whichever node took the request. On two nodes those are usually
+different, so a customer watching their job saw nothing at all. Events now go over LISTEN/NOTIFY.
+The publishing node deliberately does *not* also deliver to its own subscribers - the obvious
+implementation, and it double-sends, because NOTIFY delivers back to the sender.
+
+*A shared counter, and a correction to the premise.* "The rate limiter is in memory" reads as a
+security hole, and it was not one. `requestOtp` has always counted rows in `otp_challenges` per
+phone and per IP, and attempts live on the challenge row - the limits that actually stop somebody
+brute-forcing an account were in the database from the start. What was per-node is the framework
+limiter in front of them. The OTP routes now count in the database too, so the cheap gate is not
+looser than the real one. The global 300/minute stays per-node on purpose: it is fairness, not
+security, and a round trip on every request is a real cost to pay for a tidier number.
+
+*An ops report that is not quietly wrong.* It walked up to 500 customers, up to 200 jobs each,
+and a ledger read per job. The cost was the smaller problem. It **truncated in silence**: past
+500 customers it simply stopped counting and nothing on the screen said so, which makes a quiet
+week and a missing thousand jobs look identical to somebody deciding on the number. Six
+aggregates over whole tables now. `providersVerified` and `providersSuspended` were not computed
+from anything at all - they were literally `0` - on a screen an operator reads to decide whether
+there is enough supply to take bookings.
+
+*Something to deploy.* Multi-stage `Dockerfile`, non-root, `tini` as PID 1 so SIGTERM drains
+instead of killing mid-flight. The runtime dependencies are resolved on their own rather than
+with a root prod install, because `apps/mobile` has Expo and React Native as *production*
+dependencies and a root install drags a mobile app into an image that serves HTTP. Pool sizing,
+idle, connection and statement timeouts are env-driven.
+
+**Changed files:** `apps/api/src/data/{types,index}.ts`, `apps/api/src/data/postgres/{cluster,reports,index}.ts`,
+`apps/api/src/data/memory/{cluster,reports,index,jobs,finance,bids}.ts`,
+`apps/api/src/modules/{scheduler/service,events/service,events/routes,admin/service,auth/routes}.ts`,
+`apps/api/src/lib/{shared-limit,logger}.ts`, `apps/api/src/{app,config/env}.ts`,
+`supabase/migrations/0014_multi_node.sql`, `Dockerfile`, `.dockerignore`, and the docs.
+
+**Database changes:** `0014_multi_node.sql` - `rate_limit_hits` and `scheduler_runs`.
+Forward-only; 14/14 apply cleanly to a real PostgreSQL 17. Two of the primitives need no table at
+all: advisory locks live in the session, and LISTEN/NOTIFY needs nothing.
+
+**API changes:** `/ready` gains `degradedAdapters` and a `?deep=1` parameter, and no longer
+returns 503 for a failing adapter. `/admin/scheduler` now reports the cluster's state rather than
+the answering node's.
+
+**Tests added:** 12 - eight running two real nodes, four on the ops report. Against Postgres the
+two nodes are two stores with two pools on one database, so the advisory lock and LISTEN/NOTIFY
+are exercised rather than simulated.
+
+**Tests passed:** 476 - core 196, API 280. The API suite passes **280/280 against a real
+PostgreSQL 17**, which is where the multi-node code had to be proven and where it initially was
+not. Typecheck, lint, build, `npm run a11y` and migrations all clean.
+
+**Manual verification completed:** 100 concurrent booking walks against real Postgres - 100/100
+in 10.8s, 1302 requests at 121 req/s, nothing over three seconds. `/ready` dropped from 310ms to
+117ms, which is the adapter cache doing its job.
+
+**Three things found by testing rather than by reading.**
+
+*The lock test was measuring the wrong thing.* The first version started both nodes at once and
+asserted only one body ran. It passed in memory mode and failed against Postgres - not because
+the lock was broken, but because opening a pooled connection takes longer than the 50ms of work
+being guarded, so the first node had finished and released before the second even asked. A test
+that depends on who wins a race proves nothing on the run where it happens to pass. It is a
+barrier now: node A goes in and stays in until node B has had its turn to try. Worth being blunt
+about - had the Postgres run been skipped, a test that proved nothing would have been committed
+as proof.
+
+*The container would not have started.* `pino-pretty` is a devDependency, but the logger asks
+pino to resolve it by name whenever `APP_ENV` is `local` - and `APP_ENV` defaults to `local`.
+With dev dependencies omitted that is not a plainer log format, it is a process that exits at
+boot with a stack trace about a log formatter, on the first run anybody would attempt. Found by
+running the built artefact the way the image would, not by reading the Dockerfile.
+
+*`/ready` could have taken the whole service down.* It pinged every adapter on every call - eight
+outbound API calls per probe per node with live credentials - and returned 503 if any failed. A
+payment provider having a bad ten minutes would make every node report itself unready at the same
+moment, and a load balancer would pull all of them, including for the great majority of requests
+that never touch payments. A third party's outage would have become ours, automatically.
+Readiness is now about what a node can answer for: itself and its database. Adapter health is
+still reported, swept on a cache, and decides nothing. The code looked careful - it checked
+everything - and checking everything was the bug.
+
+**Known limitations:** the image has **not been built**; Docker Desktop would not start here, so
+the dependency install, the server boot and the health endpoints were verified without it and the
+`docker build` itself is unproven. No soak test: 100 concurrent bookings pass, but nothing has
+run for hours, so a slow leak or an index degrading as tables fill would not have appeared. No
+screen-reader pass. Every live adapter is still credential-less and fails loudly at boot.
+
+**Security considerations:** the OTP limits were already database-backed and remain so; the new
+shared counter sits in front of them rather than replacing them. `/ready` no longer lets a third
+party's health decide whether this service accepts traffic. The container runs as `node`, not
+root, and `.dockerignore` excludes `.env` from the build context so a secret cannot reach a layer.
+
+**External integrations mocked or live:** unchanged - all mocked.
+
+**Next milestone:** the device run on a physical phone, which is also when TalkBack and VoiceOver
+get walked through a booking.
+
+---
+
 ## The seven gaps, closed except the one that needs a phone
 
 **Milestone:** post-M9 - the remaining launch-readiness list

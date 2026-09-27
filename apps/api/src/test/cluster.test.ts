@@ -55,28 +55,44 @@ describe('running on more than one node', () => {
   // ------------------------------------------------------------------ the lock
 
   it('lets exactly one node into the locked section', async () => {
-    let concurrent = 0;
-    let maxConcurrent = 0;
-    let ran = 0;
+    // Deliberately a barrier rather than two racing timers.
+    //
+    // The first version of this test started both nodes at once and asserted that only one body
+    // ran. It passed in memory mode and failed against Postgres - not because the lock was
+    // broken, but because opening a pooled connection takes longer than the work being guarded,
+    // so the first node had finished and released before the second one even asked. The lock was
+    // fine; the test was measuring connection latency. A test that depends on who wins a race
+    // proves nothing on the run where it happens to pass.
+    //
+    // So node A goes in and *stays* in until node B has had its turn to try.
+    let inside = false;
+    let releaseA: () => void = () => {};
+    const bHasTried = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
 
-    const attempt = (store: DataStore) =>
-      store.cluster.withLock('test:exclusive', async () => {
-        ran++;
-        concurrent++;
-        maxConcurrent = Math.max(maxConcurrent, concurrent);
-        await new Promise((r) => setTimeout(r, 50));
-        concurrent--;
-        return 'done';
-      });
+    const aRun = nodeA.ctx.store.cluster.withLock('test:exclusive', async () => {
+      inside = true;
+      await bHasTried;
+      return 'A';
+    });
 
-    const [a, b] = await Promise.all([attempt(nodeA.ctx.store), attempt(nodeB.ctx.store)]);
+    await waitFor(() => inside);
 
-    // One ran, one was turned away. Being turned away is `null` rather than an error, because
-    // losing the race is the normal case and happens on every tick of every node but one.
-    expect(ran).toBe(1);
-    expect(maxConcurrent).toBe(1);
-    expect([a, b].filter((r) => r === 'done')).toHaveLength(1);
-    expect([a, b].filter((r) => r === null)).toHaveLength(1);
+    // B asks while A is provably still holding it.
+    const bRun = await nodeB.ctx.store.cluster.withLock('test:exclusive', async () => 'B');
+    releaseA();
+
+    expect(await aRun).toBe('A');
+    // Turned away as `null` rather than an error: losing the race is the normal case, and
+    // happens on every tick of every node but one.
+    expect(bRun).toBeNull();
+  });
+
+  it('hands the lock on once the holder is finished', async () => {
+    expect(await nodeA.ctx.store.cluster.withLock('test:handover', async () => 'first')).toBe('first');
+    // Not held forever: the next caller, on a different node, gets it.
+    expect(await nodeB.ctx.store.cluster.withLock('test:handover', async () => 'second')).toBe('second');
   });
 
   it('releases the lock even when the work inside it throws', async () => {
