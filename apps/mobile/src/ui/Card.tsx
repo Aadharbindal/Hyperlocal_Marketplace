@@ -20,8 +20,13 @@ export function Card({ tone = 'surface', padding = 'lg', flat, onPress, style, c
   ];
   if (onPress) {
     return (
+        // `accessible` collapses this control into one node for a screen reader. Without it the
+        // container is announced from its label *and* the text inside it is announced again, so
+        // TalkBack reads "Plumbing, Plumbing". Found by reading the accessibility tree off a real
+        // device; a static check cannot see it, because both halves are individually correct.
       <Pressable
         accessibilityRole="button"
+        accessible={!!accessibilityLabel}
         accessibilityLabel={accessibilityLabel}
         onPress={onPress}
         style={({ pressed }) => [...base, pressed && styles.pressed, style as ViewStyle]}

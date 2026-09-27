@@ -87,7 +87,19 @@ function AuthGate() {
               : target === '(provider)'
                 ? '/(provider)/jobs'
                 : '/(customer)/home';
-    if (group !== target) router.replace(home as never);
+    // Only a *group* can be the wrong place to be.
+    //
+    // This used to read `if (group !== target)`, which was true for every screen that does not
+    // live inside a role group - `/receipts`, `/addresses`, `/favourites`, `/referrals`,
+    // `/notifications`, `/warranty-claims`, `/search`, `/invoice/[id]` and the rest. Opening any
+    // of them bounced straight back to the role's home, so a dozen built screens were
+    // unreachable from inside the app. Nothing failed; the tap simply did nothing, which is why
+    // no test caught it and why it took tapping through on a phone to find.
+    //
+    // Shared screens belong to every role, so being on one is not being in the wrong place. An
+    // empty `group` is the index route, which does still need sending home.
+    const inRoleGroup = typeof group === 'string' && group.startsWith('(');
+    if (!group || (inRoleGroup && group !== target)) router.replace(home as never);
   }, [hydrated, token, user, activeRole, segments, router]);
 
   if (!hydrated || (token && !user && me.isPending)) {

@@ -4,6 +4,117 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Four bugs that only a phone could find
+
+**Milestone:** post-M9 - the device run
+**Date:** 2026-09-27
+**Status:** Complete
+
+**Why this exists:** the device run had been deferred to the end on purpose. The app type-checked,
+linted, bundled and passed 536 tests. What it had never done was run.
+
+Every bug below was invisible to that suite, and for the same reason: each is about the app *as
+assembled* rather than about any unit of it. Nothing was red.
+
+**What the device was:** a physical OnePlus CPH2585 on **Android 16**, through Expo Go over a USB
+reverse tunnel. Android 16 matters - it is the release that removes the ability to opt out of
+edge-to-edge, which was one of the two things flagged as most likely to break on SDK 57. It did
+not. Reanimated 4 works; it emits one cosmetic warning about `opacity` being overwritten by a
+layout animation.
+
+**The four:**
+
+*1. Notifications took the whole app down.* `src/api/push.ts` called
+`Notifications.setNotificationHandler(...)` at module scope, and `expo-notifications` throws on
+load in Expo Go. Importing the file threw, so the module never finished evaluating, so its
+exports came back `undefined`, so expo-router failed with `Cannot read property 'ErrorBoundary'
+of undefined`. **The screen was blank.** The first fix - a `try` around the call - did not work,
+because a static import is hoisted and there is nowhere to put a `try` around it. The module is
+now loaded lazily inside a `try`, and Expo Go is detected and not asked at all, because this
+module reports its failure to the global handler as well as throwing: catching it kept the app
+alive but still produced a red screen in development and would have produced a fabricated crash
+report in production. The lesson is not about Expo Go. "The notification service is missing" is
+ordinary on real devices - a de-Googled phone, a work profile, a region without Play Services.
+Notifications are a convenience; the app is not.
+
+*2. A dozen screens were unreachable.* `app/_layout.tsx` ended its auth gate with
+`if (group !== target) router.replace(home)`. For anything not inside a role group - `/receipts`,
+`/favourites`, `/referrals`, `/notifications`, `/warranty-claims`, `/search`, `/invoice/[id]`,
+`/payout-account` - `segments[0]` is the route name, never the group, so **every one of them
+bounced straight back to the role's home**. Tapping "Receipts" did nothing. No error, no failed
+request, nothing to notice unless you tap it. Only a group can be the wrong place to be, and the
+gate now says so.
+
+*3. A new customer could not book anything.* The booking form's "Where?" section correctly told
+somebody with no address to *"Add an address in your profile to continue"*. The profile had no
+such thing. `useCreateAddress` had existed in the API layer since M2 and **no screen had ever
+called it**, so the primary journey dead-ended for every first-time user. There is now an
+addresses screen, linked first in the profile and reachable straight from the booking form's
+empty state - a button now, rather than a sentence telling somebody to go and find a screen that
+did not exist.
+
+*4. The storage work was silently switched off.* The repo's `.env` carried
+`STORAGE_PROVIDER=mock` from before local storage existed, and an env file beats a schema
+default. So the adapter that actually stores bytes was not being used, `/ready` listed storage
+among the mocks, and media rows went back to claiming files that did not exist - the exact bug
+that had just been fixed, reintroduced by a line of configuration. `.env.example` and `.env` now
+select `local`, and `jobs.test.ts` no longer asserts a `mock://` URL that no client could ever
+have uploaded to.
+
+**Storage, proven with the phone in the loop.** Not inferred from a passing test: a 70-byte PNG
+was PUT **from the device** to the signed upload URL (204), landed on disk at the expected key at
+70 bytes, and read back through the signed read URL as `image/png` with the bytes matching
+exactly what the phone sent.
+
+**Accessibility, read off the device.** The tree a screen reader reads was dumped from the running
+app. No control was unnamed, which confirms the static audit. But **nine were announced twice** -
+the control carried a name and its own text was exposed as well, so TalkBack would say "Plumbing,
+Plumbing" - and the primary button's name ended in a comma, which a screen reader renders as a
+pause. `Button`, `Card`, `TabBar` and the booking tiles now name themselves explicitly and hide
+their inner text from the tree. The proof is in the tests: they used to find a button by its text
+and now cannot, because the button is a single node named for what it does. They query by that
+name instead, which is a better test anyway.
+
+**Changed files:** `apps/mobile/src/api/push.ts`, `apps/mobile/app/_layout.tsx`,
+`apps/mobile/app/addresses.tsx` (new), `apps/mobile/app/(customer)/book.tsx`,
+`apps/mobile/app/notification-settings.tsx`, `apps/mobile/src/features/ProfileScreen.tsx`,
+`apps/mobile/src/ui/{Button,Card,TabBar}.tsx`, `apps/mobile/src/i18n/index.ts`,
+`apps/mobile/src/ui/ui.test.tsx`, `apps/mobile/src/features/customer/WarrantyCard.test.tsx`,
+`apps/api/src/test/jobs.test.ts`, `.env.example`.
+
+**Database changes:** none.
+
+**API changes:** none.
+
+**Tests passed:** 536 - core 199, API 308, mobile 29. Typecheck, lint, build and `npm run a11y`
+clean.
+
+**Manual verification completed:** on the device - welcome, phone entry with live formatting and
+validation, OTP (masked as `+91********01` in both the UI and the API log, so redaction works on
+a real device), role selection, home, price guidance rendering as designed (`₹250-2,500` with
+"usually", because no job has been paid for yet), `/me/rebook` called and correctly returning
+nothing for a new customer, adding an address, and a real job created and submitted end to end.
+
+**Known limitations:** two cosmetic layout bugs on a tall screen - "Welcome!" breaks mid-word into
+"Welc / ome!" because the greeting shares a row with the city picker and the bell, and
+"Carpentry" wraps inside its tile. The number pad covers the sign-in card, so somebody cannot see
+the field they are typing into. TalkBack itself was not driven - reading order and where focus
+lands after a sheet closes cannot be read out of a tree dump, and enabling a screen reader on
+somebody's personal phone takes over its gestures.
+
+**Security considerations:** the OTP and the phone number are masked in the API log on a real
+device, which is the first time that has been observed rather than asserted. No secret reached
+the device: the storage grants are short-lived, scoped and carried in the URL by design.
+
+**External integrations mocked or live:** storage is now genuinely local rather than mocked, on
+the device as well as in tests. Everything else - SMS, payment, maps, push, telephony, monitoring,
+analytics - is still mocked.
+
+**Next milestone:** credentials, the legal review, and a `docker build` - all three of which are
+the owner's to start.
+
+---
+
 ## The photo that was never there
 
 **Milestone:** post-M9 - the launch-readiness list, worked top to bottom

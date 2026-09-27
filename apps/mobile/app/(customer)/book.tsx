@@ -155,11 +155,23 @@ export default function BookScreen() {
             {categories.data?.items.map((c) => {
               const active = c.id === categoryId;
               return (
-                <Pressable key={c.id} onPress={() => setCategoryId(c.id)} accessibilityRole="button" accessibilityState={{ selected: active }} style={[styles.cat, active && styles.catActive]}>
-                  <RealisticIcon iconKey={c.iconKey} size={38} />
-                  <Text variant="caption" weight={active ? 'bold' : 'medium'} style={active ? styles.catTextActive : undefined}>
-                    {c.name}
-                  </Text>
+                <Pressable
+                  key={c.id}
+                  onPress={() => setCategoryId(c.id)}
+                  accessibilityRole="button"
+                  // Named explicitly. Without this Android builds a name out of the children,
+                  // so the tile is announced and then its own label is read again.
+                  accessible
+                  accessibilityLabel={c.name}
+                  accessibilityState={{ selected: active }}
+                  style={[styles.cat, active && styles.catActive]}
+                >
+                  <View importantForAccessibility="no-hide-descendants">
+                    <RealisticIcon iconKey={c.iconKey} size={38} />
+                    <Text variant="caption" weight={active ? 'bold' : 'medium'} style={active ? styles.catTextActive : undefined}>
+                      {c.name}
+                    </Text>
+                  </View>
                 </Pressable>
               );
             })}
@@ -303,10 +315,13 @@ export default function BookScreen() {
               })}
             </View>
           ) : (
-            <Card padding="md">
+            <Card padding="md" style={{ gap: spacing.sm }}>
               <Text variant="caption" tone="secondary">
-                Add an address in your profile to continue.
+                A professional has to know where to come. Add the place the work is needed.
               </Text>
+              {/* Was a sentence telling somebody to go and find a screen. Now it is the screen.
+                  This is the only thing standing between a new customer and their first booking. */}
+              <Button title="Add an address" size="sm" icon="add" onPress={() => router.push('/addresses')} />
             </Card>
           )}
           {outOfZone && (

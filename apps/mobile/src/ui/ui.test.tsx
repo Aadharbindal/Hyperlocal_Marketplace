@@ -19,7 +19,9 @@ describe('Button', () => {
     const onPress = jest.fn();
     await render(<Button title="Send offer" onPress={onPress} />);
 
-    fireEvent.press(screen.getByText('Send offer'));
+    // Found by the name a screen reader announces. The button is one node now: its inner text
+    // is hidden from the accessibility tree so it is not read out twice.
+    fireEvent.press(screen.getByLabelText('Send offer'));
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
@@ -76,7 +78,7 @@ describe('EmptyState', () => {
       />,
     );
 
-    fireEvent.press(screen.getByText('Clear filters'));
+    fireEvent.press(screen.getByLabelText('Clear filters'));
     expect(onAction).toHaveBeenCalled();
   });
 });

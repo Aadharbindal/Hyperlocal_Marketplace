@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
-import { askForNotificationPermission, registerDevice } from '@/api/push';
+import { askForNotificationPermission, registerDevice, notificationsSupported} from '@/api/push';
 import { useNotificationSettings, useUpdateNotificationSettings } from '@/api/reach';
 import { palette, spacing } from '@/theme';
 import { Button, Card, Screen, Skeleton, Spacer, Text } from '@/ui';
@@ -20,9 +20,17 @@ export default function NotificationSettingsScreen() {
 
   useEffect(() => {
     void (async () => {
-      const Notifications = await import('expo-notifications');
-      const current = await Notifications.getPermissionsAsync();
-      setPermission(current.status === 'granted' ? 'granted' : current.canAskAgain ? 'ask' : 'blocked');
+      // Guarded for the same reason the module scope is: on a build or a device where the
+      // notification service is missing this throws, and a settings screen that crashes is a
+      // worse answer than one that says the switch cannot be offered here.
+      if (!notificationsSupported()) return setPermission('blocked');
+      try {
+        const Notifications = await import('expo-notifications');
+        const current = await Notifications.getPermissionsAsync();
+        setPermission(current.status === 'granted' ? 'granted' : current.canAskAgain ? 'ask' : 'blocked');
+      } catch {
+        setPermission('blocked');
+      }
     })();
   }, []);
 

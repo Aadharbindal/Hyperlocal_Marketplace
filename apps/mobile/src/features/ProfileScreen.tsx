@@ -122,6 +122,9 @@ export function ProfileScreen() {
           ) : null}
           {activeRole === 'CUSTOMER' ? (
             <>
+              {/* First in the list on purpose. Without an address a booking cannot be completed
+                  at all, and the booking form sends people here to fix exactly that. */}
+              <Link icon="location-outline" label={t('settings.addresses')} onPress={() => router.push('/addresses')} />
               <Link icon="receipt-outline" label={t('settings.receipts')} onPress={() => router.push('/receipts')} />
               <Link icon="heart-outline" label={t('settings.saved')} onPress={() => router.push('/favourites')} />
             </>

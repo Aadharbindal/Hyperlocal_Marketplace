@@ -87,24 +87,24 @@ describe('raising a claim', () => {
     await render(<WarrantyCard jobId="job-1" finished />);
     // `userEvent` is awaited on purpose: opening the sheet is a state update, and under React 19
     // the synchronous `fireEvent` returns before the new tree exists.
-    await userEvent.press(screen.getByText('Something has gone wrong again'));
+    await userEvent.press(screen.getByLabelText('Something has gone wrong again'));
 
     await userEvent.type(screen.getByPlaceholderText(/same tap started dripping/i), 'broken');
 
     // The server refuses anything under twenty characters; refusing it here saves a round trip
     // and tells the person how much more is needed.
     expect(screen.getByText('14 more characters')).toBeTruthy();
-    await userEvent.press(screen.getByText('Raise the claim'));
+    await userEvent.press(screen.getByLabelText('Raise the claim'));
     expect(mockRaise).not.toHaveBeenCalled();
   });
 
   it('submits once there is a real description', async () => {
     await render(<WarrantyCard jobId="job-1" finished />);
-    await userEvent.press(screen.getByText('Something has gone wrong again'));
+    await userEvent.press(screen.getByLabelText('Something has gone wrong again'));
 
     const description = 'The same tap has started dripping again, three days after the repair.';
     await userEvent.type(screen.getByPlaceholderText(/same tap started dripping/i), description);
-    await userEvent.press(screen.getByText('Raise the claim'));
+    await userEvent.press(screen.getByLabelText('Raise the claim'));
 
     expect(mockRaise).toHaveBeenCalledWith({ description });
   });
@@ -169,7 +169,7 @@ describe('once a claim exists', () => {
     await render(<WarrantyCard jobId="job-1" finished />);
 
     expect(screen.getByText('The return visit is free of charge.')).toBeTruthy();
-    fireEvent.press(screen.getByText('Book the return visit'));
+    fireEvent.press(screen.getByLabelText('Book the return visit'));
     expect(mockBookRevisit).toHaveBeenCalled();
   });
 

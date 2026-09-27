@@ -123,7 +123,11 @@ describe('media (JOB media limits)', () => {
       payload: { kind: 'PHOTO', mime: 'image/jpeg', sizeBytes: 500_000 },
     });
     expect(photo.statusCode).toBe(201);
-    expect(photo.json().upload.url).toContain('mock://storage');
+    // A URL the client can actually PUT to. This asserted `mock://storage` until storage
+    // became real - a scheme no client could ever have uploaded to, which was the whole
+    // problem: every media row claimed a file that did not exist.
+    expect(photo.json().upload.url).toMatch(/^https?:\/\//);
+    expect(photo.json().upload.required).toBe(true);
     expect(photo.json().media.kind).toBe('PHOTO');
 
     const longVoice = await app.inject({
@@ -153,7 +157,7 @@ describe('media (JOB media limits)', () => {
 
     const view = await app.inject({ method: 'GET', url: `/jobs/${jobId}`, headers: bearer(c.token) });
     expect(view.json().media).toHaveLength(2);
-    expect(view.json().media[0].url).toContain('mock://storage');
+    expect(view.json().media[0].url).toMatch(/^https?:\/\//);
   });
 
   it('treats a re-uploaded identical file as a retry (NET-06)', async () => {

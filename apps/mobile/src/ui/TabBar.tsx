@@ -36,7 +36,7 @@ export function FloatingTabBar({ state, navigation, specs }: BottomTabBarProps &
             if (!active && !event.defaultPrevented) navigation.navigate(route.name);
           };
           return (
-            <Pressable key={route.key} accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={spec.label} onPress={onPress} style={styles.item}>
+            <Pressable key={route.key} accessibilityRole="tab" accessible accessibilityState={{ selected: active }} accessibilityLabel={spec.label} onPress={onPress} style={styles.item}>
               <View>
                 <Ionicons name={active ? spec.iconActive : spec.icon} size={24} color={active ? palette.primary : palette.textSecondary} />
                 {spec.badge ? <View style={styles.badge} /> : null}

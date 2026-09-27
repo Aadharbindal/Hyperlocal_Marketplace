@@ -45,6 +45,11 @@ export function Button({ title, variant = 'primary', size = 'lg', loading, icon,
   return (
     <Pressable
       accessibilityRole="button"
+      // Named explicitly rather than letting the platform build a name out of the children: with
+      // an icon beside the label that produced "Find providers," - a trailing comma a screen
+      // reader renders as a pause - and announced the label twice.
+      accessible
+      accessibilityLabel={title}
       accessibilityState={{ disabled: !!isDisabled, busy: !!loading }}
       disabled={isDisabled}
       {...rest}
@@ -59,7 +64,9 @@ export function Button({ title, variant = 'primary', size = 'lg', loading, icon,
       {loading ? (
         <ActivityIndicator color={FG[variant]} />
       ) : (
-        <View style={styles.row}>
+        // The label is on the Pressable; the same words inside it would be read a second
+        // time. `accessible` alone does not collapse children on Android.
+        <View style={styles.row} importantForAccessibility="no-hide-descendants">
           {icon ? <Ionicons name={icon} size={18} color={FG[variant]} /> : null}
           <Text variant={size === 'sm' ? 'label' : 'subheading'} weight="semibold" style={{ color: FG[variant] }}>
             {title}

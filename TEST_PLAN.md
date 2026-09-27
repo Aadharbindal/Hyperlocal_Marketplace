@@ -154,6 +154,14 @@ people using it:
   run where it happens to pass, so it is a barrier now: node A goes in and stays in until node B
   has had its turn to try.
 
+- **The device run happened, and it was worth it.** Every one of the four bugs it found was
+  invisible to the whole test suite, because each was about the app *as assembled* rather than
+  about any unit of it: a module that threw at import time and blanked the screen, a navigation
+  guard that silently bounced a dozen screens back to home, a journey that dead-ended because
+  one screen had never been written, and an `.env` line that quietly selected the mock storage
+  adapter over the real one. Nothing was red. That is the argument for running the thing on a
+  phone rather than trusting a green suite.
+
 - **Accessibility: measured, not yet heard.** `npm run a11y` computes the WCAG contrast of every
   pairing the app renders and fails on a miss, checks that no icon-only control is unlabelled, and
   flags text colours written as literal hexes that miss AA on their own. It found eight real
