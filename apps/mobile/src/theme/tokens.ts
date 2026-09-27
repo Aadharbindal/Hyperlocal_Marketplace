@@ -70,6 +70,12 @@ export const palette = {
     rose: { bg: '#FDE3E7', fg: '#E5484D' },
   },
 
+  // Hero banner, sampled from the reference render (DECISIONS D-011)
+  /** The mint the second headline line is set in - pale enough to stay well clear of AA on the gradient. */
+  heroTitleAccent: '#C2F7E6',
+  /** The bright green square behind the little house in the brand chip. */
+  heroAccent: '#04A37D',
+
   // Special
   gold: '#F2C14E',
   overlay: 'rgba(16, 35, 28, 0.45)',

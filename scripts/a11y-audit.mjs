@@ -100,6 +100,14 @@ function pairings() {
   add(c.textOnPrimary, c.gradientStart, 'hero heading, dark end of the gradient', 'large');
   add(c.textOnPrimary, c.gradientEnd, 'hero heading, light end of the gradient', 'large');
   add(over('#FFFFFF', c.gradientEnd, 0.94), c.gradientEnd, 'hero subtext at its weakest point');
+  // The banner's second headline line, set in mint. 22px extrabold, so WCAG counts it as large.
+  add(c.heroTitleAccent, c.gradientEnd, 'hero headline accent, light end of the gradient', 'large');
+  // The brand chip sits at the card's top-left, over the dark end of the gradient, and its
+  // fill is a 5% white wash. Its *background* is not checked against the card: a chip's
+  // surface carries no information on its own, and asking that question produced a failure
+  // about nothing. What matters is the label on it.
+  add(c.textOnPrimary, over('#FFFFFF', c.gradientStart, 0.05), 'brand chip label');
+  add(c.textOnPrimary, c.heroAccent, 'the house mark inside the brand chip', 'nonText');
   add(c.primaryDeep, c.primarySoft, 'secondary button label');
   add(c.danger, c.dangerSoft, 'danger button label');
   add(c.success, c.successSoft, 'success badge');
