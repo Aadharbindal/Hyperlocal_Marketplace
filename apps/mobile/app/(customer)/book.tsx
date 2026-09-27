@@ -11,6 +11,7 @@ import { useCategories } from '@/api/hooks';
 import { useAddresses, useAttachMedia, useCreateDraft, useRemoveMedia, useSubmitJob, useUpdateDraft, type LocalMedia } from '@/api/jobs';
 import { askForPhoto } from '@/features/capture/media';
 import { VoiceNoteRecorder } from '@/features/capture/VoiceNoteRecorder';
+import { PriceGuideNote } from '@/features/customer/PriceGuideLine';
 import { useStrings } from '@/i18n';
 import { layout, palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, IconButton, Screen, Text } from '@/ui';
@@ -163,6 +164,9 @@ export default function BookScreen() {
               );
             })}
           </ScrollView>
+          {/* Said here, before the description, because this is the moment somebody decides
+              whether to keep going or close the app and ring a number from a WhatsApp group. */}
+          <PriceGuideNote guide={categories.data?.items.find((c) => c.id === categoryId)?.priceGuide ?? null} />
         </Animated.View>
 
         {/* description */}

@@ -131,6 +131,20 @@ export function refundAmount(capturedPaise: Paise, chargePaise: Paise): Paise {
   return Math.max(0, capturedPaise - chargePaise);
 }
 
+/**
+ * A price range as somebody would say it out loud: "₹250-600", not "₹250 - ₹600".
+ *
+ * Whole rupees on purpose. This is guidance about roughly what a job costs, and paise on an
+ * estimate imply a precision that is not there - a range accurate to the rupee would be a quote,
+ * and a quote is what the provider gives after seeing the work.
+ */
+export function formatInrRange(minPaise: Paise, maxPaise: Paise): string {
+  const lo = Math.round(minPaise / 100);
+  const hi = Math.round(maxPaise / 100);
+  if (lo === hi) return `₹${lo.toLocaleString('en-IN')}`;
+  return `₹${lo.toLocaleString('en-IN')}-${hi.toLocaleString('en-IN')}`;
+}
+
 export function formatInr(paise: Paise): string {
   const sign = paise < 0 ? '-' : '';
   const abs = Math.abs(paise);

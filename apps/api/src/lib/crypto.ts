@@ -49,6 +49,36 @@ export function encryptSecret(key: string, plaintext: string): string {
   return `${iv.toString('base64url')}.${enc.toString('base64url')}.${cipher.getAuthTag().toString('base64url')}`;
 }
 
+/**
+ * The same construction for bytes rather than text, used for identity documents at rest.
+ *
+ * Layout is `iv(12) || tag(16) || ciphertext`, all in one blob, so a file on disk is
+ * self-contained and there is no second place for a piece of it to go missing.
+ *
+ * This is **not** envelope encryption with a KMS. The key is the server secret from the
+ * environment, so somebody who has the environment has the documents; what it defends against is
+ * a stolen disk, a stray backup, or a misconfigured bucket - which is most of how document
+ * leaks actually happen. `KNOWN_LIMITATIONS.md` says so rather than letting this read as more
+ * than it is.
+ */
+export function encryptBytes(key: string, plain: Buffer): Buffer {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', createHash('sha256').update(key).digest(), iv);
+  const enc = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), enc]);
+}
+
+export function decryptBytes(key: string, blob: Buffer): Buffer {
+  if (blob.length < 28) throw new Error('malformed encrypted object');
+  const iv = blob.subarray(0, 12);
+  const tag = blob.subarray(12, 28);
+  const decipher = createDecipheriv('aes-256-gcm', createHash('sha256').update(key).digest(), iv);
+  decipher.setAuthTag(tag);
+  // Throws if the tag does not verify, which is the point: a document that has been altered on
+  // disk must not be served as though it were the one somebody uploaded.
+  return Buffer.concat([decipher.update(blob.subarray(28)), decipher.final()]);
+}
+
 export function decryptSecret(key: string, payload: string): string {
   const [ivB64, dataB64, tagB64] = payload.split('.');
   if (!ivB64 || !dataB64 || !tagB64) throw new Error('malformed secret');

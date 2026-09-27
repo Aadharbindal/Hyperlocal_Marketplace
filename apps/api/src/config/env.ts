@@ -87,7 +87,15 @@ const EnvSchema = z.object({
   PUSH_PROVIDER: Provider(['mock', 'expo', 'fcm']),
   PUSH_SERVER_KEY: z.string().optional(),
   TELEPHONY_PROVIDER: Provider(['mock', 'exotel', 'knowlarity']),
-  STORAGE_PROVIDER: Provider(['mock', 'supabase', 's3']),
+  /**
+   * `local` really stores the bytes on this machine's disk and is the default, because the mock
+   * that preceded it made the evidence chain untestable: it issued a URL nobody could PUT to, so
+   * completion photos - the evidence disputes and warranty claims rest on - did not exist.
+   * A local disk is not shared between nodes and does not survive the container, so production
+   * refuses to boot on it (below).
+   */
+  STORAGE_PROVIDER: Provider(['local', 'mock', 'supabase', 's3']).default('local'),
+  STORAGE_LOCAL_DIR: z.string().default('.data/storage'),
   STORAGE_BUCKET: z.string().default('job-media'),
   STORAGE_SIGNED_URL_TTL_SECONDS: z.coerce.number().int().default(900),
   TELEPHONY_SID: z.string().optional(),
@@ -107,6 +115,12 @@ const EnvSchema = z.object({
   OTP_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(5),
   OTP_REQUESTS_PER_HOUR: z.coerce.number().int().min(1).default(5),
   OTP_DEMO_CODE: z.string().regex(/^\d{4,8}$/).default('123456'),
+
+  /**
+   * Where this API is reachable from a phone. Only used to build absolute URLs for locally
+   * stored files, so on a device it has to be the LAN address rather than localhost.
+   */
+  API_PUBLIC_URL: z.string().default('http://localhost:4000'),
 
   PILOT_CITY: z.string().default('Delhi'),
   PILOT_CENTER_LAT: z.coerce.number().default(28.6139),
@@ -131,6 +145,12 @@ export function loadEnv(overrides: Partial<Record<keyof Env, string>> = {}): Env
   if (env.APP_ENV === 'production' && !env.ALLOW_MOCK_IN_PRODUCTION) {
     const mocked = (['SMS_PROVIDER', 'PAYMENT_PROVIDER'] as const).filter((k) => env[k] === 'mock');
     if (mocked.length) throw new Error(`Refusing to start in production with mock adapters: ${mocked.join(', ')}`);
+    // Local disk is real storage, which is why it is not on the list above - but it is one
+    // machine's disk: not shared between nodes, gone when the container is replaced, and in
+    // nobody's backup. Losing a completion photo means losing the evidence for a dispute.
+    if (env.STORAGE_PROVIDER === 'local' || env.STORAGE_PROVIDER === 'mock') {
+      throw new Error(`Refusing to start in production with STORAGE_PROVIDER=${env.STORAGE_PROVIDER}: job evidence needs durable, shared storage`);
+    }
     if (env.DATA_MODE !== 'postgres') throw new Error('DATA_MODE must be postgres in production');
     // The console can see identity documents and move money; a second factor is not optional.
     if (!env.ADMIN_MFA_REQUIRED) throw new Error('ADMIN_MFA_REQUIRED must be true in production');

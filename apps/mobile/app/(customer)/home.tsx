@@ -8,6 +8,8 @@ import { useNotifications } from '@/api/reach';
 import { useStrings } from '@/i18n';
 import { useSession } from '@/store/session';
 import { layout, palette, radius, spacing } from '@/theme';
+import { BookAgain } from '@/features/customer/BookAgain';
+import { PriceGuideLine } from '@/features/customer/PriceGuideLine';
 import { Avatar, Button, Card, Dots, IconButton, Screen, SectionHeader, Skeleton, Spacer, Text, TextField, ErrorState, RealisticIcon, HomeHeroIllustration, OfferIllustration } from '@/ui';
 
 function greetingKey(): 'greeting.morning' | 'greeting.afternoon' | 'greeting.evening' {
@@ -91,6 +93,11 @@ export default function HomeScreen() {
 
       {/* Categories */}
       <Spacer h={spacing.xxl} />
+      {/* Before the category grid on purpose: somebody who has been here before should not have
+          to scroll past the beginner's path to reach the one that is already theirs. */}
+      <BookAgain />
+      <Spacer h={spacing.md} />
+
       <SectionHeader title={t('home.categories')} actionLabel={t('home.viewAll')} onAction={() => book()} />
       {categories.isPending ? (
         <View style={styles.grid}>
@@ -112,6 +119,8 @@ export default function HomeScreen() {
                 <Text variant="label" weight="medium" center numberOfLines={2} style={styles.tileLabel}>
                   {c.name}
                 </Text>
+                {/* The question a tile is really being asked is "could I afford to find out?" */}
+                <PriceGuideLine guide={c.priceGuide} />
               </Card>
             );
           })}

@@ -6,6 +6,7 @@ import { googleMaps } from './live/google-maps';
 import { msg91Sms } from './live/msg91';
 import { posthogAnalytics, sentryMonitoring } from './live/observability';
 import { razorpayPayment } from './live/razorpay';
+import { localStorageAdapter } from './local-storage';
 import { supabaseStorage } from './live/supabase-storage';
 import {
   mockAnalytics,
@@ -72,11 +73,13 @@ export function createAdapters(env: Env, log: Logger): Adapters {
           : notImplemented('analytics', env.ANALYTICS_PROVIDER),
 
     storage:
-      env.STORAGE_PROVIDER === 'mock'
-        ? mockStorage(env)
-        : env.STORAGE_PROVIDER === 'supabase'
-          ? supabaseStorage(env)
-          : notImplemented('storage', env.STORAGE_PROVIDER),
+      env.STORAGE_PROVIDER === 'local'
+        ? localStorageAdapter(env)
+        : env.STORAGE_PROVIDER === 'mock'
+          ? mockStorage(env)
+          : env.STORAGE_PROVIDER === 'supabase'
+            ? supabaseStorage(env)
+            : notImplemented('storage', env.STORAGE_PROVIDER),
 
     payment:
       env.PAYMENT_PROVIDER === 'mock'

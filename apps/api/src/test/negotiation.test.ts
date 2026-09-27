@@ -285,6 +285,42 @@ describe('payment authorization (PAYMENT_FLOW)', () => {
     expect(providerInbox.json().items[0].type).toBe('job.confirmed');
   });
 
+  it('freezes the money when the bank pulls a payment back', async () => {
+    const { c, p, payment } = await acceptedBooking('+919666000048', '+919666000049');
+
+    // Authorize first, so there is something for the bank to reverse.
+    const auth = { eventId: 'evt_cb_auth', type: 'payment.authorized' as const, orderId: payment.providerOrderId, paymentId: 'pay_cb_1', amountPaise: payment.amountPaise };
+    await app.inject({ method: 'POST', url: '/payments/webhook', headers: { 'x-payment-signature': sign(auth) }, payload: auth });
+
+    const cb = { eventId: 'evt_cb_1', type: 'payment.chargeback' as const, orderId: payment.providerOrderId, paymentId: 'pay_cb_1', amountPaise: payment.amountPaise, failureReason: 'customer_disputed' };
+    const r = await app.inject({ method: 'POST', url: '/payments/webhook', headers: { 'x-payment-signature': sign(cb) }, payload: cb });
+    expect(r.statusCode).toBe(200);
+
+    const job = await app.inject({ method: 'GET', url: `/jobs/${c.job.id}`, headers: c.headers });
+    // Everything stops. Paying a provider out of money the bank is taking back is how a
+    // marketplace ends up funding somebody else's fraud.
+    expect(job.json().paymentStatus).toBe('DISPUTE_HOLD');
+
+    // And the professional is told, rather than finding out by noticing the payout never came.
+    const notes = await app.inject({ method: 'GET', url: '/me/notifications', headers: p.headers });
+    expect(JSON.stringify(notes.json())).toContain('payment.chargeback');
+  });
+
+  it('does not refund a chargeback, because the customer already has the money', async () => {
+    const { c, payment } = await acceptedBooking('+919666000050', '+919666000051');
+    const auth = { eventId: 'evt_cb_auth2', type: 'payment.authorized' as const, orderId: payment.providerOrderId, paymentId: 'pay_cb_2', amountPaise: payment.amountPaise };
+    await app.inject({ method: 'POST', url: '/payments/webhook', headers: { 'x-payment-signature': sign(auth) }, payload: auth });
+
+    const before = (await app.ctx.store.finance.listLedgerForJob(c.job.id)).filter((e) => e.entry_type === 'REFUND').length;
+
+    const cb = { eventId: 'evt_cb_2', type: 'payment.chargeback' as const, orderId: payment.providerOrderId, paymentId: 'pay_cb_2', amountPaise: payment.amountPaise };
+    await app.inject({ method: 'POST', url: '/payments/webhook', headers: { 'x-payment-signature': sign(cb) }, payload: cb });
+
+    const after = (await app.ctx.store.finance.listLedgerForJob(c.job.id)).filter((e) => e.entry_type === 'REFUND').length;
+    // Issuing one would pay the customer twice, the second time out of our own pocket.
+    expect(after).toBe(before);
+  });
+
   it('ignores a replayed webhook (PAY-04)', async () => {
     const { c, payment } = await acceptedBooking('+919666000042', '+919666000043');
     const body = {

@@ -50,7 +50,9 @@ values and, in `production`, refuses `mock` adapters for SMS and payments unless
 | `MAPS_PROVIDER` | mock, google, mapbox | pseudo-geocode by hashing address; distance = haversine |
 | `PUSH_PROVIDER` | mock, expo, fcm | logs notifications |
 | `TELEPHONY_PROVIDER` | mock, exotel, knowlarity | returns a fake masked number |
-| `STORAGE_PROVIDER` | mock, supabase, s3 | in-memory/`.data` dir, fake signed URLs |
+| `STORAGE_PROVIDER` | local | `local` stores the bytes on this machine's disk and is the default; `mock` stores nothing; `supabase`/`s3` are the real providers. **Production refuses to boot on `local` or `mock`** - a local disk is not shared between nodes, does not survive the container and is in nobody's backup, and losing a completion photo means losing the evidence for a dispute |
+| `STORAGE_LOCAL_DIR` | .data/storage | Where `local` keeps files. Identity documents are encrypted before they are written; job photos are not |
+| `API_PUBLIC_URL` | http://localhost:4000 | Where this API is reachable **from a phone**, used to build absolute URLs for locally stored files. On a device this has to be the LAN address, not localhost |
 | `ERROR_MONITORING_PROVIDER` | mock, sentry | logs captured errors |
 | `ANALYTICS_PROVIDER` | mock, posthog | logs events |
 | `*_API_KEY` / `*_SECRET` | – | credentials for live providers |

@@ -442,3 +442,59 @@ describe('in-job chat', () => {
     expect(r.json().error.details.execution).toEqual(['CHAT_CLOSED']);
   });
 });
+
+describe('changing the start code', () => {
+  /** The code is only issued once the provider is actually on the way. */
+  async function onTheDoorstep(customerPhone: string, providerPhone: string) {
+    const { c, p, jobId } = await confirmedJob(customerPhone, providerPhone);
+    await app.inject({ method: 'POST', url: `/jobs/${jobId}/progress`, headers: p.headers, payload: { to: 'EN_ROUTE' } });
+    await app.inject({ method: 'POST', url: `/jobs/${jobId}/progress`, headers: p.headers, payload: { to: 'ARRIVED' } });
+    return { c, p, jobId };
+  }
+
+  it('gives a different code and stops the old one working', async () => {
+    const { c, p, jobId } = await onTheDoorstep('+919799000001', '+919799000002');
+
+    const before = await startCode(jobId, c.headers);
+    expect(before).toMatch(/^\d{4}$/);
+
+    const rotated = await app.inject({ method: 'POST', url: `/jobs/${jobId}/start-code/rotate`, headers: c.headers });
+    expect(rotated.statusCode).toBe(200);
+    const after = rotated.json().startCode as string;
+    expect(after).not.toBe(before);
+
+    // The point of rotating is that the code somebody else already has stops working.
+    const stale = await app.inject({ method: 'POST', url: `/jobs/${jobId}/start`, headers: p.headers, payload: { code: before } });
+    expect(stale.statusCode).toBeGreaterThanOrEqual(400);
+
+    const fresh = await app.inject({ method: 'POST', url: `/jobs/${jobId}/start`, headers: p.headers, payload: { code: after } });
+    expect(fresh.statusCode).toBe(200);
+  });
+
+  it('is the customer decision, not the provider', async () => {
+    const { p, jobId } = await onTheDoorstep('+919799000003', '+919799000004');
+    const res = await app.inject({ method: 'POST', url: `/jobs/${jobId}/start-code/rotate`, headers: p.headers });
+    // The code is how the customer proves who they let in. It is not the provider's to change.
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+  });
+
+  it('refuses a second change straight away', async () => {
+    const { c, jobId } = await onTheDoorstep('+919799000005', '+919799000006');
+    expect((await app.inject({ method: 'POST', url: `/jobs/${jobId}/start-code/rotate`, headers: c.headers })).statusCode).toBe(200);
+
+    // Otherwise somebody tapping the button would change the code between reading it out and
+    // the provider typing it in.
+    const again = await app.inject({ method: 'POST', url: `/jobs/${jobId}/start-code/rotate`, headers: c.headers });
+    expect(again.statusCode).toBe(429);
+  });
+
+  it('will not change the code once the work has started', async () => {
+    const { c, p, jobId } = await onTheDoorstep('+919799000007', '+919799000008');
+    const code = await startCode(jobId, c.headers);
+    await app.inject({ method: 'POST', url: `/jobs/${jobId}/start`, headers: p.headers, payload: { code } });
+
+    const res = await app.inject({ method: 'POST', url: `/jobs/${jobId}/start-code/rotate`, headers: c.headers });
+    // Changing it now would only damage the record of how the job started.
+    expect(res.statusCode).toBe(409);
+  });
+});

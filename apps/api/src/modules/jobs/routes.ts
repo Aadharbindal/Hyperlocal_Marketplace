@@ -14,7 +14,7 @@ import {
   type ScheduleProposalView,
 } from '@hyperlocal/core';
 import { z } from 'zod';
-import { forbidden, notFound } from '../../lib/errors';
+import { AppError, forbidden, notFound } from '../../lib/errors';
 import { parse } from '../../lib/validate';
 import { requireAction, requireAuth } from '../../plugins/auth';
 import type { AppContext } from '../../app';
@@ -84,6 +84,90 @@ export async function jobRoutes(app: FastifyInstance, ctx: AppContext) {
     return { items: await Promise.all(rows.map((j) => jobs.toListItem(j, lang))) };
   });
 
+  /**
+   * Work this customer has had done before, offered back to them.
+   *
+   * Until this existed a returning customer started from the same blank category grid as a
+   * stranger - the app remembered nothing about the fact that somebody had already trusted it
+   * with their home. In this business the second booking is the business; the first is the
+   * expensive one to win.
+   *
+   * Deliberately only finished jobs. Offering to repeat something that went wrong, or is still
+   * in progress, would be the app failing to read the room.
+   */
+  app.get('/me/rebook', { preHandler: requireAction('job.read_own', { allowSuspended: true }) }, async (req) => {
+    const auth = requireAuth(req);
+    const lang = langOf(req);
+    const rows = await store.jobs.listForCustomer(auth.userId, { statuses: ['COMPLETED', 'SETTLED'], limit: 20 });
+    const categories = await store.categories.listEnabled();
+
+    // One entry per category: five "Plumbing" cards would be a list of history, and this is
+    // meant to be a shortcut.
+    const seen = new Set<string>();
+    const items = [];
+    for (const job of rows) {
+      if (seen.has(job.category_id)) continue;
+      const category = categories.find((c) => c.id === job.category_id);
+      if (!category) continue; // A category since disabled is not something to offer again.
+      seen.add(job.category_id);
+
+      const assignment = await store.negotiation.getActiveAssignment(job.id);
+      const provider = assignment?.provider_id ? await store.users.findById(assignment.provider_id) : null;
+      const profile = assignment?.provider_id ? await store.users.getProviderProfile(assignment.provider_id) : null;
+
+      items.push({
+        jobId: job.id,
+        categoryId: job.category_id,
+        categoryName: lang === 'hi' ? category.name_hi : category.name_en,
+        iconKey: category.icon_key,
+        description: job.description,
+        addressId: job.address_id,
+        lastAt: (job.completed_at ?? job.updated_at).toISOString(),
+        // Who did it last time. A first name or the business name, as everywhere else a
+        // counterparty is shown - never a phone number.
+        providerName: profile?.business_name ?? provider?.display_name?.split(' ')[0] ?? null,
+        providerId: assignment?.provider_id ?? null,
+      });
+      if (items.length >= 5) break;
+    }
+    return { items };
+  });
+
+  /**
+   * Start a new booking from one that is finished.
+   *
+   * Copies what is still true - the kind of work, where, and what they wrote last time - and
+   * nothing that is not. Notably it does **not** copy the price, the provider or the schedule:
+   * a repeat is a new job that has to be quoted on its own, and pre-filling a price would be
+   * telling somebody a number that nobody has agreed to.
+   */
+  app.post('/jobs/from/:id', { preHandler: requireAction('job.create') }, async (req, reply) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const previous = await store.jobs.get(id);
+    if (!previous || previous.customer_id !== auth.userId) throw notFound('job');
+    if (previous.status !== 'COMPLETED' && previous.status !== 'SETTLED') {
+      throw new AppError('CONFLICT', { details: { reason: 'job_not_finished' } });
+    }
+
+    // The old address may have been deleted since; the booking screen will ask for a new one.
+    const address = previous.address_id ? await store.addresses.get(previous.address_id) : null;
+    const usable = address && !address.deleted_at && address.user_id === auth.userId ? address.id : undefined;
+
+    const draft = await jobs.createDraft({
+      customerId: auth.userId,
+      categoryId: previous.category_id,
+      skillIds: previous.skill_ids ?? [],
+      description: previous.description ?? undefined,
+      priority: 'NORMAL',
+      requestType: previous.request_type,
+      addressId: usable,
+      ctx: transitionCtx(req),
+    });
+    await services.audit.record(req.auditCtx(), { action: 'job.rebooked', entityType: 'job', entityId: draft.id, after: { from: previous.id } });
+    return reply.code(201).send(await jobs.toJobView(draft, langOf(req), { includeToken: false }));
+  });
+
   app.get('/jobs/:id', { preHandler: requireAction('job.read_own', { allowSuspended: true }) }, async (req) => {
     const auth = requireAuth(req);
     const { id } = parse(IdParam, req.params);
@@ -134,6 +218,24 @@ export async function jobRoutes(app: FastifyInstance, ctx: AppContext) {
       },
       upload: { url: target.url, method: target.method, expiresAt: target.expiresAt.toISOString(), required: uploadRequired },
     });
+  });
+
+  /**
+   * "The bytes are there now."
+   *
+   * With a remote provider the client PUTs straight to it and this server never sees the
+   * transfer, so somebody has to say it happened - otherwise the row claims a file it cannot
+   * prove, which is the state every media row used to be in. Locally stored files are already
+   * marked by the upload route itself, so this is idempotent and harmless to call either way.
+   */
+  app.post('/jobs/:id/media/:mediaId/uploaded', { preHandler: requireAction('job.create') }, async (req) => {
+    const auth = requireAuth(req);
+    const { id, mediaId } = parse(MediaParam, req.params);
+    const media = await store.jobs.getMedia(mediaId);
+    if (!media || media.job_id !== id) throw notFound('media');
+    if (media.uploader_id !== auth.userId) throw forbidden('not your upload');
+    if (!media.uploaded_at) await store.jobs.updateMedia(mediaId, { uploaded_at: new Date() });
+    return { ok: true };
   });
 
   app.delete('/jobs/:id/media/:mediaId', { preHandler: requireAction('job.create') }, async (req) => {

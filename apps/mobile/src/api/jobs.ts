@@ -7,7 +7,45 @@ export const jobKeys = {
   list: (scope: string) => ['jobs', scope] as const,
   detail: (id: string) => ['job', id] as const,
   addresses: ['addresses'] as const,
+  rebook: ['rebook'] as const,
 };
+
+export interface RebookItem {
+  jobId: string;
+  categoryId: string;
+  categoryName: string;
+  iconKey: string;
+  description: string | null;
+  addressId: string | null;
+  lastAt: string;
+  providerName: string | null;
+  providerId: string | null;
+}
+
+/**
+ * Work this person has had done before.
+ *
+ * A returning customer used to start from the same blank grid as a stranger - the app
+ * remembered nothing about somebody having already trusted it with their home. In this business
+ * the second booking is the business; the first is the expensive one to win.
+ */
+export function useRebookable() {
+  return useQuery({
+    queryKey: jobKeys.rebook,
+    queryFn: () => api<{ items: RebookItem[] }>('/me/rebook'),
+    // Nobody's history changes while they are looking at the home screen.
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Starts a fresh draft from a finished job: same work, same place, quoted again from scratch. */
+export function useRebook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: string) => api<JobView>(`/jobs/from/${jobId}`, { method: 'POST', idempotencyKey: newIdempotencyKey() }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: jobKeys.list('active') }),
+  });
+}
 
 export interface JobDraftInput {
   categoryId: string;
@@ -97,6 +135,10 @@ export function useAttachMedia() {
       if (res.upload.required) {
         const blob = await (await fetch(file.uri)).blob();
         await fetch(res.upload.url, { method: res.upload.method, body: blob, headers: { 'content-type': file.mime } });
+        // Tell the server the bytes landed. With a remote provider the transfer never touches
+        // our API, so without this the row claims a file it cannot prove - and a completion
+        // photo that does not exist is discovered during a dispute, which is the worst moment.
+        await api(`/jobs/${jobId}/media/${res.media.id}/uploaded`, { method: 'POST' });
       }
       return res;
     },

@@ -374,9 +374,11 @@ export function jobService(d: JobDeps) {
         lng: input.lng ?? null,
         transcript: null,
         review_status: 'PENDING',
-        // The mock storage adapter has nowhere to PUT the bytes, so the row is marked uploaded
-        // immediately and the client is told it can skip the transfer (KNOWN_LIMITATIONS).
-        uploaded_at: adapters.storage.isMock ? new Date() : null,
+        // Null until the bytes actually arrive. This used to be set immediately whenever the
+        // storage adapter was a mock, which meant every row claimed to have a file and none of
+        // them did - and completion photos are what a dispute is decided on. Local storage marks
+        // it from the upload route; a remote provider is confirmed by the client.
+        uploaded_at: null,
         deleted_at: null,
       });
       return { media, target, uploadRequired: !adapters.storage.isMock };

@@ -444,6 +444,38 @@ the wrong thing about what happened.
 | POST | `/time-proposals/:id/respond` | the customer | `{ accept, declineReason? }`. Accepting writes a real `job_reschedules` row, so the history reads the same whoever asked for the change *audited* |
 | POST | `/time-proposals/:id/withdraw` | the provider who proposed it | For when the reason stops applying *audited* |
 
+## Files, prices and coming back (post-M9)
+
+### Files that actually exist
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| PUT | `/storage/upload?token=…` | the signed grant | Where the bytes go when `STORAGE_PROVIDER=local`. **No bearer token**: the grant in the URL is the authorisation, scoped to one key, one content type, one size ceiling and one operation, and expiring - the same shape as an S3 presigned URL, because these URLs are handed to a background upload. Refuses more bytes than the client declared, and a body that is not the agreed type. Marks the row uploaded, since the bytes came through this process |
+| GET | `/storage/object?token=…` | the signed grant | Serves the file back. An **upload** grant cannot be used here: a grant says what it permits, not just who signed it. Identity documents are decrypted on the way out |
+| POST | `/jobs/:id/media/:mediaId/uploaded` | the uploader | "The bytes are there now." Needed for remote providers, where the transfer never touches this API and the row would otherwise claim a file it cannot prove. Idempotent; locally stored files are already marked *audited* |
+
+### What it usually costs
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/categories` | any signed-in user | Now carries `priceGuide` on every skill and a roll-up on the category. `basis` is `ACTUAL` once a skill has five finished jobs - the inter-quartile range of what customers actually paid - and `ESTIMATE` until then. The app words the two differently on purpose. Labour only |
+
+### Booking the same thing again
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| GET | `/me/rebook` | customer | Finished work, one entry per kind of work, newest first, with who did it last time. Only `COMPLETED`/`SETTLED`: offering to repeat something still in progress is the app failing to read the room |
+| POST | `/jobs/from/:id` | customer | A fresh draft with the category, address and last time's description. Carries over **no price and no professional** - a repeat is a new job that has to be quoted on its own *audited* |
+
+### A start code that can be changed
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| POST | `/jobs/:id/start-code/rotate` | customer | Issues a new code and stops the old one working, for when it went to the wrong person or five wrong guesses locked the job. Not a resend - the code is derived, so the customer could always see it. Rate-limited between rotations, and refused once the work has started, when changing it would only damage the record of how it began. The code never reaches the audit trail *audited* |
+
+### Gateway events
+`POST /payments/webhook` now accepts `payment.chargeback` alongside `payment.authorized` and
+`payment.failed`. A chargeback puts the payment on `DISPUTE_HOLD`, freezes every settlement on
+the job, opens a high-priority support ticket and tells the provider their payout has stopped.
+It **never auto-refunds**: the bank has already returned the money, and a refund would pay the
+customer a second time out of the platform's pocket.
+
 ## Where each admin route is reachable from
 
 Eleven route groups existed and three had screens; the rest meant running curl against

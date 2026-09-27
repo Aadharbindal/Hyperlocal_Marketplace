@@ -4,6 +4,115 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## The photo that was never there
+
+**Milestone:** post-M9 - the launch-readiness list, worked top to bottom
+**Date:** 2026-09-27
+**Status:** Complete except what needs a phone, a credential, or a lawyer
+
+**Why this exists:** an assessment of what stood between this and being genuinely good produced
+three tiers. Tier 0 was things only the owner can do - credentials, legal review, a device. Tier
+1 was work that was built but hollow. Tier 2 was the gap between a complete app and one somebody
+comes back to. This entry is Tiers 1 and 2.
+
+**The one that mattered most.** The storage adapter was a mock that returned a `mock://` URL
+nobody could PUT to. To keep the flow working, the API marked every media row uploaded the
+moment it was created and told the client to skip the transfer. Written down plainly: **completion
+photos did not exist**, and completion photos are the evidence the dispute and warranty
+processes are decided on. Every test about evidence had been passing against rows that referred
+to nothing - and the entire suite stayed green through the fix, because no test had ever looked.
+There is now a real local-disk adapter: bytes written, served, size-limited, content-type
+checked and deleted, behind signed grants scoped to one key, one type, one size and one
+operation. Eight new tests do what none of the old ones did and read the bytes back.
+
+Fixing it surfaced a second bug on a path that has never run: `uploaded_at` was only ever set
+when the adapter was a mock, so with a *real* provider no row would ever have been marked
+uploaded at all - there was no confirm step to do it. There is one now.
+
+**Implemented:**
+
+*Identity documents are encrypted before they touch the disk.* AES-256-GCM, keyed on the server
+secret, applied to `kyc/` objects only - an Aadhaar card is the most sensitive thing this system
+will hold, is legally somebody else's, and unlike a photo of a leaking tap is never shown to the
+person it belongs to. Not envelope encryption: somebody with the environment has the key. What
+it defends against is a stolen disk, a stray backup or a misconfigured bucket, which is most of
+how document leaks actually happen.
+
+*A chargeback stops the money.* `payment.chargeback` puts the payment on hold, freezes every
+settlement on the job, opens a high-priority ticket and tells the provider their payout has
+stopped rather than letting them discover it by noticing it never came. It deliberately never
+auto-refunds: the bank has already returned the money, and a refund would pay the customer twice
+out of the platform's pocket. Paying a provider out of money the bank is taking back is how a
+marketplace ends up funding somebody else's fraud.
+
+*A start code that can be changed.* Not a resend - the code is derived rather than stored, so the
+customer could always see it. What was missing was making the old one stop working: for the code
+that went to the wrong person, was read over a shoulder, or the job stuck because the provider
+mistyped it five times.
+
+*Roughly what it costs, before anybody commits.* Every skill carries a labour range, on the home
+tiles and on the booking screen. It lives on the skill because "plumbing" spans a washer change
+and a geyser replacement. It says whether it is a measurement or a guess: five finished jobs in
+a skill and it reports the inter-quartile range of what customers actually paid, worded as "what
+27 people paid"; until then it is the seeded figure and says "usually".
+
+*Book again.* Finished work offered back, one card per kind of work, starting a fresh draft with
+the category, address and last time's description - and carrying over no price and no
+professional, because a repeat is a new job that has to be quoted on its own.
+
+*The provider can rate the customer.* The server always accepted a review from either side;
+only the customer ever had a screen for it. A marketplace that asks people to walk into
+strangers' homes gave them no way to warn the next person.
+
+**Two things on the list were already done.** The mobile camera and voice-note capture were
+marked "stand-in" and "not started" in `KNOWN_LIMITATIONS.md` and are neither - the code has been
+real for some time and the rows were stale. And in the assessment that produced this list I said
+there was no cancellation fee; there is, and there always was. I had searched for "cancellation
+fee" and the function is called `customerCancellationCharge`. Both corrected in the docs.
+
+**Changed files:** `apps/api/src/adapters/{local-storage,index}.ts`,
+`apps/api/src/modules/storage/routes.ts`, `apps/api/src/modules/{jobs,categories,execution,negotiation}/*`,
+`apps/api/src/lib/crypto.ts`, `apps/api/src/data/**` (price guide, media-by-key, start-code delete),
+`apps/api/src/config/env.ts`, `packages/core/src/{pricing/pricing,contracts/common,contracts/negotiation}.ts`,
+`apps/mobile/src/features/customer/{PriceGuideLine,BookAgain}.tsx`,
+`apps/mobile/src/features/provider/RateCustomerCard.tsx`, `apps/mobile/src/api/{jobs,execution}.ts`,
+`apps/mobile/app/(customer)/{home,book}.tsx`, `apps/mobile/app/(provider)/active.tsx`,
+`supabase/migrations/0015_price_guidance.sql`, and the docs.
+
+**Database changes:** `0015_price_guidance.sql` - labour ranges on `service_skills`, with a check
+constraint that a range is a range. Forward-only; 15/15 apply cleanly to a real PostgreSQL 17.
+
+**API changes:** `PUT /storage/upload`, `GET /storage/object`, `POST /jobs/:id/media/:mediaId/uploaded`,
+`GET /me/rebook`, `POST /jobs/from/:id`, `POST /jobs/:id/start-code/rotate`. `/categories` now
+carries `priceGuide`. `/payments/webhook` accepts `payment.chargeback`.
+
+**Tests added:** 27 - nine on storage (round trip, size and type refusal, tampered and
+cross-purpose grants, deletion, and that a KYC document on disk is not the bytes that were
+uploaded), six on price guidance, seven on rebooking, four on start-code rotation, two on
+chargebacks, three on the range formatter.
+
+**Tests passed:** 507 - core 199, API 308. The API suite passes **308/308 against a real
+PostgreSQL 17**, first run. Typecheck, lint, build, `npm run a11y` and migrations all clean.
+
+**Known limitations:** the container image has still never been built - Docker Desktop would not
+start here. No soak test. No screen-reader pass. No onboarding: a first-time user is dropped onto
+the home screen with no explanation of how bidding, the start code or the hold on their money
+work. Every live adapter is still credential-less and fails loudly at boot.
+
+**Security considerations:** storage grants carry no bearer token by design, so they are short,
+scoped to a single operation, and an upload grant is refused for reading. Keys are never taken
+from the caller, only from inside a signature we produced, and path resolution is checked against
+the storage root rather than assumed. Identity documents are encrypted at rest. The start code
+never reaches the audit trail, only the fact that it changed. Production refuses to boot on local
+or mock storage.
+
+**External integrations mocked or live:** unchanged - SMS, payment, maps, push, telephony,
+monitoring and analytics are all mocked. Storage is no longer among them: it is real, locally.
+
+**Next milestone:** the device run, and the credentials.
+
+---
+
 ## Assuming there is only one of us
 
 **Milestone:** post-M9 - multi-node correctness, the ops report, and something to deploy

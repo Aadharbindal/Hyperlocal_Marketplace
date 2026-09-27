@@ -472,7 +472,7 @@ export function negotiationService(d: NegotiationDeps) {
      */
     async applyPaymentEvent(input: {
       eventId: string;
-      type: 'payment.authorized' | 'payment.failed';
+      type: 'payment.authorized' | 'payment.failed' | 'payment.chargeback';
       orderId: string;
       paymentId: string;
       amountPaise: number;
@@ -513,6 +513,64 @@ export function negotiationService(d: NegotiationDeps) {
         await d.onSideLegSettled?.(settled);
         adapters.analytics.track('side_payment_settled', { userId: payment.payer_id, jobId: job.id, purpose: payment.purpose });
         return { replayed: false, payment: settled };
+      }
+
+      /**
+       * The bank has pulled money back. Not a refund, and deliberately not treated like one.
+       *
+       * Three things have to happen and one must not. The hold goes on, so nothing further
+       * moves. Any settlement not yet sent is frozen - paying a provider out of money the bank
+       * is taking back is how a marketplace funds somebody else's fraud. Support gets a ticket,
+       * because contesting a chargeback needs evidence assembled by a person within the
+       * gateway's window.
+       *
+       * What must not happen is an automatic refund. The customer already has the money; issuing
+       * one would pay them twice out of our own pocket.
+       */
+      if (input.type === 'payment.chargeback') {
+        await store.payments.update(payment.id, { status: 'DISPUTE_HOLD', failure_reason: input.failureReason ?? 'chargeback' });
+        await store.jobs.update(job.id, { payment_status: 'DISPUTE_HOLD' });
+
+        // Anything still waiting to go out, on this job, for anybody. Read by status rather
+        // than by payee because a job can owe a provider and a vendor at the same time.
+        for (const status of ['PENDING', 'INITIATED'] as const) {
+          for (const s2 of await store.finance.listSettlementsByStatus(status, 500)) {
+            if (s2.job_id !== job.id) continue;
+            await store.finance.updateSettlement(s2.id, { status: 'ON_HOLD', failure_reason: 'chargeback_on_booking' });
+          }
+        }
+
+        await store.finance.createTicket({
+          opened_by: payment.payer_id,
+          job_id: job.id,
+          category: 'PAYMENT',
+          subject: `Chargeback on job ${job.id}`,
+          body: `The gateway reported a chargeback (${input.failureReason ?? 'no reason given'}). Payouts on this job are frozen. Evidence has to be submitted within the gateway's representment window.`,
+          dispute_id: null,
+          status: 'OPEN',
+          assigned_to: null,
+          // The gateway's representment window is short and does not pause for a weekend.
+          priority: 1,
+          closed_at: null,
+        });
+
+        // The provider is told their payout has stopped, and why, rather than finding out by
+        // noticing it never arrived.
+        const quote = await store.negotiation.getActiveQuote(job.id);
+        if (quote) {
+          await store.notifications.create({
+            user_id: quote.provider_id,
+            type: 'payment.chargeback',
+            title: 'A payment is being disputed by the bank',
+            body: 'Your payout for this job is on hold while we sort it out. Our team will be in touch.',
+            data: { jobId: job.id },
+            channel: 'IN_APP',
+            read_at: null,
+            sent_at: new Date(),
+          });
+        }
+        adapters.analytics.track('payment_chargeback', { userId: payment.payer_id, jobId: job.id });
+        return { replayed: false, payment: await store.payments.get(payment.id) };
       }
 
       if (input.type === 'payment.failed') {

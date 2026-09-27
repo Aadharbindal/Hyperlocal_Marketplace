@@ -1,4 +1,5 @@
 import { postgresCluster } from './cluster';
+import { postgresPriceGuide } from './price-guide';
 import { postgresReports } from './reports';
 import pg from 'pg';
 import { conflict } from '../../lib/errors';
@@ -330,6 +331,7 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     categories: {
       listEnabled: () => many('select * from service_categories where is_enabled order by sort_order'),
       listSkills: (ids) => many('select * from service_skills where category_id = any($1::uuid[])', [ids]),
+      priceGuides: () => postgresPriceGuide(q).priceGuides(),
     },
 
     jobs: createPostgresJobsRepo(q),

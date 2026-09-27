@@ -11,13 +11,15 @@ import type {
 } from '../types';
 
 /** In-memory negotiation repository mirroring the constraints in 0004_negotiation.sql. */
-export function createMemoryNegotiationRepo(): NegotiationRepo {
+export function createMemoryNegotiationRepo(): NegotiationRepo & { _quotes: () => BookingQuoteRecord[] } {
   const offers = new Map<string, OfferRecord>();
   const quotes = new Map<string, BookingQuoteRecord>();
   const assignments = new Map<string, AssignmentRecord>();
   const now = () => new Date();
 
   return {
+    /** Every quote, for the price guide. Postgres answers the same question in SQL. */
+    _quotes: () => [...quotes.values()],
     async createOffer(o) {
       // mirrors offers_one_pending_per_bid_idx
       if ((o.status ?? 'PENDING') === 'PENDING') {

@@ -33,13 +33,41 @@ export const ApiError = z.object({
 });
 export type ApiError = z.infer<typeof ApiError>;
 
+/**
+ * Roughly what this kind of work costs, before anybody has quoted.
+ *
+ * `basis` is not decoration. `ACTUAL` means these are the prices customers paid on finished
+ * jobs; `ESTIMATE` means it is our seeded guess and nobody has paid it yet. The app says which,
+ * because "about ₹300-600" and "most people paid ₹300-600" are different promises and quietly
+ * upgrading one to the other is how a price guide stops being trusted.
+ *
+ * Labour only. Materials are bought at a vendor's price and quoted separately.
+ */
+export const PriceGuide = z.object({
+  minPaise: z.number().int().positive(),
+  maxPaise: z.number().int().positive(),
+  basis: z.enum(['ACTUAL', 'ESTIMATE']),
+  sampleSize: z.number().int().nonnegative(),
+});
+export type PriceGuide = z.infer<typeof PriceGuide>;
+
 export const CategoryView = z.object({
   id: z.string().uuid(),
   slug: z.string(),
   name: z.string(),
   iconKey: z.string(),
   requiresInspectionDefault: z.boolean(),
-  skills: z.array(z.object({ id: z.string().uuid(), slug: z.string(), name: z.string(), riskLevel: z.enum(['LOW', 'MEDIUM', 'HIGH']) })),
+  skills: z.array(
+    z.object({
+      id: z.string().uuid(),
+      slug: z.string(),
+      name: z.string(),
+      riskLevel: z.enum(['LOW', 'MEDIUM', 'HIGH']),
+      priceGuide: PriceGuide.nullable(),
+    }),
+  ),
+  /** The category's own range: the widest of its skills, so a tile can show one number. */
+  priceGuide: PriceGuide.nullable(),
 });
 export type CategoryView = z.infer<typeof CategoryView>;
 

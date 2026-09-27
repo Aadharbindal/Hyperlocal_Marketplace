@@ -8,6 +8,7 @@ import { useOfferChain } from '@/api/negotiation';
 import { useMyBids, useWithdrawBid, type ProviderBidItem } from '@/api/provider';
 import { CounterOfferCard } from '@/features/provider/CounterOfferCard';
 import { JobRunner } from '@/features/provider/JobRunner';
+import { RateCustomerCard } from '@/features/provider/RateCustomerCard';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
@@ -117,7 +118,12 @@ export default function ProviderActiveScreen() {
               </Text>
               <View style={styles.list}>
                 {closed.map((b) => (
-                  <BidRow key={b.id} bid={b} />
+                  <View key={b.id} style={styles.closedRow}>
+                    <BidRow bid={b} />
+                    {/* The server has always accepted a review from either side; until now only
+                        the customer had a screen for it, so nobody could warn the next person. */}
+                    <RateCustomerCard jobId={b.job.id} status={b.job.status as JobStatus} />
+                  </View>
                 ))}
               </View>
             </>
@@ -208,6 +214,7 @@ function BidRow({ bid, onWithdraw, withdrawing }: { bid: ProviderBidItem; onWith
 
 const styles = StyleSheet.create({
   section: { fontSize: 14, marginTop: spacing.lg, marginBottom: spacing.md },
+  closedRow: { gap: spacing.xs },
   list: { gap: spacing.md },
   card: { gap: spacing.md },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

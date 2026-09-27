@@ -176,6 +176,18 @@ export interface SkillRecord {
   name_en: string;
   name_hi: string;
   risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
+  /** Seeded labour-only guidance, superseded by real prices once a skill has enough history. */
+  typical_min_paise: number | null;
+  typical_max_paise: number | null;
+}
+
+export interface PriceGuideRow {
+  skillId: string;
+  minPaise: number;
+  maxPaise: number;
+  /** `ACTUAL` is what customers paid; `ESTIMATE` is the seeded guess. Never presented as the same thing. */
+  basis: 'ACTUAL' | 'ESTIMATE';
+  sampleSize: number;
 }
 
 export interface ConsentRecord {
@@ -819,6 +831,8 @@ export interface AddressesRepo {
 export interface CategoriesRepo {
   listEnabled(): Promise<CategoryRecord[]>;
   listSkills(categoryIds: string[]): Promise<SkillRecord[]>;
+  /** Roughly what a job of each kind costs, from real prices where there are enough of them. */
+  priceGuides(): Promise<PriceGuideRow[]>;
 }
 
 export interface AuditRepo {
@@ -1100,6 +1114,9 @@ export interface JobsRepo {
   listMedia(jobId: string, phase?: JobMediaRecord['phase']): Promise<JobMediaRecord[]>;
   getMedia(id: string): Promise<JobMediaRecord | null>;
   updateMedia(id: string, patch: Partial<JobMediaRecord>): Promise<JobMediaRecord>;
+  /** Looked up by storage key because the upload route is reached with a signed grant, not an id. */
+  findMediaByKey(storageKey: string): Promise<JobMediaRecord | null>;
+  markMediaUploadedByKey(storageKey: string, at: Date): Promise<void>;
 
   appendEvent(e: New<JobStatusEventRecord>): Promise<JobStatusEventRecord>;
   listEvents(jobId: string): Promise<JobStatusEventRecord[]>;
@@ -1169,6 +1186,8 @@ export interface ExecutionRepo {
   createStartOtp(o: Omit<New<StartOtpRecord>, 'updated_at'>): Promise<StartOtpRecord>;
   getStartOtp(jobId: string): Promise<StartOtpRecord | null>;
   updateStartOtp(id: string, patch: Partial<StartOtpRecord>): Promise<StartOtpRecord>;
+  /** Removes the job's start code so a fresh one can be issued; the code is derived from the row id. */
+  deleteStartOtp(jobId: string): Promise<void>;
 
   createRevision(r: New<PriceRevisionRecord>): Promise<PriceRevisionRecord>;
   getRevision(id: string): Promise<PriceRevisionRecord | null>;

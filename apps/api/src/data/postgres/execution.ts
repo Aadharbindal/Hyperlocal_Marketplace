@@ -35,6 +35,9 @@ export function createPostgresExecutionRepo(q: Queryable): ExecutionRepo {
       const { sets, values } = patchSql(patch as Record<string, unknown>, 2);
       return (await one<StartOtpRecord>(`update start_otps set ${sets} where id = $1 returning *`, [id, ...values]))!;
     },
+    async deleteStartOtp(jobId) {
+      await q.query('delete from start_otps where job_id = $1', [jobId]);
+    },
 
     async createRevision(r) {
       return (await one<PriceRevisionRecord>(

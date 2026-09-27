@@ -21,6 +21,7 @@ PostgreSQL 15 (Supabase). Conventions:
 | `0005_execution` | M5 | start_otps, price_revision_requests, job_completions, chat_threads, chat_messages (+ revision-actor, chat-sender and message-immutability triggers) |
 | `0006_materials` | M6 | material_requests, material_quotes, material_orders (+ requester, vendor-verified and invoice-match triggers) |
 | `0008_admin` | M8 | admin_mfa, kyc_access_log (+ sessions.mfa_verified_at, dispute queue columns, the two-person suspension trigger) |
+| `0015_price_guidance` | post-M9 | `service_skills.typical_min_paise` / `typical_max_paise` (labour-only guidance, superseded per skill by real prices once there are five finished jobs) |
 | `0014_multi_node` | post-M9 | rate_limit_hits, scheduler_runs (the tables that stop being optional once the API is more than one process) |
 | `0013_rewards_and_scheduling` | post-M9 | schedule_proposals (+ `promo_codes.reserved_for_user_id` and `referral_id`, and the one-open-proposal partial unique) |
 | `0012_warranty_and_trust` | post-M9 | warranty_claims, admin_recovery_codes, data_export_requests (+ review columns on chat_messages, `jobs.warranty_claim_id`) |
@@ -259,6 +260,13 @@ lives in the session - a lock held by a node that dies is released when the conn
 with no lease to expire and no stuck row for somebody to clear by hand at two in the morning.
 Stream fan-out uses LISTEN/NOTIFY.
 
+### service_skills (post-M9 additions)
+`typical_min_paise`, `typical_max_paise` - roughly what this kind of work costs, labour only. On
+the skill rather than the category because "plumbing" spans a washer change and a geyser
+replacement and one number for both is worse than none. A starting point, not a source of truth:
+once a skill has five finished jobs the API answers from the inter-quartile range of what
+customers actually paid and stops reading these.
+
 ## Critical constraints (enforced in SQL + code)
 
 | Rule | Mechanism |
@@ -282,6 +290,7 @@ Stream fan-out uses LISTEN/NOTIFY.
 | An invoice must match its order | trigger `material_invoice_matches_order` |
 | No review before completion | trigger `reviews_require_completion` |
 | No technician assignment without verification | trigger `assignment_requires_verified_technician` |
+| A price range is a range | check `service_skills_price_range_sane`: both null, or both set with max >= min > 0 |
 | One open time proposal per job | partial unique on `schedule_proposals(job_id) where status = 'PENDING'` |
 | A reward code belongs to one person | `promo_codes.reserved_for_user_id`, checked server-side before redemption |
 | One open price revision per job | partial unique on `price_revision_requests(job_id) where status in ('PENDING','CLARIFICATION')` |

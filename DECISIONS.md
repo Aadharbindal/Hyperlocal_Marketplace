@@ -170,3 +170,59 @@ run at a precise time on a busy cluster wants a queue with visibility timeouts, 
 shared counter is the second, at the point where its write rate is worth moving to Redis. The
 fan-out is the last, because it is already doing very little.
 
+## D-016: Storage that holds the bytes, even in development
+
+**Context.** The storage adapter was a mock that returned a `mock://` URL nobody could PUT to.
+To keep the flow working, the API marked every media row uploaded the moment it was created and
+told the client not to bother transferring anything. The consequence went well beyond
+development convenience: **completion photos did not exist**, and completion photos are the
+evidence the dispute and warranty processes are decided on. Every test about evidence was
+passing against rows that referred to nothing, and the whole suite stayed green through the fix
+for exactly that reason - nothing had ever looked.
+
+**Decision.** A real local-disk adapter is the default. Bytes are written, served, size-limited,
+content-type checked and deleted. Access is a signed grant in the URL - scoped to one key, one
+content type, one size ceiling and one operation, and expiring - because these URLs go to an
+`<Image>` tag and a background upload, neither of which carries a bearer token. That is the same
+shape as an S3 presigned URL, deliberately.
+
+Identity documents are AES-256-GCM encrypted before they touch the disk; job photos are not,
+because they are read constantly and an Aadhaar card is a different kind of thing. `uploaded_at`
+is now set when the bytes arrive rather than when the row is created, which also fixed a latent
+bug on the *live* path: with a remote provider nothing ever marked a row uploaded, because no
+confirm step existed.
+
+**Consequences.** The entire chain - attach, upload, view, dispute, warranty - can be exercised
+before anybody has a storage credential, which is what makes the evidence tests mean something.
+Production refuses to boot on it: a local disk is not shared between nodes, does not survive the
+container and is in nobody's backup, and losing a completion photo means losing the evidence for
+a dispute. The encryption is not envelope encryption - somebody with the environment has the
+key - and `KNOWN_LIMITATIONS.md` says so rather than letting it read as more than it is.
+
+## D-017: Tell people roughly what it costs before they commit
+
+**Context.** A customer described a leaking tap, pressed submit, and waited - with no idea
+whether the answer would be three hundred rupees or three thousand. The catalog carried no price
+information at all. That is a lot to ask of somebody who has never used the service, and it is
+the point at which most of them stop.
+
+**Decision.** Every skill carries a labour range, shown on the home tiles and on the booking
+screen before the description box. Two rules make it honest rather than decorative:
+
+- **It lives on the skill, not the category.** "Plumbing" spans a washer change and a geyser
+  replacement, and one number for both is worse than no number.
+- **It says whether it is a measurement or a guess.** Once a skill has five finished jobs the
+  range comes from the inter-quartile spread of what customers actually paid, and the copy says
+  "what 27 people paid". Until then it is the seeded figure and says "usually". A guess dressed
+  up as a measurement is how a price guide stops being trusted.
+
+Labour only, stated in the copy, because materials are bought at a vendor's price and quoted
+separately - an estimate that quietly excluded them would be wrong in the direction that annoys
+people most.
+
+**Consequences.** The seeded figures are scaffolding with an expiry built into how they are
+read: they stop being used, per skill, as soon as there is real data. The inter-quartile range
+rather than min-max means one emergency call-out at midnight cannot make a whole category's
+number useless. It is never a quote, and the booking screen says so: the price comes from the
+professional after they have seen the work.
+

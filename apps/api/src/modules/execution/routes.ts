@@ -65,6 +65,23 @@ export async function executionRoutes(app: FastifyInstance, ctx: AppContext) {
   });
 
   // ---------------------------------------------------------------- start code
+  /**
+   * A different start code, when the old one should stop working.
+   *
+   * The customer can already see their code any time they look - it is derived, not stored - so
+   * this is not a resend. It exists for the code that went to the wrong person, or was read over
+   * a shoulder, or the job that is stuck because the provider mistyped it five times.
+   */
+  app.post('/jobs/:id/start-code/rotate', { preHandler: requireAction('job.read_own') }, async (req) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const job = await jobForParty(req, id);
+    const { code, nextAllowedAt } = await execution.rotateStartCode(job, auth.userId);
+    // The code itself never reaches the audit trail - only the fact that it changed.
+    await services.audit.record(req.auditCtx(), { action: 'job.start_code_rotated', entityType: 'job', entityId: job.id });
+    return { startCode: code, nextAllowedAt: nextAllowedAt.toISOString() };
+  });
+
   app.post('/jobs/:id/start', async (req) => {
     const auth = requireAuth(req);
     const { id } = parse(IdParam, req.params);

@@ -38,6 +38,9 @@ export function createMemoryExecutionRepo(): ExecutionRepo {
       otps.set(id, next);
       return next;
     },
+    async deleteStartOtp(jobId) {
+      for (const [id, o] of otps) if (o.job_id === jobId) otps.delete(id);
+    },
 
     async createRevision(r) {
       // mirrors price_revision_one_open_idx

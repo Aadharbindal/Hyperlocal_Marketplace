@@ -21,6 +21,7 @@ import { auditService, type AuditService } from './modules/audit/service';
 import { categoryRoutes } from './modules/categories/routes';
 import { eventRoutes } from './modules/events/routes';
 import { eventsService, type EventsService } from './modules/events/service';
+import { storageRoutes } from './modules/storage/routes';
 import { executionRoutes } from './modules/execution/routes';
 import { financeRoutes } from './modules/finance/routes';
 import { contractorRoutes } from './modules/contractor/routes';
@@ -398,6 +399,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     await warrantyRoutes(scope, ctx);
     await trustRoutes(scope, ctx);
     await technicianRoutes(scope, ctx);
+    await storageRoutes(scope, ctx);
     await eventRoutes(scope, ctx);
     await adminRoutes(scope, ctx);
     await adminConsoleRoutes(scope, ctx);

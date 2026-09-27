@@ -122,7 +122,13 @@ export type AssignmentView = z.infer<typeof AssignmentView>;
 export const PaymentWebhookBody = z
   .object({
     eventId: z.string().min(6).max(120),
-    type: z.enum(['payment.authorized', 'payment.failed']),
+    /**
+     * `payment.chargeback` is the bank reversing a payment we already took, which is a different
+     * thing from a refund: the money is going back whether we agree or not, and what is left to
+     * decide is whether we contest it. Handled rather than ignored because an unhandled
+     * chargeback is money leaving while the provider is still being paid out of it.
+     */
+    type: z.enum(['payment.authorized', 'payment.failed', 'payment.chargeback']),
     orderId: z.string().min(4).max(120),
     paymentId: z.string().min(4).max(120),
     amountPaise: z.number().int().positive(),

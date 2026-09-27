@@ -1,6 +1,7 @@
 import { newId } from '../../lib/crypto';
 import { conflict } from '../../lib/errors';
 import { CATEGORY_SEED, SKILL_SEED } from '../catalog';
+import { MIN_SAMPLE } from '../postgres/price-guide';
 import { createMemoryBidsRepo, createMemoryKycRepo } from './bids';
 import { createMemoryCluster } from './cluster';
 import { createMemoryReports } from './reports';
@@ -330,6 +331,58 @@ export function createMemoryStore(): DataStore {
       },
       async listSkills(categoryIds) {
         return SKILL_SEED.filter((s) => categoryIds.includes(s.category_id));
+      },
+
+      /**
+       * Mirrors `postgres/price-guide.ts`, including the part that matters: real prices win once
+       * there are enough of them, and `basis` never lets an estimate pass as a measurement.
+       * The inter-quartile range rather than min-max, so one emergency call-out at midnight
+       * cannot make the whole number useless.
+       */
+      async priceGuides() {
+        const quotes = negotiationRepo._quotes?.() ?? [];
+        const done: readonly string[] = ['COMPLETED', 'SETTLED'];
+        const paidBySkill = new Map<string, number[]>();
+        for (const job of jobsRepo._all()) {
+          if (job.deleted_at || !done.includes(job.status) || !job.active_quote_id) continue;
+          const quote = quotes.find((qt) => qt.id === job.active_quote_id);
+          if (!quote) continue;
+          for (const skillId of job.skill_ids ?? []) {
+            const list = paidBySkill.get(skillId) ?? [];
+            list.push(Number(quote.labour_paise));
+            paidBySkill.set(skillId, list);
+          }
+        }
+
+        const quartile = (sorted: number[], p: number) => {
+          const pos = (sorted.length - 1) * p;
+          const lo = Math.floor(pos);
+          const hi = Math.ceil(pos);
+          return sorted[lo]! + (sorted[hi]! - sorted[lo]!) * (pos - lo);
+        };
+
+        const out = [];
+        for (const skill of SKILL_SEED) {
+          const paid = (paidBySkill.get(skill.id) ?? []).sort((a, b) => a - b);
+          if (paid.length >= MIN_SAMPLE) {
+            out.push({
+              skillId: skill.id,
+              minPaise: Math.round(quartile(paid, 0.25)),
+              maxPaise: Math.round(quartile(paid, 0.75)),
+              basis: 'ACTUAL' as const,
+              sampleSize: paid.length,
+            });
+          } else if (skill.typical_min_paise !== null && skill.typical_max_paise !== null) {
+            out.push({
+              skillId: skill.id,
+              minPaise: skill.typical_min_paise,
+              maxPaise: skill.typical_max_paise,
+              basis: 'ESTIMATE' as const,
+              sampleSize: paid.length,
+            });
+          }
+        }
+        return out;
       },
     },
 

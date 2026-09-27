@@ -107,6 +107,47 @@ export function executionService(d: ExecutionDeps) {
   }
 
   /**
+   * Issue a different start code for this job, invalidating the one before it.
+   *
+   * Not a "resend" - the customer can already see their code whenever they look, because it is
+   * derived rather than stored. What was missing is the ability to make the old one stop
+   * working, which is what somebody needs when the code has gone to the wrong person, has been
+   * read over a shoulder, or when five wrong guesses have locked the job and the honest
+   * explanation is that the provider mistyped it.
+   *
+   * The code comes from the row's id, so a new row is a new code and there is nothing to
+   * regenerate or store.
+   */
+  async function rotateStartCode(job: JobRecord, userId: string): Promise<{ code: string; nextAllowedAt: Date }> {
+    if (job.customer_id !== userId) throw forbidden('only the customer can change the start code');
+
+    const existing = await store.execution.getStartOtp(job.id);
+    if (existing?.verified_at) {
+      // The work has already started. Changing the code now would only break the record of how
+      // it started.
+      throw new AppError('CONFLICT', { details: { reason: 'already_started' } });
+    }
+    // Counted between *rotations*, not since the code was issued. An earlier version measured
+    // from `updated_at`, which meant the very first rotation was refused - exactly the one
+    // somebody needs when they have just read the code out to the wrong person.
+    const now = new Date();
+    if ((await store.cluster.countHit(`startcode.rotate.cooldown:${job.id}`, START_JOB_OTP_POLICY.resendCooldownSeconds, now)) > 1) {
+      // Without this, somebody tapping the button would change the code between reading it out
+      // and the provider typing it in.
+      throw new AppError('OTP_RATE_LIMITED', { details: { resendAfterSeconds: START_JOB_OTP_POLICY.resendCooldownSeconds } });
+    }
+    if ((await store.cluster.countHit(`startcode.rotate:${job.id}`, 3600, now)) > START_JOB_OTP_POLICY.requestsPerHour) {
+      throw new AppError('OTP_RATE_LIMITED', { details: { reason: 'too_many_changes' } });
+    }
+
+    if (existing) await store.execution.deleteStartOtp(job.id);
+
+    const { code } = await ensureStartCode(job);
+    if (!code) throw new AppError('INTERNAL');
+    return { code, nextAllowedAt: new Date(Date.now() + START_JOB_OTP_POLICY.resendCooldownSeconds * 1000) };
+  }
+
+  /**
    * Recomputed from the secret and the record's id, so the plaintext is never stored and
    * the customer can be shown it again at any time. Only the customer's own view calls this.
    */
@@ -165,6 +206,7 @@ export function executionService(d: ExecutionDeps) {
   }
 
   return {
+    rotateStartCode,
     ensureStartCode,
 
     /** Throws unless the caller is the provider side of this job. */

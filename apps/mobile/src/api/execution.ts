@@ -73,6 +73,10 @@ export function useAddEvidence() {
       if (res.upload.required) {
         const blob = await (await fetch(file.uri)).blob();
         await fetch(res.upload.url, { method: res.upload.method, body: blob, headers: { 'content-type': file.mime } });
+        // Tell the server the bytes landed. With a remote provider the transfer never touches
+        // our API, so without this the row claims a file it cannot prove - and a completion
+        // photo that does not exist is discovered during a dispute, which is the worst moment.
+        await api(`/jobs/${jobId}/media/${res.media.id}/uploaded`, { method: 'POST' });
       }
       return res;
     },

@@ -5,6 +5,7 @@ import {
   formatInr,
   refundAmount,
   bps,
+  formatInrRange,
 } from './pricing';
 
 describe('pricing', () => {
@@ -55,5 +56,22 @@ describe('pricing', () => {
     expect(formatInr(123_456)).toBe('₹1,234.56');
     expect(formatInr(100_000)).toBe('₹1,000');
     expect(formatInr(-500)).toBe('-₹5');
+  });
+});
+
+describe('price guidance, as somebody would say it', () => {
+  it('reads as a range rather than two prices', () => {
+    expect(formatInrRange(25_000, 60_000)).toBe('₹250-600');
+    expect(formatInrRange(90_000, 400_000)).toBe('₹900-4,000');
+  });
+
+  it('collapses to one number when there is no range', () => {
+    expect(formatInrRange(50_000, 50_000)).toBe('₹500');
+  });
+
+  it('rounds to whole rupees, because paise on an estimate are a lie about precision', () => {
+    // A range accurate to the paise would be a quote, and a quote comes from the professional
+    // after they have seen the work.
+    expect(formatInrRange(25_049, 60_051)).toBe('₹250-601');
   });
 });

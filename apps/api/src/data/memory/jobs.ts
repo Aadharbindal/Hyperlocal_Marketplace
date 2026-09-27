@@ -111,6 +111,14 @@ export function createMemoryJobsRepo(): JobsRepo & { _events: JobStatusEventReco
         .filter((m) => m.job_id === jobId && !m.deleted_at && (!phase || m.phase === phase))
         .sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
     },
+    async findMediaByKey(key) {
+      return [...media.values()].find((m) => m.storage_key === key && !m.deleted_at) ?? null;
+    },
+    async markMediaUploadedByKey(key, at) {
+      for (const m of media.values()) {
+        if (m.storage_key === key && !m.uploaded_at) m.uploaded_at = at;
+      }
+    },
     async getMedia(id) {
       const m = media.get(id);
       return m && !m.deleted_at ? m : null;

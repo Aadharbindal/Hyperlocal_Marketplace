@@ -86,6 +86,10 @@ export function createPostgresJobsRepo(q: Queryable): JobsRepo {
         [jobId, phase ?? null],
       ),
     getMedia: (id) => one<JobMediaRecord>('select * from job_media where id = $1 and deleted_at is null', [id]),
+    findMediaByKey: (key) => one<JobMediaRecord>('select * from job_media where storage_key = $1 and deleted_at is null', [key]),
+    async markMediaUploadedByKey(key, at) {
+      await q.query('update job_media set uploaded_at = $2 where storage_key = $1 and uploaded_at is null', [key, at]);
+    },
     async updateMedia(id, patch) {
       const { sets, values } = patchSql(patch as Record<string, unknown>, 2);
       return (await one<JobMediaRecord>(`update job_media set ${sets} where id = $1 returning *`, [id, ...values]))!;

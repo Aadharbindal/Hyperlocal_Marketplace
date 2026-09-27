@@ -11,18 +11,23 @@ export const CATEGORY_SEED: CategoryRecord[] = [
   { id: C('04'), slug: 'appliance-repair', name_en: 'Appliance Repair', name_hi: 'उपकरण मरम्मत', icon_key: 'appliance', is_enabled: false, requires_inspection_default: true, sort_order: 40 },
 ];
 
+/**
+ * Mirrors 0001 plus the price guidance seeded by 0015. The ranges are labour only and are a
+ * starting point, not a source of truth: once a skill has enough finished jobs the API answers
+ * from what customers actually paid and stops reading these.
+ */
 export const SKILL_SEED: SkillRecord[] = [
-  { id: S('01'), category_id: C('01'), slug: 'tap-leak', name_en: 'Tap and leak repair', name_hi: 'नल और लीक की मरम्मत', risk_level: 'LOW' },
-  { id: S('02'), category_id: C('01'), slug: 'drain-block', name_en: 'Blocked drain', name_hi: 'नाली जाम', risk_level: 'LOW' },
-  { id: S('03'), category_id: C('01'), slug: 'water-heater', name_en: 'Water heater / geyser', name_hi: 'गीज़र', risk_level: 'MEDIUM' },
-  { id: S('04'), category_id: C('01'), slug: 'bathroom-fitting', name_en: 'Bathroom fittings', name_hi: 'बाथरूम फ़िटिंग', risk_level: 'MEDIUM' },
-  { id: S('11'), category_id: C('02'), slug: 'switch-socket', name_en: 'Switch and socket', name_hi: 'स्विच और सॉकेट', risk_level: 'LOW' },
-  { id: S('12'), category_id: C('02'), slug: 'fan-light', name_en: 'Fan and light installation', name_hi: 'पंखा और लाइट', risk_level: 'LOW' },
-  { id: S('13'), category_id: C('02'), slug: 'wiring', name_en: 'Wiring and MCB', name_hi: 'वायरिंग और MCB', risk_level: 'HIGH' },
-  { id: S('14'), category_id: C('02'), slug: 'inverter', name_en: 'Inverter and UPS', name_hi: 'इन्वर्टर', risk_level: 'MEDIUM' },
-  { id: S('21'), category_id: C('03'), slug: 'furniture-repair', name_en: 'Furniture repair', name_hi: 'फ़र्नीचर मरम्मत', risk_level: 'LOW' },
-  { id: S('22'), category_id: C('03'), slug: 'door-window', name_en: 'Door and window', name_hi: 'दरवाज़ा और खिड़की', risk_level: 'MEDIUM' },
-  { id: S('23'), category_id: C('03'), slug: 'modular-fitting', name_en: 'Modular fitting', name_hi: 'मॉड्यूलर फ़िटिंग', risk_level: 'MEDIUM' },
-  { id: S('31'), category_id: C('04'), slug: 'washing-machine', name_en: 'Washing machine', name_hi: 'वॉशिंग मशीन', risk_level: 'MEDIUM' },
-  { id: S('32'), category_id: C('04'), slug: 'refrigerator', name_en: 'Refrigerator', name_hi: 'फ़्रिज', risk_level: 'MEDIUM' },
+  { id: S('01'), category_id: C('01'), slug: 'tap-leak', name_en: 'Tap and leak repair', name_hi: 'नल और लीक की मरम्मत', risk_level: 'LOW' , typical_min_paise: 25000, typical_max_paise: 60000 },
+  { id: S('02'), category_id: C('01'), slug: 'drain-block', name_en: 'Blocked drain', name_hi: 'नाली जाम', risk_level: 'LOW' , typical_min_paise: 35000, typical_max_paise: 90000 },
+  { id: S('03'), category_id: C('01'), slug: 'water-heater', name_en: 'Water heater / geyser', name_hi: 'गीज़र', risk_level: 'MEDIUM' , typical_min_paise: 60000, typical_max_paise: 250000 },
+  { id: S('04'), category_id: C('01'), slug: 'bathroom-fitting', name_en: 'Bathroom fittings', name_hi: 'बाथरूम फ़िटिंग', risk_level: 'MEDIUM' , typical_min_paise: 50000, typical_max_paise: 200000 },
+  { id: S('11'), category_id: C('02'), slug: 'switch-socket', name_en: 'Switch and socket', name_hi: 'स्विच और सॉकेट', risk_level: 'LOW' , typical_min_paise: 20000, typical_max_paise: 50000 },
+  { id: S('12'), category_id: C('02'), slug: 'fan-light', name_en: 'Fan and light installation', name_hi: 'पंखा और लाइट', risk_level: 'LOW' , typical_min_paise: 30000, typical_max_paise: 80000 },
+  { id: S('13'), category_id: C('02'), slug: 'wiring', name_en: 'Wiring and MCB', name_hi: 'वायरिंग और MCB', risk_level: 'HIGH' , typical_min_paise: 80000, typical_max_paise: 350000 },
+  { id: S('14'), category_id: C('02'), slug: 'inverter', name_en: 'Inverter and UPS', name_hi: 'इन्वर्टर', risk_level: 'MEDIUM' , typical_min_paise: 60000, typical_max_paise: 200000 },
+  { id: S('21'), category_id: C('03'), slug: 'furniture-repair', name_en: 'Furniture repair', name_hi: 'फ़र्नीचर मरम्मत', risk_level: 'LOW' , typical_min_paise: 40000, typical_max_paise: 150000 },
+  { id: S('22'), category_id: C('03'), slug: 'door-window', name_en: 'Door and window', name_hi: 'दरवाज़ा और खिड़की', risk_level: 'MEDIUM' , typical_min_paise: 50000, typical_max_paise: 200000 },
+  { id: S('23'), category_id: C('03'), slug: 'modular-fitting', name_en: 'Modular fitting', name_hi: 'मॉड्यूलर फ़िटिंग', risk_level: 'MEDIUM' , typical_min_paise: 90000, typical_max_paise: 400000 },
+  { id: S('31'), category_id: C('04'), slug: 'washing-machine', name_en: 'Washing machine', name_hi: 'वॉशिंग मशीन', risk_level: 'MEDIUM' , typical_min_paise: 45000, typical_max_paise: 180000 },
+  { id: S('32'), category_id: C('04'), slug: 'refrigerator', name_en: 'Refrigerator', name_hi: 'फ़्रिज', risk_level: 'MEDIUM' , typical_min_paise: 50000, typical_max_paise: 220000 },
 ];
