@@ -15,6 +15,7 @@ import type { FinanceService } from '../finance/service';
 import type { JobService, TransitionContext } from '../jobs/service';
 import type { NegotiationService } from '../negotiation/service';
 import type { RedispatchService } from '../jobs/redispatch-service';
+import type { ServicePlanService } from '../jobs/service-plan-service';
 import type { WarrantyService } from '../warranty/service';
 
 export interface SchedulerDeps {
@@ -26,6 +27,7 @@ export interface SchedulerDeps {
   negotiation: NegotiationService;
   warranty: WarrantyService;
   redispatch: RedispatchService;
+  servicePlans: ServicePlanService;
 }
 
 export interface TaskResult {
@@ -310,6 +312,7 @@ export function schedulerService(d: SchedulerDeps) {
     'escalate-warranty': escalateWarranty,
     'expire-proposals': expireProposals,
     'expire-redispatch': expireRedispatch,
+    'book-service-plans': (now: Date) => d.servicePlans.bookDue(now),
   };
 
   let running = false;

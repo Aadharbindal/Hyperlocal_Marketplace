@@ -6,6 +6,7 @@ import { conflict } from '../../lib/errors';
 import { createPostgresBidsRepo, createPostgresKycRepo } from './bids';
 import { createPostgresRedispatchRepo } from './redispatch';
 import { createPostgresArrivalRepo } from './arrival';
+import { createPostgresServicePlansRepo } from './service-plans';
 import { createPostgresJobsRepo } from './jobs';
 import { createPostgresExecutionRepo } from './execution';
 import { createPostgresAdminRepo } from './admin';
@@ -50,8 +51,22 @@ type Queryable = { query: (text: string, params?: unknown[]) => Promise<pg.Query
 function useNumericTypes() {
   const INT8 = 20;
   const NUMERIC = 1700;
+  const DATE = 1082;
   pg.types.setTypeParser(INT8, (v) => (v === null ? null : Number(v)));
   pg.types.setTypeParser(NUMERIC, (v) => (v === null ? null : Number(v)));
+
+  /**
+   * `date` columns are read as **UTC midnight**, not local midnight.
+   *
+   * `pg` defaults to local, so `2026-09-29` comes back as `2026-09-29T00:00:00+05:30` - which is
+   * `2026-09-28T18:30:00Z`. Everything downstream works in UTC days, so a date stored as "the
+   * 29th" was being read as "the 28th", and a service plan due tomorrow was judged to be due
+   * yesterday. Its booking was then rejected for being scheduled in the past.
+   *
+   * That bug does not exist in memory mode, where a Date goes in and the same Date comes out,
+   * which is precisely why the suite runs against a real database as well.
+   */
+  pg.types.setTypeParser(DATE, (v) => (v === null ? null : new Date(`${v}T00:00:00.000Z`)));
 }
 
 /**
@@ -360,6 +375,7 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     bids: createPostgresBidsRepo(q),
     redispatch: createPostgresRedispatchRepo(q),
     arrival: createPostgresArrivalRepo(q),
+    servicePlans: createPostgresServicePlansRepo(q),
     kyc: createPostgresKycRepo(q),
     negotiation: createPostgresNegotiationRepo(q),
     execution: createPostgresExecutionRepo(q),

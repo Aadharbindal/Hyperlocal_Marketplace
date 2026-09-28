@@ -275,6 +275,8 @@ export interface JobRecord {
   active_quote_id: string | null;
   cancelled_reason: string | null;
   cancelled_by_role: UserRole | null;
+  /** Set when a standing arrangement opened this booking, so the screen can say so (0020). */
+  service_plan_id: string | null;
   /** When the current re-dispatch stops. Non-null exactly while the status is REDISPATCHING (0018). */
   redispatch_deadline: Date | null;
   /** How many times this booking has been dropped. Two is a pattern; three is support's problem. */
@@ -845,6 +847,63 @@ export interface ArrivalPingRecord {
   reported_at: Date;
   created_at: Date;
   updated_at: Date;
+}
+
+/** See 0020. A standing arrangement that opens a booking when it falls due. */
+export interface ServicePlanRecord {
+  id: string;
+  customer_id: string;
+  category_id: string;
+  skill_ids: string[];
+  address_id: string;
+  description: string | null;
+  interval_days: number;
+  preferred_provider_id: string | null;
+  /** A date, not a timestamp - stored and compared as whole days. */
+  next_due_on: Date;
+  lead_days: number;
+  status: 'ACTIVE' | 'PAUSED' | 'CANCELLED';
+  paused_reason: string | null;
+  cancelled_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/** See 0020. What a plan produced on a given date - including the times it produced nothing. */
+export interface ServicePlanOccurrenceRecord {
+  id: string;
+  plan_id: string;
+  due_on: Date;
+  job_id: string | null;
+  outcome: 'BOOKED' | 'SKIPPED' | 'FAILED';
+  detail: string | null;
+  created_at: Date;
+}
+
+export interface ServicePlansRepo {
+  create(p: New<ServicePlanRecord>): Promise<ServicePlanRecord>;
+  get(id: string): Promise<ServicePlanRecord | null>;
+  update(id: string, patch: Partial<ServicePlanRecord>): Promise<ServicePlanRecord>;
+  listForCustomer(customerId: string): Promise<ServicePlanRecord[]>;
+  /** Active plans whose lead time has arrived - the only query the sweep makes. */
+  listDue(onOrBefore: Date, limit: number): Promise<ServicePlanRecord[]>;
+
+  /**
+   * Records what happened on a due date, and refuses a second row for the same one.
+   *
+   * Returns null when that date is already recorded, which is how the hourly sweep is stopped
+   * from booking the same visit again after a partial failure.
+   */
+  recordOccurrence(o: New<ServicePlanOccurrenceRecord>): Promise<ServicePlanOccurrenceRecord | null>;
+  /**
+   * Corrects a claimed occurrence once the outcome is actually known.
+   *
+   * The claim is written pessimistically - FAILED - before the booking is attempted, so a crash
+   * in between leaves a row that says no booking exists, which is true. An optimistic claim
+   * would leave a row saying BOOKED with nothing behind it.
+   */
+  updateOccurrence(id: string, patch: Partial<ServicePlanOccurrenceRecord>): Promise<ServicePlanOccurrenceRecord>;
+  listOccurrences(planId: string, limit: number): Promise<ServicePlanOccurrenceRecord[]>;
 }
 
 export interface ArrivalRepo {
@@ -1482,6 +1541,7 @@ export interface DataStore {
   bids: BidsRepo;
   redispatch: RedispatchRepo;
   arrival: ArrivalRepo;
+  servicePlans: ServicePlansRepo;
   kyc: KycRepo;
   negotiation: NegotiationRepo;
   execution: ExecutionRepo;

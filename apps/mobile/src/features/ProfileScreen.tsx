@@ -237,6 +237,15 @@ export function ProfileScreen() {
                 hint={t('settings.addresses.hint')}
                 onPress={() => router.push('/addresses')}
               />
+              {/* High in the customer list on purpose: a standing arrangement is easy to forget
+                  you have, and the whole feature depends on it staying visible. */}
+              <Link
+                tint="teal"
+                icon="repeat"
+                label={t('settings.plans')}
+                hint={t('settings.plans.hint')}
+                onPress={() => router.push('/service-plans')}
+              />
               <Link
                 tint="amber"
                 icon="receipt-outline"

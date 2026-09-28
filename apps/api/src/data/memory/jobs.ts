@@ -52,6 +52,7 @@ export function createMemoryJobsRepo(): JobsRepo & { _events: JobStatusEventReco
         // compiler, so anything Postgres fills in has to be filled in here or the two stores
         // disagree about what a brand-new job looks like - `redispatch_count` would be undefined
         // in memory and 0 in Postgres, and arithmetic on it would quietly produce NaN.
+        service_plan_id: j.service_plan_id ?? null,
         redispatch_deadline: j.redispatch_deadline ?? null,
         redispatch_count: j.redispatch_count ?? 0,
         created_at: now(),

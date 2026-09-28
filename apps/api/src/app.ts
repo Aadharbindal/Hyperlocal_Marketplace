@@ -43,6 +43,8 @@ import { negotiationService, type NegotiationService } from './modules/negotiati
 import { providerRoutes } from './modules/provider/routes';
 import { providerService, type ProviderService } from './modules/provider/service';
 import { redispatchService, type RedispatchService } from './modules/jobs/redispatch-service';
+import { servicePlanService, type ServicePlanService } from './modules/jobs/service-plan-service';
+import { servicePlanRoutes } from './modules/jobs/service-plan-routes';
 import { userRoutes } from './modules/users/routes';
 import { makeAuthenticate } from './plugins/auth';
 
@@ -65,6 +67,7 @@ export interface AppContext {
     events: EventsService;
     scheduler: SchedulerService;
     redispatch: RedispatchService;
+    servicePlans: ServicePlanService;
   };
 }
 
@@ -189,6 +192,28 @@ export async function buildApp(opts: BuildOptions = {}) {
       jobs.transition(job, to as never, { actorUserId: null, actorRole: null, actor: 'SYSTEM', requestId: null }, { reason, patch }),
   });
   finance.attachRedispatch(redispatch);
+
+  const notifyUser = async (userId: string, type: string, title: string, body: string, jobId?: string) => {
+    await store.notifications.create({
+      user_id: userId,
+      type,
+      title,
+      body,
+      data: jobId ? { jobId } : {},
+      channel: 'IN_APP',
+      read_at: null,
+      sent_at: new Date(),
+    });
+  };
+
+  const servicePlans = servicePlanService({
+    store,
+    adapters,
+    audit,
+    jobs,
+    notify: notifyUser,
+    customerCtx: (customerId) => ({ actorUserId: customerId, actorRole: 'CUSTOMER', actor: 'CUSTOMER', requestId: null }),
+  });
   const adminSvc = adminService({ env, store, adapters });
   const growth = growthService({ env, store, adapters });
   const warranty = warrantyService({ env, store, adapters, jobs });
@@ -229,12 +254,12 @@ export async function buildApp(opts: BuildOptions = {}) {
     },
   });
   // The background worker is built last: it drives the other services rather than the reverse.
-  const scheduler = schedulerService({ env, store, adapters, jobs, finance, negotiation, warranty, redispatch });
+  const scheduler = schedulerService({ env, store, adapters, jobs, finance, negotiation, warranty, redispatch, servicePlans });
   const ctx: AppContext = {
     env,
     store,
     adapters,
-    services: { auth, audit, jobs, provider, negotiation, execution, materials, finance, growth, warranty, admin: adminSvc, events, scheduler, redispatch },
+    services: { auth, audit, jobs, provider, negotiation, execution, materials, finance, growth, warranty, admin: adminSvc, events, scheduler, redispatch, servicePlans },
   };
 
   if (opts.seed ?? (env.DATA_MODE === 'memory' && env.APP_ENV !== 'test')) {
@@ -420,6 +445,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     await addressRoutes(scope, ctx);
     await categoryRoutes(scope, ctx);
     await jobRoutes(scope, ctx);
+    await servicePlanRoutes(scope, ctx);
     await providerRoutes(scope, ctx);
     await negotiationRoutes(scope, ctx);
     await executionRoutes(scope, ctx);

@@ -19,6 +19,7 @@ export const SCHEDULED_TASKS = [
   'escalate-warranty',
   'expire-proposals',
   'expire-redispatch',
+  'book-service-plans',
 ] as const;
 export type ScheduledTask = (typeof SCHEDULED_TASKS)[number];
 
@@ -43,6 +44,9 @@ export const TASK_SCHEDULE: readonly TaskSpec[] = [
   // Every minute, because the person this runs for is sitting at home waiting to find out
   // whether anybody is coming, and their money is held until it answers.
   { task: 'expire-redispatch', everySeconds: 60, description: 'Give up on bookings nobody agreed to cover, release the money and tell the customer' },
+  // Hourly. Plans are due on a date, not at a time, so anything finer is wasted work - and the
+  // lead days mean being a few hours late costs nothing.
+  { task: 'book-service-plans', everySeconds: 3600, description: 'Open the bookings that standing arrangements have fallen due for' },
 ];
 
 /** How long a draft is left alone before it is treated as abandoned. */

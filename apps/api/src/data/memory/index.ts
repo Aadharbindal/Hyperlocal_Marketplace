@@ -8,6 +8,7 @@ import { createMemoryReports } from './reports';
 import { createMemoryJobsRepo } from './jobs';
 import { memoryRedispatchRepo } from './redispatch';
 import { memoryArrivalRepo } from './arrival';
+import { memoryServicePlansRepo } from './service-plans';
 import { createMemoryExecutionRepo } from './execution';
 import { createMemoryAdminRepo } from './admin';
 import { createMemoryFinanceRepo } from './finance';
@@ -71,6 +72,7 @@ export function createMemoryStore(): DataStore {
   const bidsRepo = createMemoryBidsRepo();
   const redispatchRepo = memoryRedispatchRepo();
   const arrivalRepo = memoryArrivalRepo(() => jobsRepo);
+  const servicePlansRepo = memoryServicePlansRepo();
 
   /**
    * mirrors jobs_clear_arrival_ping (0019).
@@ -459,6 +461,7 @@ export function createMemoryStore(): DataStore {
     bids: bidsRepo,
     redispatch: redispatchRepo,
     arrival: arrivalRepo,
+    servicePlans: servicePlansRepo,
     kyc: kycRepo,
     negotiation: negotiationRepo,
     execution: executionRepo,

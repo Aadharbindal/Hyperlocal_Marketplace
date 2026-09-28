@@ -380,3 +380,53 @@ runs late costs nothing. It will be wrong across a river or a railway line, and 
 a routing provider, which is listed as a limitation rather than pretended away. A position older
 than three minutes is reported as lost rather than shown as live, because phones lose signal in
 lifts constantly and a stale dot presented as current is worse than none.
+
+## D-022: Repeat work books itself, but never pays for itself
+
+**Context.** Almost everything a home needs is repeat work - the AC before summer, the water
+filter, the seasonal clean. The pattern is always the same: the customer knows it is due, forgets
+until something breaks, and the professional who did it last time never hears about it.
+`POST /jobs/from/:id` already existed for booking the same thing again, and somebody still had to
+remember to press it.
+
+**Decision.** A plan is a reminder that books itself. When an occurrence falls due the system
+opens an ordinary job, and that job is quoted, negotiated and paid for exactly like any other.
+Nothing about the existing flow is bypassed.
+
+In particular there is **no stored payment mandate and no automatic charge**. Recurring debits
+against a saved card in India sit under the RBI e-mandate rules - registration, a pre-debit
+notification, per-transaction caps and a separate approval journey - none of which is built or
+reviewed here. Quietly charging a card on a schedule would be the single most damaging thing this
+product could do, so the customer pays per visit exactly as they do today, and the app says so on
+the screen.
+
+Four things that make it behave:
+
+- **The booking is made as the customer, not as SYSTEM.** The state machine only lets a customer
+  move a draft to SUBMITTED, and that is correct - submitting a request is somebody's own act. A
+  plan does not change who is asking; it is their standing instruction being carried out.
+  Widening that transition to accept SYSTEM would have weakened a real guard on every other path
+  to save one line here.
+- **Every due date is claimed exactly once, before the work, and pessimistically.** The sweep is
+  hourly and will sometimes fail halfway. A unique row per `(plan, due date)` means a crash costs
+  one missing booking, which somebody can see; without it the same visit is re-booked on every
+  tick until a customer has fourteen of them. The claim is written as FAILED and corrected to
+  BOOKED once a job id exists, because the first version claimed success optimistically and left
+  rows saying a booking existed when none did.
+- **It waits rather than stacking.** A customer who has not got round to accepting last month's
+  offers does not wake up to a second identical booking.
+- **Silence is recorded.** Every skip and failure is written down with a reason, because a plan
+  that has quietly produced nothing for six months looks exactly like a healthy one.
+
+The professional who did it last time is notified first when the booking opens. A nudge, not a
+reservation: they bid like anybody else and the customer still chooses.
+
+**Consequences.** Intervals are days rather than calendar rules, so "the 3rd of every month" is
+approximated by moving the due date. Dates advance from the date that *was* due rather than from
+today, so a booking made two days late does not permanently shift a quarterly service into a
+different season - with a catch-up guard so a plan resumed after a year books once instead of
+producing four backdated visits.
+
+This work also found a timezone bug that only a real database could show: `pg` reads `date`
+columns at local midnight, so a plan due on the 29th was read as due on the 28th and its booking
+was rejected for being scheduled in the past. Date columns are now parsed as UTC midnight.

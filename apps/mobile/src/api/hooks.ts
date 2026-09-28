@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AvatarUploadResponse,
   CategoryView,
+  CreateServicePlanBody,
+  ServicePlanView,
+  ServicePlansResponse,
+  UpdateServicePlanBody,
   CompleteProfileBody,
   EmergencyContactView,
   EmergencyContactsResponse,
@@ -192,5 +196,50 @@ export function useLogout() {
       await signOut();
       qc.clear();
     },
+  });
+}
+
+export const planKeys = { list: ['service-plans'] as const };
+
+/**
+ * Standing arrangements - the AC every three months, the clean every month.
+ *
+ * Nothing here touches money. A plan opens an ordinary booking when it falls due, and that
+ * booking is quoted and paid for like any other; there is no saved card and no automatic charge,
+ * which is a deliberate refusal rather than a missing feature (see 0020).
+ */
+export function useServicePlans() {
+  const token = useSession((s) => s.accessToken);
+  return useQuery({
+    queryKey: planKeys.list,
+    enabled: !!token,
+    queryFn: () => api<ServicePlansResponse>('/me/service-plans'),
+    staleTime: 60_000,
+  });
+}
+
+export function useCreateServicePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateServicePlanBody) => api<ServicePlanView>('/me/service-plans', { method: 'POST', body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list }),
+  });
+}
+
+export function useUpdateServicePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: UpdateServicePlanBody & { id: string }) =>
+      api<ServicePlanView>(`/me/service-plans/${id}`, { method: 'PATCH', body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list }),
+  });
+}
+
+export function useSkipNextVisit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      api<ServicePlanView>(`/me/service-plans/${id}/skip-next`, { method: 'POST', body: { reason } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: planKeys.list }),
   });
 }
