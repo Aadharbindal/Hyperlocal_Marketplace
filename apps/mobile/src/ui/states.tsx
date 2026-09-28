@@ -71,6 +71,9 @@ export function OfflineBanner({ visible, label }: { visible: boolean; label: str
 const styles = StyleSheet.create({
   center: { alignItems: 'center', paddingVertical: spacing.huge, paddingHorizontal: spacing.xxl, gap: spacing.sm },
   title: { marginTop: spacing.sm },
-  action: { marginTop: spacing.md },
+  // Button's own base sets `alignSelf: 'flex-start'`, which wins over this container's
+  // `alignItems: 'center'` and left the action hugging the left edge under centred text.
+  // Re-centred here rather than in Button, where flex-start is right for the form screens.
+  action: { marginTop: spacing.md, alignSelf: 'center' },
   offline: { backgroundColor: palette.textSecondary, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
 });

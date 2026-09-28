@@ -185,8 +185,18 @@ export default function PhoneScreen() {
               setHeroBox((prev) => (Math.abs(prev.w - w) > 1 || Math.abs(prev.h - h) > 1 ? { w, h } : prev));
             }}
           >
-            <Animated.View entering={FadeIn.delay(120).duration(700)} style={[styles.heroArt, heroFloat, { opacity: heroBox.h ? 1 : 0, bottom: compact ? -14 : 0 }]} pointerEvents="none">
-              <Image source={HERO} style={{ width: heroWidth, height: heroHeight }} resizeMode="contain" accessibilityLabel="Verified LocalHub technician with plumbing, electrical, painting and appliance services" />
+            {/* Two views, not one, and Reanimated said so out loud.
+
+                The entering fade and the `opacity: measured ? 1 : 0` guard were on the same view,
+                and a layout animation owns opacity outright - so the guard that is supposed to
+                keep the artwork hidden until the box has been measured was being overwritten by
+                the fade, and the art could appear at its unmeasured size for a frame before
+                snapping. The outer view does the arriving; the inner one does the hiding and the
+                floating. */}
+            <Animated.View entering={FadeIn.delay(120).duration(700)} style={[styles.heroArt, { bottom: compact ? -14 : 0 }]} pointerEvents="none">
+              <Animated.View style={[heroFloat, { opacity: heroBox.h ? 1 : 0 }]}>
+                <Image source={HERO} style={{ width: heroWidth, height: heroHeight }} resizeMode="contain" accessibilityLabel="Verified LocalHub technician with plumbing, electrical, painting and appliance services" />
+              </Animated.View>
             </Animated.View>
 
             <View style={[styles.heroCopy, { paddingBottom: copyBottomInset }]} pointerEvents="box-none">

@@ -74,16 +74,36 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          {/* Two-tone, as in the reference: the what in white, the promise in mint. Split on the
-              line break the translation already carries, so Hindi gets the same treatment
-              without a second pair of strings to keep in step. */}
-          <Text variant="title" weight="extrabold" tone="onPrimary" style={styles.heroTitle}>
-            {heroTitleLines.slice(0, -1).join('\n')}
-            {heroTitleLines.length > 1 ? '\n' : ''}
-            <Text variant="title" weight="extrabold" style={styles.heroTitleAccent}>
-              {heroTitleLines[heroTitleLines.length - 1]}
-            </Text>
-          </Text>
+          {/* Two-tone, as in the reference: the what in white, the promise in mint.
+              Rendered as one Text per line, each allowed to shrink, rather than one Text with a
+              newline in it. Guessing whether a phrase fits the column left beside the artwork is
+              how it ended up broken across four lines twice; this way the copy decides how many
+              lines there are and the type gives way if it has to - in Hindi as well. */}
+          {/* One fixed size for both lines. They used to auto-shrink, and because each line
+              shrinks on its own the longer one came out visibly smaller than the other - the
+              two halves of one phrase set at two different sizes. 23px is measured against the
+              column beside the artwork: "Home Services" is the widest line at 179pt and the
+              column is 189pt, so there is room to spare. */}
+          <View style={styles.heroTitleBlock}>
+            {heroTitleLines.map((line, i) => (
+              <Text
+                key={line}
+                variant="title"
+                weight="extrabold"
+                numberOfLines={1}
+                // A safety net for a large system font, not a layout tool: at the normal size
+                // the column has room to spare, so neither line shrinks and the two halves of
+                // the phrase are the same size. The floor is high so that if somebody's text is
+                // scaled up they still match.
+                adjustsFontSizeToFit
+                minimumFontScale={0.9}
+                tone={i === heroTitleLines.length - 1 ? 'default' : 'onPrimary'}
+                style={[styles.heroTitle, i === heroTitleLines.length - 1 && styles.heroTitleAccent]}
+              >
+                {line}
+              </Text>
+            ))}
+          </View>
 
           <Text variant="caption" tone="onPrimaryMuted" style={styles.heroSubtitle}>
             {t('home.hero.subtitle')}
@@ -184,19 +204,26 @@ const styles = StyleSheet.create({
   searchField: { flex: 1 },
   // The reference banner is landscape; a phone is not. The composition is kept - words left,
   // house right - and the card is allowed to be taller so neither has to be squeezed.
+  // The reference banner is 1.9:1; a phone card is about 1.3:1. Side by side, a house that big
+  // and a headline that big cannot both have the room they have there - so the art is taken out
+  // of the flex row and positioned, which lets it be the size it is in the reference while the
+  // words sit over the part of it that is only clouds and dotted arc. The house itself stays
+  // clear on the right, where it belongs.
   hero: {
     borderRadius: radius.xl,
     paddingVertical: spacing.xl,
     paddingLeft: spacing.xl,
-    paddingRight: 0,
-    minHeight: 232,
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingRight: spacing.lg,
+    minHeight: 236,
+    justifyContent: 'center',
     overflow: 'hidden',
   },
   // `minWidth: 0` for the same reason as the header: a flex child will not otherwise shrink
   // below its content, and that is how a headline ends up broken across the wrong words.
-  heroText: { flex: 1, minWidth: 0, gap: spacing.xs, justifyContent: 'center' },
+  // Clear of the art entirely. An earlier version let the text run under what I assumed was
+  // empty space on the illustration's left - measuring it showed the artwork fills its whole
+  // width, so a cloud landed on "Made Simple" and the house sat over the button.
+  heroText: { minWidth: 0, gap: spacing.xs, justifyContent: 'center', paddingRight: 132 },
   heroBadge: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
@@ -222,16 +249,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Sized so the headline lands on the two lines the copy is written for. At the default
-  // title size the column left over beside the illustration forced it onto four, which
-  // breaks the phrase in the wrong places.
-  heroTitle: { fontSize: 22, lineHeight: 27, letterSpacing: -0.4 },
+  // Smaller than the reference's headline relative to the card, and deliberately.
+  //
+  // That banner is 1.9:1 and this card is about 1.3:1, so its split - a little under half to
+  // the words, a little over half to the artwork - only survives on a phone if the type gives
+  // way. Keeping the headline large instead would mean shrinking the house to a thumbnail,
+  // and the house is the thing the banner is actually about.
+  // Two lines of one phrase, so they are set tight - the line box is barely taller than the
+  // letters and there is no gap between them.
+  heroTitleBlock: { marginVertical: 2 },
+  heroTitle: { fontSize: 23, lineHeight: 26, letterSpacing: -0.5, width: '100%' },
   heroTitleAccent: { color: palette.heroTitleAccent },
   heroSubtitle: { marginTop: 2 },
   heroCta: { marginTop: spacing.md },
-  // Bleeds to the card's right edge, as it does in the reference, rather than sitting in a
-  // padded box with the gradient showing around it.
-  heroArt: { width: 132, height: 172, marginRight: -4 },
+  // The asset carries only about three points of its own transparent margin, so the gap has to
+  // come from the card rather than from the picture.
+  // An explicit box in the artwork's own proportions, centred by hand.
+  //
+  // It used to be `top: 0, bottom: 0` with `contain` left to work the rest out. That reads as
+  // "fit it in the card", and it does not: the height came from the card, the scale came from
+  // the width, and the illustration ended up low and clipped by the bottom edge. Giving the box
+  // the aspect ratio the file actually has takes the guesswork out - there is nothing left for
+  // `contain` to decide.
+  heroArt: {
+    position: 'absolute',
+    // Just inside the card. Any further out and the broom chip clips against the edge, which
+    // reads as a mistake rather than as the artwork sitting close to the border.
+    right: 8,
+    width: 130,
+    height: 102,
+    top: '50%',
+    // Centred, then nudged down. The artwork's top half is clouds and a chip while its
+    // bottom is the house and its shadow, so true centring leaves it sitting visually high.
+    marginTop: -33,
+  },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   tile: { width: '22.5%', flexGrow: 1, alignItems: 'center', gap: spacing.sm, minHeight: 124 },
   tileLabel: { minHeight: 20, width: '100%' },

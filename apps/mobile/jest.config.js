@@ -18,4 +18,13 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.test.{ts,tsx}'],
+  /**
+   * Jest's default is 5 seconds, which is not enough for the *first* test in a worker.
+   *
+   * The suite passes when a file is run on its own and then fails on whichever test happens to
+   * come first in a full parallel run - the one that pays for compiling the Expo and Reanimated
+   * module graph before it can render anything. That is a flake, not a slow test, and the honest
+   * fix is to stop timing the compile against a budget meant for the assertion.
+   */
+  testTimeout: 30_000,
 };

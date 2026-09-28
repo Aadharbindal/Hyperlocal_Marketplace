@@ -68,6 +68,7 @@ export const palette = {
     mint: { bg: '#DCF5EA', fg: '#1C9C6E' },
     sky: { bg: '#DCE9FF', fg: '#3B7BE0' },
     rose: { bg: '#FDE3E7', fg: '#E5484D' },
+    violet: { bg: '#EDE7FB', fg: '#6D4AC4' },
   },
 
   // Hero banner, sampled from the reference render (DECISIONS D-011)
