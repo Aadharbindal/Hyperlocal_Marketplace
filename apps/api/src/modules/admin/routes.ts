@@ -22,7 +22,10 @@ export async function adminRoutes(app: FastifyInstance, ctx: AppContext) {
     const users = await store.users.search(q, 25);
     const items = await Promise.all(
       users.map(async (u) => {
-        const view = toUserView(u, await store.users.listRoles(u.id));
+        // No storage adapter passed: an admin searching for an account is looking for the right
+        // person, not at their photograph, and minting a signed link per result would hand the
+        // support console a week-long readable URL for every face it happens to scroll past.
+        const view = await toUserView(u, await store.users.listRoles(u.id));
         // SUPPORT sees masked numbers only; ADMIN sees full for identity checks.
         return { ...view, phone: auth.roles.includes('ADMIN') ? u.phone_e164 : maskPhone(u.phone_e164), suspendedReason: u.suspended_reason };
       }),

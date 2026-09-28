@@ -4,6 +4,124 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## The account had no person attached to it
+
+**Milestone:** post-M9 - identity and account
+**Date:** 2026-09-28
+**Status:** Complete
+
+**Why this exists:** the prompt was to look at how a mature app handles signing up and showing
+you who you are, and to stop shipping something half-finished. Doing that turned up a gap that
+had been in plain sight for the whole project: `users.display_name`, `users.avatar_url` and an
+email column had existed since migration 0001, and **nothing had ever written to any of them.**
+
+The effect was everywhere and easy to miss because nothing failed. The profile header rendered a
+masked phone number. The home greeting said "Good evening," followed by an empty string. The
+provider walking up to somebody's door had a job card with no name on it. None of that is a bug
+in any unit; it is a question the app never asked.
+
+The same shape ran through the rest of the account. `DELETE /me` had scheduled a 30-day
+anonymisation since the trust work and there was no button anywhere that called it - which is a
+Play Store review rejection, not a missing nicety. `POST /me/consents` existed and signup never
+called it, so not one account had a recorded acceptance of any terms version.
+
+**What was built:**
+
+*Identity, asked once.* A screen between the OTP and the role picker, for an account that has
+just been created. Gated on `displayName` being null rather than on the `isNewUser` flag from the
+OTP response - that flag lives in one response, and somebody who closed the app on that screen
+would have skipped it forever. Only the name is required; email is genuinely optional, because a
+mandatory email is a wall in front of the door for exactly the customers this is for. Terms
+acceptance is part of the same submission, and a declined marketing opt-in is recorded as
+declined rather than merely absent (D-018).
+
+*Email as part of the account, not of a role.* Moved from `customer_profiles` to `users` in
+0016, with a case-insensitive partial unique index and a shape constraint the zod schema
+deliberately matches character for character. Changing the address always clears the verified
+flag - without that line a new address inherits the old one's tick and the flag means nothing.
+Nothing sets that flag yet: there is no email adapter, so the app says "Not confirmed yet"
+instead of showing a tick nobody can earn.
+
+*A photo, stored as a key.* `POST /me/avatar` issues a signed PUT; the client uploads the bytes
+directly and commits the key with `PATCH /me`. The column holds the key and the link is minted
+per response with a seven-day expiry, because a stored URL carries an expiry it has no way to
+refresh and every photo would quietly rot. A key outside `avatars/<the caller's own id>/` is
+refused - without that check any signed-in account could point its avatar at
+`kyc/<somebody-else>/aadhaar/...` and be handed a week-long readable link to an identity
+document. There is a test for exactly that.
+
+*Somebody to call.* Up to three emergency contacts, typed by the customer, capped by a trigger
+and de-duplicated by a unique index rather than by a count-then-insert two taps could race past.
+Numbers come back masked, and the audit row records that a contact was added, not what it was
+(D-019). Sharing a live job with one of them is contracted but not built, and is listed as such.
+
+*The rest of the account section.* Edit profile, help with five answers this codebase can
+actually stand behind, and account deletion with a typed confirmation and a plain statement of
+what is kept and why.
+
+**Two things found on the way:**
+
+The Reanimated warning this log previously called cosmetic was not. The welcome hero had an
+entering fade and an `opacity: measured ? 1 : 0` guard on the same view, and a layout animation
+owns opacity outright - so the guard meant to keep the artwork hidden until its box was measured
+was being overwritten, and the art could appear at the wrong size for a frame. Split into an
+outer view that arrives and an inner one that hides and floats.
+
+The mobile suite was failing roughly one run in two, always on whichever test happened to come
+first. Not a slow test: the first test in a worker pays for compiling the Expo and Reanimated
+module graph before it can render anything, and Jest was timing that against a five-second budget
+meant for the assertion. `testTimeout` raised rather than the test weakened.
+
+Also fixed: the empty-state action button sat against the left edge under centred text on about
+28 screens, because `Button` sets `alignSelf: 'flex-start'` and that beats the container's
+`alignItems: 'center'`.
+
+**Changed files:** `supabase/migrations/0016_identity_and_safety.sql`;
+`packages/core/src/contracts/{auth,common,safety}.ts`, `packages/core/src/i18n/strings.ts`,
+`packages/core/src/index.ts`; `apps/api/src/data/{types.ts,memory/index.ts,postgres/index.ts}`,
+`apps/api/src/modules/{users/routes.ts,auth/service.ts,admin/routes.ts,storage/routes.ts}`,
+`apps/api/src/lib/errors.ts`, `apps/api/src/test/identity.test.ts`;
+`apps/mobile/app/{(auth)/profile-setup.tsx,(auth)/phone.tsx,edit-profile.tsx,emergency-contacts.tsx,help.tsx,delete-account.tsx,_layout.tsx}`,
+`apps/mobile/src/{api/hooks.ts,features/ProfileScreen.tsx,ui/states.tsx,i18n/index.ts}`,
+`apps/mobile/jest.config.js`.
+
+**Database changes:** 0016 - `users.email`, `users.email_verified_at`, a case-insensitive partial
+unique index and a shape check; a backfill from the unused `customer_profiles.email`;
+`emergency_contacts` with a per-user cap trigger and a unique index.
+
+**API changes:** `POST /me/complete-profile`, `POST /me/avatar`,
+`GET|POST|DELETE /me/emergency-contacts`; `PATCH /me` now takes `email` and `avatarKey`;
+`UserView` gains `email` and `emailVerified`, and `avatarUrl` is now a signed link rather than a
+stored key. Two new error codes, `EMAIL_IN_USE` and `CONTACT_LIMIT_REACHED`, both translated.
+
+**Tests added / passed:** 13 new in `identity.test.ts`; API 321/321, mobile 29/29, a11y 0
+findings, typecheck and lint clean, build clean.
+
+**Manual verification completed:** signup driven on the physical Android device through Expo Go -
+phone, OTP, the new name screen, terms, then the role picker. Against the running API: the
+avatar round trip end to end (70-byte PNG PUT, 204, committed by key, signed link, fetched back
+byte-identical), email lower-casing, and the emergency-contact mask.
+
+**Known limitations:** email verification is not built and nothing sets the verified flag;
+sharing a job with an emergency contact is contracted but not routed; there is still no
+onboarding tour. Device testing was stopped early rather than continued, because the phone's
+browser kept returning to the foreground and capturing it would have meant capturing the owner's
+personal accounts.
+
+**Security considerations:** the avatar key prefix check is the load-bearing one - it is what
+stops an account pointing its photo at somebody else's identity document. Email uniqueness is
+checked before the write for the message and enforced by the index for the guarantee. Emergency
+contacts belong to people who are not users here and have consented to nothing, so the design
+holds as little as possible and the audit trail records the act, not the number.
+
+**External integrations mocked or live:** unchanged. Everything is still mocked except local
+storage, which really holds bytes. Email has no adapter at all yet.
+
+**Next milestone:** owner-supplied credentials (SMS, payments, maps, push, monitoring, production
+storage), the legal and payments review, and an email adapter.
+
+---
+
 ## Four bugs that only a phone could find
 
 **Milestone:** post-M9 - the device run

@@ -16,6 +16,7 @@ import type {
   AddressRecord,
   AuditLogRecord,
   ConsentRecord,
+  EmergencyContactRecord,
   DataStore,
   DeviceTokenRecord,
   JobRescheduleRecord,
@@ -145,6 +146,9 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
     users: {
       findById: (id) => one<UserRecord>('select * from users where id = $1', [id]),
       findByPhone: (phone) => one<UserRecord>('select * from users where phone_e164 = $1', [phone]),
+      // `lower(...)` on both sides so this uses the users_email_unique index rather than scanning,
+      // and so it agrees with that index about what counts as the same address.
+      findByEmail: (email) => one<UserRecord>('select * from users where lower(email) = lower($1) and deleted_at is null', [email.trim()]),
       findByReferralCode: (code) => one<UserRecord>('select * from users where referral_code = $1', [code]),
       async create(input) {
         return (await one<UserRecord>(
@@ -257,6 +261,22 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
           'insert into consents (user_id, consent_type, version, granted, granted_at, withdrawn_at, ip) values ($1,$2,$3,$4,$5,$6,$7) returning *',
           [c.user_id, c.consent_type, c.version, c.granted, c.granted_at, c.withdrawn_at, c.ip],
         ))!;
+      },
+
+      listEmergencyContacts: (userId) =>
+        many<EmergencyContactRecord>('select * from emergency_contacts where user_id = $1 order by created_at', [userId]),
+      async addEmergencyContact(c) {
+        // The cap and the duplicate check are both enforced by 0016 - a trigger and a unique
+        // index - rather than by a count-then-insert here, which two taps in the same second
+        // would race straight past.
+        return (await one<EmergencyContactRecord>(
+          'insert into emergency_contacts (user_id, name, phone_e164, relationship) values ($1,$2,$3,$4) returning *',
+          [c.user_id, c.name, c.phone_e164, c.relationship],
+        ))!;
+      },
+      async removeEmergencyContact(userId, id) {
+        // Scoped by user_id as well as id: an id from somebody else's account deletes nothing.
+        await q.query('delete from emergency_contacts where id = $1 and user_id = $2', [id, userId]);
       },
     },
 

@@ -17,6 +17,7 @@ import type {
   AddressRecord,
   AuditLogRecord,
   ConsentRecord,
+  EmergencyContactRecord,
   ContractorProfileRecord,
   CustomerProfileRecord,
   DataStore,
@@ -55,6 +56,7 @@ export function createMemoryStore(): DataStore {
   const addresses = new Map<string, AddressRecord>();
   const providerSkills = new Map<string, string[]>();
   const consents: ConsentRecord[] = [];
+  const emergencyContacts: EmergencyContactRecord[] = [];
   const audit: AuditLogRecord[] = [];
   const notifications: NotificationRecord[] = [];
   const devices: DeviceTokenRecord[] = [];
@@ -104,6 +106,13 @@ export function createMemoryStore(): DataStore {
         for (const u of users.values()) if (u.phone_e164 === phone) return u;
         return null;
       },
+      async findByEmail(email) {
+        // Lower-cased on both sides and skipping deleted rows, mirroring the partial unique index
+        // `users_email_unique` in 0016 exactly.
+        const needle = email.trim().toLowerCase();
+        for (const u of users.values()) if (u.email && !u.deleted_at && u.email.toLowerCase() === needle) return u;
+        return null;
+      },
       async create(input) {
         for (const u of users.values()) if (u.phone_e164 === input.phone_e164) throw conflict({ field: 'phone' });
         const u: UserRecord = {
@@ -112,6 +121,8 @@ export function createMemoryStore(): DataStore {
           phone_verified_at: null,
           display_name: input.display_name ?? null,
           avatar_url: null,
+          email: null,
+          email_verified_at: null,
           preferred_language: input.preferred_language ?? 'en',
           status: 'ACTIVE',
           suspended_reason: null,
@@ -136,6 +147,17 @@ export function createMemoryStore(): DataStore {
         // mirrors users_suspension_needs_two: nobody suspends alone
         if (next.status === 'SUSPENDED' && u.status !== 'SUSPENDED' && (!next.suspended_by || !next.suspension_approved_by)) {
           throw new Error('a suspension must record who asked for it and who approved it');
+        }
+        if (next.email !== null && next.email !== undefined) {
+          // mirrors users_email_shape
+          if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(next.email)) throw new Error('users_email_shape');
+          // mirrors the partial unique index users_email_unique
+          const needle = next.email.toLowerCase();
+          for (const other of users.values()) {
+            if (other.id !== id && other.email && !other.deleted_at && other.email.toLowerCase() === needle) {
+              throw conflict({ field: 'email' });
+            }
+          }
         }
         users.set(id, next);
         return next;
@@ -226,6 +248,31 @@ export function createMemoryStore(): DataStore {
         const rec: ConsentRecord = { ...c, id: newId(), created_at: now() };
         consents.push(rec);
         return rec;
+      },
+
+      async listEmergencyContacts(userId) {
+        return emergencyContacts.filter((c) => c.user_id === userId).sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
+      },
+      async addEmergencyContact(c) {
+        // mirrors emergency_contacts_cap_check.
+        //
+        // Thrown as a conflict with the trigger's own words, not as a bare Error, because that is
+        // what the Postgres path produces: `translateDbError` turns a check_violation into
+        // `conflict({ reason: <the trigger's message> })`. The first version raised a plain Error
+        // here, the route matched on `err.message`, and the result was a 422 in memory mode and a
+        // 409 in Postgres - caught only by running the suite against a real database.
+        if (emergencyContacts.filter((x) => x.user_id === c.user_id).length >= 3) {
+          throw conflict({ reason: 'emergency contact limit reached' });
+        }
+        // mirrors emergency_contacts_unique
+        if (emergencyContacts.some((x) => x.user_id === c.user_id && x.phone_e164 === c.phone_e164)) throw conflict({ field: 'phone' });
+        const rec: EmergencyContactRecord = { ...c, id: newId(), created_at: now(), updated_at: now() };
+        emergencyContacts.push(rec);
+        return rec;
+      },
+      async removeEmergencyContact(userId, id) {
+        const i = emergencyContacts.findIndex((c) => c.id === id && c.user_id === userId);
+        if (i >= 0) emergencyContacts.splice(i, 1);
       },
     },
 

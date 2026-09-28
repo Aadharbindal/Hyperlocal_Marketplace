@@ -35,6 +35,9 @@ export interface UserRecord {
   phone_verified_at: Date | null;
   display_name: string | null;
   avatar_url: string | null;
+  /** Lower-cased on the way in, because the unique index in 0016 compares `lower(email)`. */
+  email: string | null;
+  email_verified_at: Date | null;
   preferred_language: Language;
   status: UserStatus;
   suspended_reason: string | null;
@@ -774,6 +777,11 @@ export type New<T> = Omit<T, 'id' | 'created_at' | 'updated_at'> & Partial<Pick<
 export interface UsersRepo {
   findById(id: string): Promise<UserRecord | null>;
   findByPhone(phoneE164: string): Promise<UserRecord | null>;
+  /**
+   * Case-insensitive, matching the `lower(email)` unique index. Used to answer "this address is
+   * already on another account" with a message rather than a unique-violation.
+   */
+  findByEmail(email: string): Promise<UserRecord | null>;
   findByReferralCode(code: string): Promise<UserRecord | null>;
   create(input: { phone_e164: string; display_name?: string | null; preferred_language?: Language }): Promise<UserRecord>;
   update(id: string, patch: Partial<Omit<UserRecord, 'id' | 'created_at'>>): Promise<UserRecord>;
@@ -800,6 +808,21 @@ export interface UsersRepo {
 
   listConsents(userId: string): Promise<ConsentRecord[]>;
   addConsent(c: New<ConsentRecord>): Promise<ConsentRecord>;
+
+  listEmergencyContacts(userId: string): Promise<EmergencyContactRecord[]>;
+  addEmergencyContact(c: New<EmergencyContactRecord>): Promise<EmergencyContactRecord>;
+  removeEmergencyContact(userId: string, id: string): Promise<void>;
+}
+
+/** See 0016. A name and a number the customer typed, and nothing we inferred about them. */
+export interface EmergencyContactRecord {
+  id: string;
+  user_id: string;
+  name: string;
+  phone_e164: string;
+  relationship: string | null;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface AuthRepo {

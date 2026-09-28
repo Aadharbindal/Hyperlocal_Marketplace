@@ -14,12 +14,47 @@ export interface AuthDeps {
   tokens: { signAccess(c: { sub: string; roles: UserRole[]; sid: string }): Promise<string> };
 }
 
-export function toUserView(u: UserRecord, roles: UserRoleRecord[]): UserView {
+/**
+ * How long an avatar link stays good for.
+ *
+ * Much longer than the signed URLs used for job evidence, and deliberately so. A profile photo is
+ * the least sensitive thing here - the person put it on their own account for others to see - and
+ * a short expiry would mean a picture that silently turns into a broken image on a screen that
+ * has been open a while. A week is short enough that a photo removed from an account stops being
+ * reachable within a week, and long enough that nobody sees it break.
+ */
+const AVATAR_URL_TTL_SECONDS = 7 * 24 * 3600;
+
+/** Just enough of the storage adapter to turn a stored key into something an <Image> can load. */
+type AvatarSigner = Pick<Adapters['storage'], 'createSignedReadUrl'>;
+
+/**
+ * `users.avatar_url` holds a storage **key**, not a URL, so this is async.
+ *
+ * Storing a URL would mean storing an expiry in a column that has no way to refresh itself, and
+ * every profile photo would quietly rot. The key is the durable thing; the link is minted per
+ * response. Callers with no storage adapter to hand pass none and get `null`, which the app
+ * renders as the placeholder person - the same thing it shows for the many accounts with no
+ * photo at all.
+ */
+export async function toUserView(u: UserRecord, roles: UserRoleRecord[], storage?: AvatarSigner): Promise<UserView> {
+  let avatarUrl: string | null = null;
+  if (u.avatar_url && storage) {
+    // A broken signer must not take the whole profile down with it: a missing photo is a
+    // cosmetic problem, a 500 on /me logs somebody out of their own account.
+    try {
+      avatarUrl = await storage.createSignedReadUrl(u.avatar_url, AVATAR_URL_TTL_SECONDS);
+    } catch {
+      avatarUrl = null;
+    }
+  }
   return {
     id: u.id,
     phoneMasked: maskPhone(u.phone_e164),
     displayName: u.display_name,
-    avatarUrl: u.avatar_url,
+    avatarUrl,
+    email: u.email,
+    emailVerified: !!u.email_verified_at,
     preferredLanguage: u.preferred_language,
     status: u.status,
     roles: roles.filter((r) => r.status !== 'REVOKED').map((r) => ({ role: r.role, status: r.status })),
@@ -55,7 +90,7 @@ export function authService(d: AuthDeps) {
       refreshToken,
       expiresIn: env.API_ACCESS_TOKEN_TTL_SECONDS,
       tokenType: 'Bearer' as const,
-      user: toUserView(user, roles),
+      user: await toUserView(user, roles, adapters.storage),
     };
   }
 
@@ -188,7 +223,7 @@ export function authService(d: AuthDeps) {
       mfa_verified_at: null,
     });
     const accessToken = await d.tokens.signAccess({ sub: user.id, roles: activeRoles, sid: session.id });
-    return { accessToken, refreshToken, expiresIn: env.API_ACCESS_TOKEN_TTL_SECONDS, tokenType: 'Bearer' as const, user: toUserView(user, roles) };
+    return { accessToken, refreshToken, expiresIn: env.API_ACCESS_TOKEN_TTL_SECONDS, tokenType: 'Bearer' as const, user: await toUserView(user, roles, adapters.storage) };
   }
 }
 export type AuthService = ReturnType<typeof authService>;

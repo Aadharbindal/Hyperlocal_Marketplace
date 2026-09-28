@@ -226,3 +226,70 @@ rather than min-max means one emergency call-out at midnight cannot make a whole
 number useless. It is never a quote, and the booking screen says so: the price comes from the
 professional after they have seen the work.
 
+
+## D-018: An account has a person attached to it, and it is asked for once
+
+**Context.** `users.display_name`, `users.avatar_url` and an email column had all existed since
+migration 0001, and nothing in the app had ever written to any of them. The consequence was
+visible on every screen: the profile header rendered a masked phone number, the home greeting
+said "Good evening," with an empty name after it, and the provider walking up to somebody's door
+had a job card with no name on it. The fields were not missing. They were never asked for.
+
+The same gap ran through the account section. `DELETE /me` had scheduled a 30-day anonymisation
+since the trust work and had no button anywhere - which is a Play Store review rejection, not a
+missing nicety. `POST /me/consents` existed and signup never called it, so nobody had a recorded
+acceptance of any terms version.
+
+**Decision.** One screen between the OTP and the rest of the app, for an account that has just
+been created, and it is gated on `displayName` being null rather than on the `isNewUser` flag
+from the OTP response. That flag lives only in one response; somebody who closed the app on that
+screen would skip it forever and be a masked phone number in their own profile for good.
+
+Only the name is required. Email is genuinely optional, because a large share of the people this
+app is for do not use one, and a mandatory email is a wall in front of the door for exactly the
+customers we most want through it. Terms acceptance rides along in the same submission, so the
+version agreed to is recorded against the account from its first minute, and a declined
+marketing opt-in is recorded as declined rather than merely absent - "never opted in" and "never
+asked" are different facts and only one of them is a defence.
+
+Email moves from `customer_profiles` to `users` (0016). It is part of who the account is, not of
+one of its roles: a provider needs one for payout statements and a vendor for order
+confirmations, and neither has a customer profile. Changing it always clears the verified flag,
+or the flag would mean nothing.
+
+Avatars are stored as a **key**, never a URL, and the link is minted per response with a
+seven-day expiry. Storing a URL would mean storing an expiry in a column with no way to refresh
+itself, and every profile photo would quietly rot. The client sends back a key, and a key outside
+`avatars/<its own user id>/` is refused - without that check any signed-in account could point
+its avatar at `kyc/<somebody-else>/aadhaar/...` and have the API mint it a week-long readable
+link to an identity document.
+
+**Consequences.** Signup is one screen longer, which is the cost of the app knowing who anybody
+is. The gate is now two conditions rather than one, and a future third (an onboarding tour, say)
+goes in the same place. The old `customer_profiles.email` column is left in place and unused
+rather than dropped, because migrations are forward-only and a half-rolled-back deploy still has
+to find the schema it expects; the customer profile's copy of the *name* is kept in step on every
+update, because that is what the provider is shown.
+
+## D-019: Somebody to call, for a service that happens inside a home
+
+**Context.** Ride-hailing treats an emergency contact as a nice-to-have, and for a taxi that is
+defensible: the journey is in public and over in twenty minutes. The exposure here is different
+in kind. The customer has given us an address, confirmed a window in which they will be at it,
+and a stranger with tools arrives - and the people most often home alone during a working day
+are the ones who carry most of that risk.
+
+**Decision.** Up to three contacts, each a name and a number the customer typed, with an optional
+free-text relationship. No contacts-book import, no inference, nothing derived. The screen says
+out loud that nobody on the list is contacted unless the customer asks.
+
+The cap is a database trigger and the duplicate check a unique index (0016), not a count-then-
+insert in the route, which two taps in the same second would race straight past. Numbers come
+back masked like every other number this API returns, and the audit entry for adding one records
+that it happened and not what it was.
+
+**Consequences.** These are personal details belonging to people who are not users here and have
+consented to nothing, so the design goal is to hold as little of them as possible and to make the
+list boring to steal. Offered to customers only: the provider is the stranger in this
+relationship, and showing them the same row would read as a suggestion that the customer is the
+danger.

@@ -42,6 +42,10 @@ export const STRINGS = {
     'error.OTP_LOCKED': 'Too many attempts. Request a new code.',
     'error.OTP_CONSUMED': 'This code was already used. Request a new one.',
     'error.ROLE_NOT_SELF_SERVICE': 'This role cannot be added from the app.',
+    // Says the address is taken without saying by whom, and without confirming whether any
+    // particular person has an account here - which is what a friendlier message would leak.
+    'error.EMAIL_IN_USE': 'That email is already on another account.',
+    'error.CONTACT_LIMIT_REACHED': 'You can save up to 3 emergency contacts. Remove one to add another.',
     'error.REASON_REQUIRED': 'A reason is required for this action.',
     'error.JOB_INVALID_TRANSITION': "This booking can't move to that step right now.",
     'error.IDEMPOTENCY_KEY_REUSED': 'This request was already processed.',
@@ -85,6 +89,8 @@ export const STRINGS = {
     'error.OTP_LOCKED': 'बहुत बार गलत कोशिश। नया कोड माँगें।',
     'error.OTP_CONSUMED': 'यह कोड पहले इस्तेमाल हो चुका है।',
     'error.ROLE_NOT_SELF_SERVICE': 'यह भूमिका ऐप से नहीं जोड़ी जा सकती।',
+    'error.EMAIL_IN_USE': 'यह ईमेल किसी और खाते से जुड़ा है।',
+    'error.CONTACT_LIMIT_REACHED': 'ज़्यादा से ज़्यादा 3 आपातकालीन संपर्क सहेजे जा सकते हैं। नया जोड़ने के लिए एक हटाएँ।',
     'error.REASON_REQUIRED': 'इस कार्रवाई के लिए कारण ज़रूरी है।',
     'error.JOB_INVALID_TRANSITION': 'यह बुकिंग अभी इस चरण पर नहीं जा सकती।',
     'error.IDEMPOTENCY_KEY_REUSED': 'यह अनुरोध पहले ही पूरा हो चुका है।',

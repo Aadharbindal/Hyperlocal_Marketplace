@@ -55,6 +55,19 @@ function AuthGate() {
       return;
     }
     if (!user) return; // /me still loading
+
+    // Who are you, before what are you here for.
+    //
+    // An account signed in by phone number has no name until it is asked for one, and the only
+    // moment it is not an interruption to ask is this one. Gated on the name rather than on the
+    // `isNewUser` flag from the OTP response, because that flag is gone the moment the app
+    // restarts - and somebody who closed the app on this screen would otherwise skip it forever
+    // and be a masked phone number in their own profile for good.
+    if (!user.displayName) {
+      if (segments[1] !== 'profile-setup') router.replace('/(auth)/profile-setup');
+      return;
+    }
+
     const roles = user.roles.filter((r) => r.status === 'ACTIVE').map((r) => r.role);
     if (roles.length === 0) {
       if (segments[1] !== 'role') router.replace('/(auth)/role');

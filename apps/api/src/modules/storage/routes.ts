@@ -16,6 +16,20 @@ import type { AppContext } from '../../app';
  * That is why the TTL is short, why a read grant cannot write, and why the key is never taken
  * from the caller - only from inside a signature we produced.
  */
+/**
+ * The image type these bytes actually are, from their magic number, or null.
+ *
+ * Only the three types an avatar may be. Deliberately not a general-purpose sniffer: guessing at
+ * arbitrary content types is how a stored file ends up served as `text/html` and becomes a
+ * cross-site scripting hole on the API's own origin.
+ */
+function sniffImageMime(b: Buffer): string | null {
+  if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b.length >= 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
+  return null;
+}
+
 export async function storageRoutes(app: FastifyInstance, ctx: AppContext) {
   const { env, store, adapters } = ctx;
   if (adapters.storage.provider !== 'local') return;
@@ -67,8 +81,12 @@ export async function storageRoutes(app: FastifyInstance, ctx: AppContext) {
     const bytes = await readObject(root, grant.k, env.API_JWT_SECRET);
     if (!bytes) throw new AppError('NOT_FOUND', { details: { reason: 'object_missing' } });
 
+    // Job evidence carries a declared mime on its row. Everything else - a profile photo, say -
+    // has no row at all, and used to be served as `application/octet-stream`, which some image
+    // pipelines will render and others will simply refuse. Sniffed from the bytes as a fallback,
+    // which is also the only answer here that cannot be a lie told by whoever uploaded it.
     const media = await store.jobs.findMediaByKey(grant.k);
-    reply.header('content-type', media?.mime ?? 'application/octet-stream');
+    reply.header('content-type', media?.mime ?? sniffImageMime(bytes) ?? 'application/octet-stream');
     reply.header('content-length', String(bytes.length));
     // Private: these are somebody's home, their broken geyser, their identity document. A CDN
     // or a shared proxy holding one of these is a leak that outlives the signed URL.

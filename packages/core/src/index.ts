@@ -12,6 +12,7 @@ export * from './contracts/admin';
 export * from './contracts/reach';
 export * from './contracts/growth';
 export * from './contracts/warranty';
+export * from './contracts/safety';
 export * from './jobs/state-machine';
 export * from './jobs/job-rules';
 export * from './pricing/pricing';

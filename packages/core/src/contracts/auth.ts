@@ -41,11 +41,32 @@ export const UserRoleView = z.object({
   status: z.enum(ROLE_STATUSES),
 });
 
+/**
+ * An email address, normalised the way the database's unique index compares them.
+ *
+ * Lower-cased and trimmed here rather than at each call site, because `Aadhar@` and `aadhar@`
+ * reaching different code paths is how you end up with two accounts for one person and a
+ * unique-violation at the point of sale.
+ */
+export const EmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(5)
+  .max(254)
+  // Deliberately the same shape the `users_email_shape` check constraint enforces in 0016. A
+  // stricter regex here than in the database would reject rows the database is happy to hold;
+  // a looser one would turn a typo into a 500.
+  .regex(/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/, 'Enter a valid email address');
+
 export const UserView = z.object({
   id: z.string().uuid(),
   phoneMasked: z.string(),
   displayName: z.string().nullable(),
   avatarUrl: z.string().nullable(),
+  email: z.string().nullable(),
+  /** Whether that address has been confirmed, not merely typed. Receipts only go to a confirmed one. */
+  emailVerified: z.boolean(),
   preferredLanguage: z.enum(LANGUAGES),
   status: z.enum(USER_STATUSES),
   roles: z.array(UserRoleView),
@@ -73,9 +94,52 @@ export const UpdateMeBody = z
   .object({
     displayName: z.string().trim().min(2).max(60).optional(),
     preferredLanguage: z.enum(LANGUAGES).optional(),
+    /** `null` clears the address. Changing it always drops the verified flag - see the route. */
+    email: EmailSchema.nullable().optional(),
+    /**
+     * The storage key of a photo the client has already uploaded, not a URL.
+     *
+     * A URL from a client is a request to make our app render whatever it points at; a key is
+     * checked against the prefix this user is allowed to write to before it is stored.
+     */
+    avatarKey: z.string().max(200).nullable().optional(),
   })
   .strict();
 export type UpdateMeBody = z.infer<typeof UpdateMeBody>;
+
+/**
+ * The first screen after the OTP, for an account that has just come into existence.
+ *
+ * Separate from `UpdateMeBody` because the rules are different: here a name is required (this is
+ * the one moment we can insist), and accepting the terms is part of the same submission rather
+ * than a box that can be left for later.
+ */
+export const CompleteProfileBody = z
+  .object({
+    displayName: z.string().trim().min(2).max(60),
+    email: EmailSchema.optional(),
+    preferredLanguage: z.enum(LANGUAGES).optional(),
+    acceptedTermsVersion: z.string().min(1).max(20),
+    marketingOptIn: z.boolean().default(false),
+  })
+  .strict();
+export type CompleteProfileBody = z.infer<typeof CompleteProfileBody>;
+
+export const AvatarUploadBody = z
+  .object({
+    mime: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+    bytes: z.number().int().positive().max(5 * 1024 * 1024),
+  })
+  .strict();
+export type AvatarUploadBody = z.infer<typeof AvatarUploadBody>;
+
+export const AvatarUploadResponse = z.object({
+  key: z.string(),
+  url: z.string(),
+  method: z.enum(['PUT', 'POST']),
+  expiresAt: z.string(),
+});
+export type AvatarUploadResponse = z.infer<typeof AvatarUploadResponse>;
 
 export const GrantRoleBody = z.object({
   role: z.enum(USER_ROLES).refine((r) => (SELF_SERVICE_ROLES as readonly string[]).includes(r), {
