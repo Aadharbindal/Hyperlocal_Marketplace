@@ -240,6 +240,75 @@ const contact = await call('POST', '/me/emergency-contacts', {
 ok('emergency contact saved', contact.status === 201, `status ${contact.status}`);
 ok('contact number masked on the way out', !/812345/.test(JSON.stringify(contact.json)));
 
+console.log('\n--- the three that had no screen until now ---');
+
+// Addresses: edit and remove. Somebody who moves house has to be able to get their old home
+// address out of this system, which is a privacy matter as much as a convenience.
+const spare = await call('POST', '/me/addresses', {
+  token: cust.token, body: { label: 'Old flat', line1: '9, Green Park', city: 'Delhi', pincode: '110016' },
+});
+const edited = await call('PATCH', `/me/addresses/${spare.json.id}`, {
+  token: cust.token, body: { label: 'Parents' },
+});
+ok('address can be edited', edited.status === 200 && edited.json?.label === 'Parents', `status ${edited.status} ${edited.text.slice(0, 120)}`);
+const removed = await call('DELETE', `/me/addresses/${spare.json.id}`, { token: cust.token });
+ok('address can be removed', removed.status === 200 || removed.status === 204, `status ${removed.status}`);
+const left = await call('GET', '/me/addresses', { token: cust.token });
+ok('removed address is gone from the list', !(left.json?.items ?? []).some((a) => a.id === spare.json.id));
+
+// A second booking, because the first one is finished and these three all need a live one.
+const draft2 = await call('POST', '/jobs', {
+  token: cust.token,
+  body: { categoryId: plumbing.id, addressId: addr.json.id, description: 'Bathroom drain is blocked and backing up' },
+});
+await call('POST', `/jobs/${draft2.json.id}/submit`, { token: cust.token });
+const bid2 = await call('POST', `/jobs/${draft2.json.id}/bids`, {
+  token: prov.token, role: 'PROVIDER',
+  body: { labourPaise: 50000, visitFeePaise: 10000, etaMinutes: 90, warrantyDays: 15 },
+});
+const acc2 = await call('POST', `/bids/${bid2.json.id}/accept`, { token: cust.token });
+await call('POST', `/payments/${acc2.json.payment.id}/mock-complete`, { token: cust.token, body: { outcome: 'authorized' } });
+
+// Rescheduling, and the asymmetry is the interesting part: the customer's time is theirs, so
+// they move the booking outright. The professional has to ask.
+const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString();
+const movedByCustomer = await call('POST', `/jobs/${draft2.json.id}/reschedule`, {
+  token: cust.token, body: { newStart: nextWeek, reason: 'I have to be at work that morning after all' },
+});
+ok('the customer can move their own booking', movedByCustomer.status === 200, `status ${movedByCustomer.status} ${movedByCustomer.text.slice(0, 160)}`);
+ok('and is told how many moves are left', typeof movedByCustomer.json?.movesLeft === 'number', String(movedByCustomer.json?.movesLeft));
+ok('and that the professional was told', movedByCustomer.json?.providerNotified === true, String(movedByCustomer.json?.providerNotified));
+
+const customerTried = await call('POST', `/jobs/${draft2.json.id}/propose-time`, {
+  token: cust.token, body: { newStart: nextWeek, reason: 'Trying the provider path as a customer' },
+});
+ok('a customer cannot use the provider path', customerTried.status === 403, `status ${customerTried.status}`);
+
+const later = new Date(Date.now() + 9 * 86400000).toISOString();
+const proposed = await call('POST', `/jobs/${draft2.json.id}/propose-time`, {
+  token: prov.token, role: 'PROVIDER', body: { newStart: later, reason: 'I am double booked that afternoon, sorry' },
+});
+ok('the professional can suggest a time', proposed.status === 201, `status ${proposed.status} ${proposed.text.slice(0, 160)}`);
+
+const seen = await call('GET', `/jobs/${draft2.json.id}/time-proposal`, { token: cust.token });
+ok('the customer sees the suggestion', seen.json?.proposal?.id === proposed.json?.proposal?.id);
+ok('and is told it is theirs to answer', seen.json?.proposal?.mine === false, String(seen.json?.proposal?.mine));
+
+const agreed = await call('POST', `/time-proposals/${proposed.json.proposal.id}/respond`, {
+  token: cust.token, body: { accept: true },
+});
+ok('accepting moves the booking', agreed.status === 200, `status ${agreed.status} ${agreed.text.slice(0, 160)}`);
+const moved = await call('GET', `/jobs/${draft2.json.id}`, { token: cust.token });
+ok('the booking now says the new time', (moved.json?.preferredStart ?? '').slice(0, 10) === later.slice(0, 10), moved.json?.preferredStart);
+
+// The provider backing out - which, before anybody has arrived, re-opens the booking to the
+// professionals whose offers lost rather than ending it.
+const backedOut = await call('POST', `/jobs/${draft2.json.id}/cancel-as-provider`, {
+  token: prov.token, role: 'PROVIDER', body: { reason: 'My van has broken down and cannot be fixed today' },
+});
+ok('provider can back out', backedOut.status === 200, `status ${backedOut.status} ${backedOut.text.slice(0, 160)}`);
+ok('and the booking is not simply dead', ['REDISPATCHING', 'CANCELLED_BY_PROVIDER'].includes(backedOut.json?.status), backedOut.json?.status);
+
 console.log('\n--- health ---');
 const ready = await call('GET', '/ready');
 ok('server ready', ready.json?.ok === true);

@@ -1,13 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { formatInr, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { askForPhoto } from '@/features/capture/media';
 import { useAddEvidence, useCompleteJob, useExecution, useProgress, useRequestRevision, useStartJob } from '@/api/execution';
 import { useShareArrivalPosition } from '@/api/arrival';
+import { useCancelAsProvider } from '@/api/jobs';
 import { ChatSheet } from '@/features/shared/ChatSheet';
+import { RescheduleCard } from '@/features/shared/RescheduleCard';
 import { MaterialRequestForm } from '@/features/provider/MaterialRequestForm';
 import { palette, radius, spacing, typography } from '@/theme';
 import { Badge, Button, Card, Text } from '@/ui';
@@ -29,6 +31,38 @@ export function JobRunner({ jobId, status, categoryName }: { jobId: string; stat
    * somebody is being located while not actually on their way to a booking.
    */
   const sharing = useShareArrivalPosition(jobId, status === 'EN_ROUTE');
+  const cancel = useCancelAsProvider();
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+
+  /**
+   * Backing out of a confirmed booking.
+   *
+   * This existed on the server, tested, for months with nothing calling it - so a professional
+   * who genuinely could not make it had to ring support, which in practice means a good number
+   * of them simply did not turn up instead. A no-show is far worse for the customer than an
+   * hour's notice, so the route to giving notice has to be the easy one.
+   *
+   * The copy is deliberate in both directions: it says plainly that this counts against them,
+   * and equally plainly that the customer will be looked after, because a provider who believes
+   * they are stranding somebody is the one most likely to go quiet.
+   */
+  async function backOut() {
+    setError(null);
+    try {
+      const res = await cancel.mutateAsync({ jobId, reason: cancelReason.trim() });
+      setCancelling(false);
+      setCancelReason('');
+      Alert.alert(
+        res.redispatch ? 'We are covering it' : 'Booking cancelled',
+        res.redispatch
+          ? `We have asked ${res.redispatch.invited} other professional${res.redispatch.invited === 1 ? '' : 's'} who offered on this job. The customer has been told.`
+          : 'The customer has been told and has not been charged.',
+      );
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not cancel the job.');
+    }
+  }
 
   async function move(to: 'EN_ROUTE' | 'ARRIVED') {
     setError(null);
@@ -100,6 +134,49 @@ export function JobRunner({ jobId, status, categoryName }: { jobId: string; stat
           </Text>
         </View>
       )}
+
+      {/* Offered before the cancel button, deliberately: most people reaching for "I can't make
+          it" have a time problem rather than a job problem. */}
+      <RescheduleCard jobId={jobId} status={status} side="PROVIDER" />
+
+      {/* Only while nobody is at the door. After ARRIVED it is support's call, which is the same
+          line the state machine draws for re-dispatch. */}
+      {['PROVIDER_ASSIGNED', 'EN_ROUTE'].includes(status) &&
+        (cancelling ? (
+          <Animated.View entering={FadeInDown.duration(240)} style={styles.form}>
+            <Text variant="caption" weight="semibold">
+              Why can you not make it?
+            </Text>
+            <TextInput
+              value={cancelReason}
+              onChangeText={setCancelReason}
+              placeholder="The customer sees this, so a real reason helps them"
+              placeholderTextColor="#A9B8B1"
+              multiline
+              style={[styles.input, styles.multiline]}
+              accessibilityLabel="Reason for cancelling"
+            />
+            <Text variant="micro" tone="muted">
+              This counts against your reliability. The customer is not charged, and if nobody has
+              arrived yet we will offer the job to the other professionals who bid on it.
+            </Text>
+            <View style={styles.actions}>
+              <Button title="Never mind" size="sm" variant="ghost" style={styles.action} onPress={() => setCancelling(false)} />
+              <Button
+                title="Cancel the job"
+                size="sm"
+                variant="danger"
+                style={styles.action}
+                // Ten characters is what the server asks for; saying so up front beats a rejection.
+                disabled={cancelReason.trim().length < 10}
+                loading={cancel.isPending}
+                onPress={() => void backOut()}
+              />
+            </View>
+          </Animated.View>
+        ) : (
+          <Button title="I can't make it" size="sm" variant="ghost" fullWidth onPress={() => setCancelling(true)} />
+        ))}
 
       <Pressable accessibilityRole="button" onPress={() => setChatOpen(true)} style={styles.chatBtn}>
         <Ionicons name="chatbubble-ellipses-outline" size={17} color={palette.primaryDeep} />

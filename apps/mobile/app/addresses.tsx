@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ApiError } from '@/api/client';
-import { useAddresses, useCreateAddress } from '@/api/jobs';
+import { useAddresses, useCreateAddress, useDeleteAddress, useUpdateAddress } from '@/api/jobs';
 import { palette, radius, spacing, typography } from '@/theme';
 import { Badge, Button, Card, EmptyState, Screen, Skeleton, Spacer, Text } from '@/ui';
 
@@ -26,7 +26,11 @@ export default function AddressesScreen() {
   const router = useRouter();
   const addresses = useAddresses();
   const create = useCreateAddress();
+  const update = useUpdateAddress();
+  const remove = useDeleteAddress();
 
+  /** Null while adding; the address id while editing one. The form is the same either way. */
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [label, setLabel] = useState('Home');
   const [line1, setLine1] = useState('');
   const [landmark, setLandmark] = useState('');
@@ -36,16 +40,72 @@ export default function AddressesScreen() {
 
   const complete = line1.trim().length >= 3 && city.trim().length >= 2 && /^\d{6}$/.test(pincode);
 
+  function clearForm() {
+    setEditingId(null);
+    setLabel('Home');
+    setLine1('');
+    setLandmark('');
+    setCity('Delhi');
+    setPincode('');
+    setError(null);
+  }
+
+  function startEditing(a: { id: string; label: string | null; line1: string; landmark: string | null; city: string; pincode: string }) {
+    setEditingId(a.id);
+    setLabel(a.label ?? 'Home');
+    setLine1(a.line1);
+    setLandmark(a.landmark ?? '');
+    setCity(a.city);
+    setPincode(a.pincode);
+    setError(null);
+  }
+
+  /**
+   * Removing an address.
+   *
+   * Confirmed, because it is the one thing on this screen that cannot be undone by tapping
+   * again. The server soft-deletes, so bookings that already happened keep the address they
+   * were actually carried out at - which is why the warning says "future bookings".
+   */
+  function confirmRemove(id: string, name: string) {
+    Alert.alert(
+      'Remove this address?',
+      `${name} will no longer be offered for new bookings. Bookings already completed keep it on their receipt.`,
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setError(null);
+            void remove
+              .mutateAsync(id)
+              .then(() => {
+                if (editingId === id) clearForm();
+              })
+              .catch(() => setError('That did not delete. Please try again.'));
+          },
+        },
+      ],
+    );
+  }
+
   async function save() {
     setError(null);
     try {
-      await create.mutateAsync({
+      const body = {
         label: label.trim() || 'Home',
         line1: line1.trim(),
         city: city.trim(),
         pincode: pincode.trim(),
         ...(landmark.trim() ? { landmark: landmark.trim() } : {}),
-      });
+      };
+      if (editingId) {
+        await update.mutateAsync({ id: editingId, ...body });
+        clearForm();
+        return;
+      }
+      await create.mutateAsync(body);
       setLine1('');
       setLandmark('');
       setPincode('');
@@ -83,7 +143,12 @@ export default function AddressesScreen() {
         <View style={styles.list}>
           {addresses.data.items.map((a, i) => (
             <Animated.View key={a.id} entering={FadeInDown.delay(Math.min(i, 5) * 50).duration(300)}>
-              <Card padding="md" style={styles.row}>
+              <Card
+                padding="md"
+                style={[styles.row, editingId === a.id && styles.rowEditing]}
+                onPress={() => startEditing(a)}
+                accessibilityLabel={`Edit ${a.label ?? 'address'}, ${a.line1}, ${a.city}`}
+              >
                 <Ionicons name="location" size={20} color={palette.primary} />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text variant="label" weight="semibold">
@@ -96,6 +161,15 @@ export default function AddressesScreen() {
                 {/* Said here as well as on the booking form, because finding out an address is
                     unusable at the moment of booking is the annoying version. */}
                 {!a.inPilotZone ? <Badge tone="warning" label="Outside zone" /> : a.isDefault ? <Badge tone="primary" label="default" /> : null}
+                <Pressable
+                  onPress={() => confirmRemove(a.id, a.label ?? a.line1)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${a.label ?? a.line1}`}
+                  style={styles.removeBtn}
+                >
+                  <Ionicons name="trash-outline" size={18} color={palette.danger} />
+                </Pressable>
               </Card>
             </Animated.View>
           ))}
@@ -109,9 +183,12 @@ export default function AddressesScreen() {
       )}
 
       <Spacer h={spacing.xl} />
-      <Text variant="heading" weight="bold">
-        Add an address
-      </Text>
+      <View style={styles.formHead}>
+        <Text variant="heading" weight="bold" style={{ flex: 1 }}>
+          {editingId ? 'Edit address' : 'Add an address'}
+        </Text>
+        {editingId ? <Button title="Cancel" size="sm" variant="ghost" onPress={clearForm} /> : null}
+      </View>
       <Spacer h={spacing.sm} />
 
       <Card padding="lg" style={{ gap: spacing.md }}>
@@ -140,11 +217,11 @@ export default function AddressesScreen() {
         ) : null}
 
         <Button
-          title="Save address"
+          title={editingId ? 'Save changes' : 'Save address'}
           fullWidth
           icon="checkmark"
           disabled={!complete}
-          loading={create.isPending}
+          loading={create.isPending || update.isPending}
           onPress={() => void save()}
         />
         <Text variant="micro" tone="muted">
@@ -197,6 +274,9 @@ function Field({
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   list: { gap: spacing.sm },
+  rowEditing: { borderWidth: 2, borderColor: palette.primary },
+  removeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  formHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   pair: { flexDirection: 'row', gap: spacing.md },
   input: {

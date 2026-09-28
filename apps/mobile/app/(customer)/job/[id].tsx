@@ -19,6 +19,7 @@ import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
 import { Button, Card, ErrorState, IconButton, Screen, Skeleton, Text } from '@/ui';
 import { ArrivalCard } from '@/features/customer/ArrivalCard';
+import { RescheduleCard } from '@/features/shared/RescheduleCard';
 import { RealisticIcon } from '@/ui/RealisticIcon';
 
 const LIVE: JobStatus[] = ['SUBMITTED', 'QUALIFYING', 'OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING'];
@@ -208,6 +209,9 @@ export default function JobDetailScreen() {
       {/* Above the live panel: while somebody is on their way, "how far" is the only thing
           the customer is actually looking at. */}
       <ArrivalCard jobId={j.id} status={j.status} />
+      {/* Moving a booking beats losing it: cancelling costs the customer the price they agreed
+          and costs the professional the job. */}
+      <RescheduleCard jobId={j.id} status={j.status} side="CUSTOMER" />
       <LiveJobPanel jobId={j.id} status={j.status} />
 
       <MaterialPanel jobId={j.id} status={j.status} />
