@@ -7,6 +7,7 @@ import { createMemoryCluster } from './cluster';
 import { createMemoryReports } from './reports';
 import { createMemoryJobsRepo } from './jobs';
 import { memoryRedispatchRepo } from './redispatch';
+import { memoryArrivalRepo } from './arrival';
 import { createMemoryExecutionRepo } from './execution';
 import { createMemoryAdminRepo } from './admin';
 import { createMemoryFinanceRepo } from './finance';
@@ -69,6 +70,25 @@ export function createMemoryStore(): DataStore {
   const jobsRepo = createMemoryJobsRepo();
   const bidsRepo = createMemoryBidsRepo();
   const redispatchRepo = memoryRedispatchRepo();
+  const arrivalRepo = memoryArrivalRepo(() => jobsRepo);
+
+  /**
+   * mirrors jobs_clear_arrival_ping (0019).
+   *
+   * The migration deletes somebody's last known position the moment their job stops being
+   * EN_ROUTE, and it does that in the database precisely so no application path can forget. The
+   * memory store has to forget in the same places, or a test proving the position disappears
+   * would pass here and mean nothing.
+   */
+  const jobsUpdate = jobsRepo.update.bind(jobsRepo);
+  jobsRepo.update = async (id, patch) => {
+    const before = await jobsRepo.get(id);
+    const after = await jobsUpdate(id, patch);
+    if (before && before.status !== after.status && after.status !== 'EN_ROUTE') {
+      await arrivalRepo.clear(id);
+    }
+    return after;
+  };
   const kycRepo = createMemoryKycRepo();
   const negotiationRepo = createMemoryNegotiationRepo();
   const executionRepo = createMemoryExecutionRepo();
@@ -438,6 +458,7 @@ export function createMemoryStore(): DataStore {
     jobs: jobsRepo,
     bids: bidsRepo,
     redispatch: redispatchRepo,
+    arrival: arrivalRepo,
     kyc: kycRepo,
     negotiation: negotiationRepo,
     execution: executionRepo,

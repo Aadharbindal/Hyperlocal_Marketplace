@@ -338,3 +338,45 @@ provider's assignment has to be closed before the replacement can be given the j
 told help is coming. And the give-up sweep cleared the re-dispatch deadline before the status
 left REDISPATCHING, which the check constraint in 0018 rejects; that one passed in memory mode
 and failed against Postgres, so the memory store now mirrors that constraint too.
+
+## D-021: A distance, not a dot
+
+**Context.** EN_ROUTE has existed since 0002 with nothing behind it. The app could say "on the
+way" and could not say whether that meant five minutes or fifty, to somebody who has taken the
+afternoon off to wait at home. It is the most-asked question in this product and the one it
+could not answer.
+
+The obvious implementation is the one every delivery app ships: a live dot on a map. This one
+deliberately does not, because the dot is a **worker's** position held by the platform they earn
+from, and a home-services visit is not a parcel in transit.
+
+**Decision.** The customer is sent a distance and a time. Never coordinates, never a map. A
+distance answers the question actually being asked; a point on a map is something you can follow,
+and it means a screenshot of this screen discloses nothing about where anybody is.
+
+Five narrowings, each enforced somewhere it cannot be forgotten:
+
+- **Only while EN_ROUTE.** One gate (`shouldTrack`), so adding a status later cannot widen it by
+  accident, and a database trigger refuses a row for a job in any other state.
+- **No trail.** One row per job, upserted. At any moment the database knows where somebody is and
+  has no idea where they have been. There is no list method and no index by area, because an easy
+  "who was near this place" query is the thing this design exists to prevent.
+- **Deleted, not retained.** A trigger on the job's status change removes the row. Leaving that to
+  application code means it holds until the first path that forgets - a support override, a
+  re-dispatch, an admin cancellation - and a stale row looks exactly like a current one.
+- **Coarse.** Blunted to three decimals (~110 m) before storage. Enough for "2.4 km away", not
+  enough for which building.
+- **Never on the shareable tracking link.** That URL exists to be forwarded to a neighbour or a
+  building guard; a forwarded link carrying a live position is a way to follow a worker around a
+  city.
+
+Foreground only. `requestBackgroundPermissionsAsync` is not called anywhere in this app and
+nothing reports while the app is not in front: somebody who has put the app away is not
+trackable. The provider's screen says what is shared, who sees it and when it stops.
+
+**Consequences.** The estimate is a straight-line distance at an assumed 18 km/h, which is
+pessimistic on purpose - an ETA that runs early makes somebody stand at an open door, one that
+runs late costs nothing. It will be wrong across a river or a railway line, and improving it means
+a routing provider, which is listed as a limitation rather than pretended away. A position older
+than three minutes is reported as lost rather than shown as live, because phones lose signal in
+lifts constantly and a stale dot presented as current is worse than none.

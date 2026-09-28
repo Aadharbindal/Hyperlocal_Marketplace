@@ -10,7 +10,13 @@ import {
   JobMediaCreate,
   PriceRevisionRespondBody,
   StartJobBody,
+  ReportPositionBody,
+  arrivalState,
+  blunt,
+  maySeeLiveLocation,
   mediaPhaseFor,
+  shouldTrack,
+  type ArrivalView,
 } from '@hyperlocal/core';
 import { z } from 'zod';
 import { AppError, notFound } from '../../lib/errors';
@@ -62,6 +68,75 @@ export async function executionRoutes(app: FastifyInstance, ctx: AppContext) {
     const moved = await execution.progress(job, auth.userId, body.to, body.etaMinutes, transitionCtx(req));
     await services.audit.record(req.auditCtx(), { action: `job.${body.to.toLowerCase()}`, entityType: 'job', entityId: job.id });
     return { id: moved.id, status: moved.status };
+  });
+
+  // ---------------------------------------------------------------- arrival
+  /**
+   * A position report from a professional's phone while they are on their way.
+   *
+   * Accepted only between setting off and arriving, and the database enforces that too - the
+   * trigger in 0019 refuses a row for a job that is not EN_ROUTE, and deletes the row the moment
+   * the status changes. Coordinates are blunted to ~110 m *before* they are stored, so nothing
+   * more precise than a street is ever written down.
+   *
+   * Nothing is returned but an acknowledgement. The phone does not need to know what the
+   * customer is being shown, and a response carrying the distance would be one more place the
+   * number could be wrong.
+   */
+  app.post('/jobs/:id/position', async (req, reply) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const body = parse(ReportPositionBody, req.body);
+    const job = await jobForParty(req, id);
+
+    const assignment = await store.negotiation.getActiveAssignment(job.id);
+    const onJob = [assignment?.provider_id, assignment?.technician_id].filter(Boolean).includes(auth.userId);
+    if (!onJob) throw new AppError('FORBIDDEN', { details: { reason: 'not_on_this_job' } });
+    if (!shouldTrack(job.status)) throw new AppError('CONFLICT', { details: { reason: 'not_en_route' } });
+
+    const point = blunt({ lat: body.lat, lng: body.lng });
+    await store.arrival.report({
+      job_id: job.id,
+      provider_id: auth.userId,
+      lat: point.lat,
+      lng: point.lng,
+      accuracy_m: Math.round(body.accuracyM),
+      reported_at: new Date(),
+    });
+    // No audit row. This happens every twenty seconds for the length of a journey, and an audit
+    // trail of somebody movements is the history this design exists to avoid keeping.
+    return reply.code(204).send();
+  });
+
+  /**
+   * How far away they are, for the customer waiting at home.
+   *
+   * The customer only - not the provider, and never the shareable tracking link, which exists to
+   * be forwarded and would otherwise become a way to follow a worker around a city.
+   */
+  app.get('/jobs/:id/arrival', { preHandler: requireAction('job.read_own') }, async (req) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const job = await store.jobs.get(id);
+    if (!job) throw notFound('job');
+
+    const isCustomer = job.customer_id === auth.userId;
+    const isSupport = auth.roles.includes('ADMIN') || auth.roles.includes('SUPPORT');
+    if (!maySeeLiveLocation(isCustomer ? 'CUSTOMER' : isSupport ? 'SUPPORT' : 'PROVIDER')) {
+      return { kind: 'NOT_TRACKING' } satisfies ArrivalView;
+    }
+
+    const [ping, address] = await Promise.all([
+      store.arrival.latest(job.id),
+      job.address_id ? store.addresses.get(job.address_id) : Promise.resolve(null),
+    ]);
+
+    const destination = address?.lat != null && address?.lng != null ? { lat: Number(address.lat), lng: Number(address.lng) } : null;
+    return arrivalState({
+      jobStatus: job.status,
+      ping: ping ? { at: ping.reported_at, point: { lat: Number(ping.lat), lng: Number(ping.lng) }, accuracyM: ping.accuracy_m } : null,
+      destination,
+    }) satisfies ArrivalView;
   });
 
   // ---------------------------------------------------------------- start code

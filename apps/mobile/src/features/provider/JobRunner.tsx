@@ -6,6 +6,7 @@ import { formatInr, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { askForPhoto } from '@/features/capture/media';
 import { useAddEvidence, useCompleteJob, useExecution, useProgress, useRequestRevision, useStartJob } from '@/api/execution';
+import { useShareArrivalPosition } from '@/api/arrival';
 import { ChatSheet } from '@/features/shared/ChatSheet';
 import { MaterialRequestForm } from '@/features/provider/MaterialRequestForm';
 import { palette, radius, spacing, typography } from '@/theme';
@@ -20,6 +21,14 @@ export function JobRunner({ jobId, status, categoryName }: { jobId: string; stat
   const progress = useProgress();
   const [chatOpen, setChatOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Tied to the status, not to a switch.
+   *
+   * Sharing starts when this job becomes EN_ROUTE and stops the moment it is anything else, so
+   * arriving ends it without the provider having to remember - and there is no state in which
+   * somebody is being located while not actually on their way to a booking.
+   */
+  const sharing = useShareArrivalPosition(jobId, status === 'EN_ROUTE');
 
   async function move(to: 'EN_ROUTE' | 'ARRIVED') {
     setError(null);
@@ -51,7 +60,27 @@ export function JobRunner({ jobId, status, categoryName }: { jobId: string; stat
         <Button title="I'm on my way" icon="navigate" fullWidth loading={progress.isPending} onPress={() => move('EN_ROUTE')} />
       )}
       {status === 'EN_ROUTE' && (
-        <Button title="I've arrived" icon="location" fullWidth loading={progress.isPending} onPress={() => move('ARRIVED')} />
+        <>
+          {/* Said plainly, because being located by the platform you work for is not something
+              to discover later. It names what is shared, who sees it and when it stops. */}
+          <View style={styles.waiting}>
+            <Ionicons
+              name={sharing === 'sharing' ? 'navigate-circle' : 'navigate-circle-outline'}
+              size={16}
+              color={sharing === 'sharing' ? palette.primary : palette.textMuted}
+            />
+            <Text variant="micro" tone="muted" style={{ flex: 1 }}>
+              {sharing === 'sharing'
+                ? 'The customer can see how far away you are. This stops when you arrive.'
+                : sharing === 'denied'
+                  ? 'Location is off, so the customer cannot see how far away you are.'
+                  : sharing === 'unavailable'
+                    ? 'This phone cannot share location. The job works normally without it.'
+                    : 'Checking location permission...'}
+            </Text>
+          </View>
+          <Button title="I've arrived" icon="location" fullWidth loading={progress.isPending} onPress={() => move('ARRIVED')} />
+        </>
       )}
       {status === 'ARRIVED' && <StartCodeEntry jobId={jobId} attemptsLeft={panel.data?.startCodeAttemptsLeft ?? null} />}
       {status === 'IN_PROGRESS' && <InProgressActions jobId={jobId} />}

@@ -22,6 +22,7 @@ export * from './bidding/bidding';
 export * from './bidding/negotiation';
 export * from './bidding/feed-filters';
 export * from './execution/execution';
+export * from './execution/arrival';
 export * from './materials/materials';
 export * from './finance/ledger';
 export * from './finance/settlement';

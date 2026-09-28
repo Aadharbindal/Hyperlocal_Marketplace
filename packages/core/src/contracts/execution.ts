@@ -168,3 +168,38 @@ export const ChatThreadView = z.object({
   items: z.array(ChatMessageView),
 });
 export type ChatThreadView = z.infer<typeof ChatThreadView>;
+
+// ---------------------------------------------------------------------------
+// Arrival: where they are, while they are on their way
+// ---------------------------------------------------------------------------
+
+/**
+ * A position report from a professional's phone.
+ *
+ * Accuracy is required rather than optional: without it the server cannot tell a GPS fix from a
+ * cell-tower guess, and would end up putting a confident distance in front of a customer on the
+ * strength of nothing.
+ */
+export const ReportPositionBody = z
+  .object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    accuracyM: z.number().min(0).max(100_000),
+  })
+  .strict();
+export type ReportPositionBody = z.infer<typeof ReportPositionBody>;
+
+/**
+ * What the customer is told. Deliberately not coordinates.
+ *
+ * The app is given a distance and a time, never a point, because a point on a map is a thing you
+ * can follow and a distance is an answer to the question actually being asked. It also means a
+ * screenshot of this screen discloses nothing about where a worker is.
+ */
+export const ArrivalView = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('NOT_TRACKING') }),
+  z.object({ kind: z.literal('ARRIVING_NOW') }),
+  z.object({ kind: z.literal('ON_THE_WAY'), distanceKm: z.number(), etaMinutes: z.number().int() }),
+  z.object({ kind: z.literal('STALE'), lastSeenSecondsAgo: z.number().int() }),
+]);
+export type ArrivalView = z.infer<typeof ArrivalView>;

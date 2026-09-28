@@ -18,6 +18,7 @@ import { OffersList } from '@/features/customer/OffersList';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
 import { Button, Card, ErrorState, IconButton, Screen, Skeleton, Text } from '@/ui';
+import { ArrivalCard } from '@/features/customer/ArrivalCard';
 import { RealisticIcon } from '@/ui/RealisticIcon';
 
 const LIVE: JobStatus[] = ['SUBMITTED', 'QUALIFYING', 'OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING'];
@@ -204,6 +205,9 @@ export default function JobDetailScreen() {
       <BookingCard jobId={j.id} enabled={!!j.bidWindowEndsAt || j.status !== 'OPEN_FOR_BIDS'} />
 
       {/* offers still open for comparison */}
+      {/* Above the live panel: while somebody is on their way, "how far" is the only thing
+          the customer is actually looking at. */}
+      <ArrivalCard jobId={j.id} status={j.status} />
       <LiveJobPanel jobId={j.id} status={j.status} />
 
       <MaterialPanel jobId={j.id} status={j.status} />

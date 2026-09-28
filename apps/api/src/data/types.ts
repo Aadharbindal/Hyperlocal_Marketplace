@@ -832,6 +832,29 @@ export interface RedispatchInvitationRecord {
   created_at: Date;
 }
 
+/**
+ * See 0019. The last known position of somebody on their way - one row per job, never a trail,
+ * and deleted by a database trigger the moment the job stops being EN_ROUTE.
+ */
+export interface ArrivalPingRecord {
+  job_id: string;
+  provider_id: string;
+  lat: number;
+  lng: number;
+  accuracy_m: number;
+  reported_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ArrivalRepo {
+  /** Upsert: the previous position is overwritten, because there is no history to keep. */
+  report(p: Omit<ArrivalPingRecord, 'created_at' | 'updated_at'>): Promise<ArrivalPingRecord>;
+  latest(jobId: string): Promise<ArrivalPingRecord | null>;
+  /** Belt and braces with the trigger in 0019, for the memory store and for explicit cleanup. */
+  clear(jobId: string): Promise<void>;
+}
+
 export interface RedispatchRepo {
   invite(i: New<RedispatchInvitationRecord>): Promise<RedispatchInvitationRecord>;
   listForJob(jobId: string): Promise<RedispatchInvitationRecord[]>;
@@ -1458,6 +1481,7 @@ export interface DataStore {
   jobs: JobsRepo;
   bids: BidsRepo;
   redispatch: RedispatchRepo;
+  arrival: ArrivalRepo;
   kyc: KycRepo;
   negotiation: NegotiationRepo;
   execution: ExecutionRepo;
