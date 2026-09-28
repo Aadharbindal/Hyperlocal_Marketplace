@@ -6,6 +6,7 @@ import { formatInr } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useAdminSettlements, useMfaStatus, useOpsReport, useRetrySettlement, useRunSettlements } from '@/api/admin';
 import { useLogout } from '@/api/hooks';
+import { JobLedgerPanel } from '@/features/admin/JobLedgerPanel';
 import { MfaGate } from '@/features/admin/MfaGate';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
@@ -132,6 +133,11 @@ export default function MoneyScreen() {
             )}
           </>
         )}
+
+        {/* Answering "where did my money go?" used to mean a database session. Behind the same
+            MFA gate as everything else on this screen, because it can move money back. */}
+        <Spacer h={spacing.xxl} />
+        <JobLedgerPanel unlocked={unlocked} />
       </MfaGate>
 
       <Spacer h={spacing.xl} />

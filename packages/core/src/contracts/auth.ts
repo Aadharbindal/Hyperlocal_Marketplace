@@ -114,6 +114,15 @@ export type UpdateMeBody = z.infer<typeof UpdateMeBody>;
  * the one moment we can insist), and accepting the terms is part of the same submission rather
  * than a box that can be left for later.
  */
+/**
+ * The version of the terms this build asks people to accept.
+ *
+ * Shared rather than declared per screen, because two copies drift and what is recorded against
+ * an account has to be what was actually on screen. When the terms are revised this moves in the
+ * same commit as the text, and everybody who accepted 1.0 stays on record as having accepted 1.0.
+ */
+export const CURRENT_TERMS_VERSION = '1.0';
+
 export const CompleteProfileBody = z
   .object({
     displayName: z.string().trim().min(2).max(60),

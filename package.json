@@ -23,7 +23,8 @@
     "migrate:apply": "node scripts/apply-migrations.mjs",
     "load-test": "node scripts/load-test.mjs",
     "a11y": "node scripts/a11y-audit.mjs",
-    "e2e": "node scripts/e2e-journey.mjs"
+    "e2e": "node scripts/e2e-journey.mjs",
+    "wiring": "node scripts/wiring-audit.mjs"
   },
   "engines": {
     "node": ">=20.0.0",

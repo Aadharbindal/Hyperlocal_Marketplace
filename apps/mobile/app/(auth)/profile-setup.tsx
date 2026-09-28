@@ -2,21 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
+import { CURRENT_TERMS_VERSION } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useCompleteProfile } from '@/api/hooks';
 import { useStrings } from '@/i18n';
 import { useSession } from '@/store/session';
 import { palette, radius, spacing } from '@/theme';
 import { Button, Screen, Spacer, Text, TextField } from '@/ui';
-
-/**
- * The version of the terms this build asks people to accept.
- *
- * A literal rather than something fetched, because what is recorded against the account has to be
- * what was actually on screen. If the terms are revised, this constant moves in the same commit
- * as the text, and anybody who accepted 1.0 is still on record as having accepted 1.0.
- */
-const TERMS_VERSION = '1.0';
 
 /**
  * The one screen that runs between the OTP and the rest of the app, for an account that has just
@@ -66,7 +58,7 @@ export default function ProfileSetupScreen() {
         // API would rightly reject it.
         ...(email.trim() ? { email: email.trim() } : {}),
         preferredLanguage: language,
-        acceptedTermsVersion: TERMS_VERSION,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
         marketingOptIn: marketing,
       });
       // No navigation here. The gate in _layout watches `displayName` and moves on by itself,

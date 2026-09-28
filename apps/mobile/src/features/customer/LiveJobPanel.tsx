@@ -5,6 +5,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { formatInr, type JobStatus, type PriceRevisionView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useApproveCompletion, useExecution, useRespondToRevision } from '@/api/execution';
+import { useRotateStartCode } from '@/api/reach';
 import { ChatSheet } from '@/features/shared/ChatSheet';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, Text } from '@/ui';
@@ -35,7 +36,7 @@ export function LiveJobPanel({ jobId, status }: { jobId: string; status: JobStat
 
   return (
     <View style={styles.wrap}>
-      {waitingToStart && <StartCodeCard code={startCode} arrived={status === 'ARRIVED'} />}
+      {waitingToStart && <StartCodeCard jobId={jobId} code={startCode} arrived={status === 'ARRIVED'} />}
 
       {technician && (
         <Animated.View entering={FadeInDown.duration(320)}>
@@ -76,7 +77,27 @@ export function LiveJobPanel({ jobId, status }: { jobId: string; status: JobStat
 }
 
 /** The code is the customer's proof of presence: it is never sent to the provider. */
-function StartCodeCard({ code, arrived }: { code: string; arrived: boolean }) {
+function StartCodeCard({ jobId, code, arrived }: { jobId: string; code: string; arrived: boolean }) {
+  const rotate = useRotateStartCode();
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * A different code, when this one should stop working.
+   *
+   * Not a resend - the code is derived, so it is always visible here anyway. This is for the
+   * code that was read over a shoulder, sent to the wrong person, or the job that is stuck
+   * because the professional mistyped it five times. Rate-limited by the server, which is why
+   * the failure is shown rather than swallowed.
+   */
+  async function replace() {
+    setError(null);
+    try {
+      await rotate.mutateAsync(jobId);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not change the code right now.');
+    }
+  }
+
   return (
     <Animated.View entering={FadeInDown.duration(320)}>
       <Card style={styles.codeCard}>
@@ -95,6 +116,19 @@ function StartCodeCard({ code, arrived }: { code: string; arrived: boolean }) {
         <Text variant="caption" tone="secondary" center>
           Share this only when the work is about to begin. Nobody can start the job without it.
         </Text>
+        {error ? (
+          <Text variant="micro" tone="danger" center>
+            {error}
+          </Text>
+        ) : null}
+        <Button
+          title="Use a different code"
+          size="sm"
+          variant="ghost"
+          fullWidth
+          loading={rotate.isPending}
+          onPress={() => void replace()}
+        />
       </Card>
     </Animated.View>
   );

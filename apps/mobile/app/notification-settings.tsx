@@ -1,21 +1,28 @@
 import { Ionicons } from '@expo/vector-icons';
+import { CURRENT_TERMS_VERSION } from '@hyperlocal/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { askForNotificationPermission, registerDevice, notificationsSupported} from '@/api/push';
-import { useNotificationSettings, useUpdateNotificationSettings } from '@/api/reach';
+import { useDevices, useForgetDevice, useNotificationSettings, useSetConsent, useUpdateNotificationSettings } from '@/api/reach';
 import { palette, spacing } from '@/theme';
-import { Button, Card, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { Badge, Button, Card, Screen, Skeleton, Spacer, Text } from '@/ui';
 
 /**
  * What we are allowed to send, and where. Deliberately honest in two places: it says which
  * alerts have no switch and why, and it does not pretend a switch works when the phone itself
  * has notifications turned off.
  */
+/** The server's enum, in the words somebody would use for their own phone. */
+const PLATFORM_NAME: Record<'IOS' | 'ANDROID' | 'WEB', string> = { IOS: 'iPhone', ANDROID: 'Android phone', WEB: 'Web browser' };
+
 export default function NotificationSettingsScreen() {
   const router = useRouter();
   const settings = useNotificationSettings();
   const update = useUpdateNotificationSettings();
+  const consent = useSetConsent();
+  const devices = useDevices();
+  const forget = useForgetDevice();
   const [permission, setPermission] = useState<'granted' | 'ask' | 'blocked' | 'unknown'>('unknown');
 
   useEffect(() => {
@@ -99,7 +106,14 @@ export default function NotificationSettingsScreen() {
             label="Offers and news from us"
             hint="Occasional. Off unless you turn it on."
             value={settings.data.marketing}
-            onChange={(marketing) => update.mutate({ marketing })}
+            onChange={(marketing) => {
+              update.mutate({ marketing });
+              // The switch and the consent record are the same decision, so they move together.
+              // The switch is a delivery preference; the consent row is the legal record of
+              // being asked and answering, and one that can be given and never withdrawn is not
+              // consent at all. Keeping them apart would eventually make them disagree.
+              consent.mutate({ type: 'MARKETING', granted: marketing, version: CURRENT_TERMS_VERSION });
+            }}
             last
           />
         </Card>
@@ -113,6 +127,56 @@ export default function NotificationSettingsScreen() {
           by noticing the money never arrived would be worse than being told.
         </Text>
       </View>
+
+      {/* Phones this account sends to. An old handset that was sold or lost keeps receiving
+          notifications about somebody's bookings until its token is removed, and the account
+          holder is the only person who can recognise which row is which. */}
+      {(devices.data?.items.length ?? 0) > 0 && (
+        <>
+          <Spacer h={spacing.xl} />
+          <Text variant="heading" weight="bold">
+            Phones getting these
+          </Text>
+          <Spacer h={spacing.sm} />
+          <Card style={styles.group}>
+            {devices.data!.items.map((dv, i) => (
+              <View key={dv.id} style={[styles.device, i < devices.data!.items.length - 1 && styles.deviceDivider]}>
+                <Ionicons name={dv.platform === 'IOS' ? 'phone-portrait-outline' : 'phone-portrait'} size={18} color={palette.textMuted} />
+                <View style={{ flex: 1, gap: 1 }}>
+                  <Text variant="label" weight="semibold" numberOfLines={1}>
+                    {dv.deviceLabel ?? PLATFORM_NAME[dv.platform]}
+                  </Text>
+                  <Text variant="micro" tone="muted">
+                    {`Last seen ${new Date(dv.lastSeenAt).toLocaleDateString()}`}
+                  </Text>
+                </View>
+                {dv.isThisDevice ? (
+                  <Badge tone="primary" label="this phone" />
+                ) : (
+                  <Pressable
+                    onPress={() =>
+                      Alert.alert(
+                        'Stop sending to this phone?',
+                        'It will stop receiving notifications. If you still use it, signing in there again will add it back.',
+                        [
+                          { text: 'Keep it', style: 'cancel' },
+                          { text: 'Stop', style: 'destructive', onPress: () => void forget.mutateAsync(dv.id).catch(() => {}) },
+                        ],
+                      )
+                    }
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Stop sending to ${dv.deviceLabel ?? PLATFORM_NAME[dv.platform]}`}
+                    style={styles.forgetBtn}
+                  >
+                    <Ionicons name="close-circle-outline" size={19} color={palette.danger} />
+                  </Pressable>
+                )}
+              </View>
+            ))}
+          </Card>
+        </>
+      )}
 
       <Spacer h={spacing.md} />
       <View style={styles.note}>
@@ -166,5 +230,8 @@ const styles = StyleSheet.create({
   group: { gap: 0, paddingVertical: 0 },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
   toggleDivider: { borderBottomWidth: 1, borderBottomColor: '#EEF4F2' },
+  device: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
+  deviceDivider: { borderBottomWidth: 1, borderBottomColor: '#EEF4F2' },
+  forgetBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   note: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
 });

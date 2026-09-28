@@ -309,6 +309,70 @@ const backedOut = await call('POST', `/jobs/${draft2.json.id}/cancel-as-provider
 ok('provider can back out', backedOut.status === 200, `status ${backedOut.status} ${backedOut.text.slice(0, 160)}`);
 ok('and the booking is not simply dead', ['REDISPATCHING', 'CANCELLED_BY_PROVIDER'].includes(backedOut.json?.status), backedOut.json?.status);
 
+console.log('\n--- the small ones that had no screen ---');
+
+// Devices: the list exists so somebody can recognise an old handset that was sold or lost and
+// stop it receiving notifications about their bookings.
+await call('POST', '/me/devices', {
+  token: cust.token, body: { token: `tok-${stamp}-old-device-handle`, platform: 'ANDROID', deviceLabel: 'Old phone' },
+});
+const devices = await call('GET', '/me/devices', { token: cust.token });
+ok('devices are listed', (devices.json?.items ?? []).length >= 1, `status ${devices.status} ${devices.text.slice(0, 140)}`);
+ok('but never the push token itself', !/tok-/.test(JSON.stringify(devices.json)));
+const forgot = await call('DELETE', `/me/devices/${devices.json.items[0].id}`, { token: cust.token });
+ok('a device can be forgotten', forgot.status === 200 || forgot.status === 204, `status ${forgot.status}`);
+
+// Consent that can be given and never withdrawn is not consent.
+const withdrawn = await call('POST', '/me/consents', {
+  token: cust.token, body: { type: 'MARKETING', granted: false, version: '1.0' },
+});
+ok('marketing consent can be withdrawn', withdrawn.status === 201, `status ${withdrawn.status}`);
+const consents = await call('GET', '/me', { token: cust.token });
+ok('and the withdrawal is what is on record', consents.json.consents.find((c) => c.type === 'MARKETING')?.granted === false);
+
+console.log('\n--- support and admin money ---');
+
+// A third booking, taken as far as a start code, to rotate it.
+const draft3 = await call('POST', '/jobs', {
+  token: cust.token,
+  body: { categoryId: plumbing.id, addressId: addr.json.id, description: 'Geyser is making a knocking noise' },
+});
+await call('POST', `/jobs/${draft3.json.id}/submit`, { token: cust.token });
+const bid3 = await call('POST', `/jobs/${draft3.json.id}/bids`, {
+  token: prov.token, role: 'PROVIDER',
+  body: { labourPaise: 40000, visitFeePaise: 10000, etaMinutes: 60, warrantyDays: 15 },
+});
+const acc3 = await call('POST', `/bids/${bid3.json.id}/accept`, { token: cust.token });
+await call('POST', `/payments/${acc3.json.payment.id}/mock-complete`, { token: cust.token, body: { outcome: 'authorized' } });
+
+const before = await call('GET', `/jobs/${draft3.json.id}/execution`, { token: cust.token });
+const rotated = await call('POST', `/jobs/${draft3.json.id}/start-code/rotate`, { token: cust.token });
+ok('the start code can be replaced', rotated.status === 200, `status ${rotated.status} ${rotated.text.slice(0, 140)}`);
+ok('and it really is a different one', rotated.json?.startCode !== before.json?.startCode);
+const stale = await call('POST', `/jobs/${draft3.json.id}/start`, {
+  token: prov.token, role: 'PROVIDER', body: { code: before.json.startCode },
+});
+ok('the old code stops working', stale.status >= 400, `status ${stale.status}`);
+
+// The ledger, which support previously had to read with SQL.
+const ledger = await call('GET', `/admin/jobs/${jobId}/ledger`, { token: admin2.token, role: 'ADMIN' });
+ok('a job ledger can be read', ledger.status === 200, `status ${ledger.status}`);
+ok('it has entries and a net', (ledger.json?.items ?? []).length > 0 && typeof ledger.json?.netPaise === 'number');
+
+// A refund on the completed job, which is the only one with money actually captured.
+const refunded = await call('POST', `/admin/jobs/${jobId}/refund`, {
+  token: admin2.token, role: 'ADMIN',
+  body: { amountPaise: 1000, reason: 'Goodwill after a late arrival, agreed with the customer' },
+});
+ok('an admin refund goes through', refunded.status === 200 || refunded.status === 201, `status ${refunded.status} ${refunded.text.slice(0, 160)}`);
+const afterRefund = await call('GET', `/admin/jobs/${jobId}/ledger`, { token: admin2.token, role: 'ADMIN' });
+ok('and lands in the ledger', afterRefund.json.items.length > ledger.json.items.length, `${ledger.json.items.length} -> ${afterRefund.json.items.length}`);
+
+const tooVague = await call('POST', `/admin/jobs/${jobId}/refund`, {
+  token: admin2.token, role: 'ADMIN', body: { amountPaise: 100, reason: 'nope' },
+});
+ok('a refund without a real reason is refused', tooVague.status === 400, `status ${tooVague.status}`);
+
 console.log('\n--- health ---');
 const ready = await call('GET', '/ready');
 ok('server ready', ready.json?.ok === true);

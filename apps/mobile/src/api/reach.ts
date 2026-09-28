@@ -100,3 +100,70 @@ export function useReschedule(jobId: string | undefined) {
     },
   });
 }
+
+// ---------------------------------------------------------------- devices
+export interface DeviceView {
+  id: string;
+  platform: 'IOS' | 'ANDROID' | 'WEB';
+  deviceLabel: string | null;
+  isThisDevice: boolean;
+  lastSeenAt: string;
+  createdAt: string;
+}
+
+/**
+ * Every phone this account has told us to send notifications to.
+ *
+ * Worth showing rather than hiding: an old handset that was sold or lost keeps receiving
+ * notifications about somebody's bookings until its token is removed, and the account holder is
+ * the only person who can recognise which row is which.
+ */
+export function useDevices() {
+  return useQuery({
+    queryKey: ['devices'],
+    queryFn: () => api<{ items: DeviceView[] }>('/me/devices'),
+    staleTime: 60_000,
+  });
+}
+
+export function useForgetDevice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<{ ok: true }>(`/me/devices/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
+  });
+}
+
+// ---------------------------------------------------------------- consent
+/**
+ * Changing your mind about marketing.
+ *
+ * Consent that can be given and never withdrawn is not consent. It was recorded at signup and
+ * there was no way back, which is both a bad look and, for a marketing permission, the wrong
+ * side of the law.
+ */
+export function useSetConsent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { type: 'MARKETING' | 'LOCATION' | 'VOICE_RECORDING'; granted: boolean; version: string }) =>
+      api<{ ok: true }>('/me/consents', { method: 'POST', body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+  });
+}
+
+// ---------------------------------------------------------------- start code
+/**
+ * A different start code, when the old one should stop working.
+ *
+ * Not a resend: the customer can already see their code any time they look, because it is
+ * derived rather than stored. This is for the code that went to the wrong person, was read over
+ * a shoulder, or the job stuck because the professional mistyped it five times.
+ */
+export function useRotateStartCode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: string) =>
+      api<{ startCode: string; nextAllowedAt: string }>(`/jobs/${jobId}/start-code/rotate`, { method: 'POST' }),
+    onSuccess: (_r, jobId) => qc.invalidateQueries({ queryKey: ['execution', jobId] }),
+  });
+}

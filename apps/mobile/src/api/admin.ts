@@ -50,6 +50,70 @@ export function useVerifyMfa() {
   });
 }
 
+/**
+ * Getting back in with a recovery code, when the authenticator is gone.
+ *
+ * The phone with the authenticator on it gets lost, stolen and factory-reset like any other, and
+ * without this the only way back into an admin account is somebody with database access - which
+ * is both slow and a far worse thing to have a habit of. The codes were shown once at setup and
+ * are stored hashed; using one burns it.
+ */
+export function useUseRecoveryCode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (code: string) => api<{ ok: boolean; remaining: number }>('/admin/mfa/recover', { method: 'POST', body: { code } }),
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
+// --------------------------------------------------------------------------- one job's money
+
+export interface LedgerEntry {
+  id: string;
+  jobId: string;
+  entryType: string;
+  accountUserId: string | null;
+  amountPaise: number;
+  batchId: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+/**
+ * Every ledger line for one booking, and what they net to.
+ *
+ * The question this answers is the one support is actually asked - "where did my money go?" -
+ * and until now answering it meant running SQL against production. The ledger is append-only and
+ * double-entry, so the net is the whole point: if it does not match what the platform still
+ * holds for that job, something is wrong and this is where it shows.
+ */
+export function useJobLedger(jobId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['admin-ledger', jobId],
+    enabled: enabled && !!jobId,
+    queryFn: () => api<{ items: LedgerEntry[]; netPaise: number }>(`/admin/jobs/${jobId}/ledger`),
+  });
+}
+
+/**
+ * A refund somebody decided on, rather than one a rule produced.
+ *
+ * Deliberately not a button next to the ledger lines: it takes an amount and a reason of real
+ * length, because this moves money back on a human judgement and the reason is what somebody
+ * reads a year later when asked to justify it.
+ */
+export function useAdminRefund() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ jobId, amountPaise, reason }: { jobId: string; amountPaise: number; reason: string }) =>
+      api<{ id: string; amountPaise: number }>(`/admin/jobs/${jobId}/refund`, { method: 'POST', body: { amountPaise, reason } }),
+    onSuccess: (_r, vars) => {
+      void qc.invalidateQueries({ queryKey: ['admin-ledger', vars.jobId] });
+      void qc.invalidateQueries({ queryKey: adminKeys.settlements('PENDING') });
+    },
+  });
+}
+
 // --------------------------------------------------------------------------- queues
 
 export function useKycQueue(enabled: boolean) {

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { ApiError } from '@/api/client';
-import { useEnableMfa, useMfaStatus, useStartMfa, useVerifyMfa } from '@/api/admin';
+import { useEnableMfa, useMfaStatus, useStartMfa, useUseRecoveryCode, useVerifyMfa } from '@/api/admin';
 import { palette, radius, spacing, typography } from '@/theme';
 import { Button, Card, Skeleton, Text } from '@/ui';
 
@@ -17,6 +17,9 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
   const start = useStartMfa();
   const enable = useEnableMfa();
   const verify = useVerifyMfa();
+  const recover = useUseRecoveryCode();
+  const [recovering, setRecovering] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
   const [secret, setSecret] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +113,57 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
         </>
       )}
 
+      {/* The phone with the authenticator on it gets lost, stolen and reset like any other.
+          Without this the only way back into an admin account is somebody with database access,
+          which is slow and a far worse habit to have. Offered only to an account that is already
+          enrolled - there is nothing to recover from otherwise. */}
+      {enrolled && !secret && (
+        recovering ? (
+          <Animated.View entering={FadeIn.duration(180)} style={styles.recovery}>
+            <Text variant="micro" tone="muted">
+              Enter one of the recovery codes you saved when you turned this on. Using it spends
+              it, and you will be asked to set the authenticator up again afterwards.
+            </Text>
+            <TextInput
+              value={recoveryCode}
+              onChangeText={(v) => setRecoveryCode(v.toUpperCase().slice(0, 20))}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="XXXX-XXXX"
+              placeholderTextColor="#A9B8B1"
+              style={styles.input}
+              accessibilityLabel="Recovery code"
+            />
+            <Button
+              title="Use this code"
+              fullWidth
+              variant="secondary"
+              disabled={recoveryCode.trim().length < 8}
+              loading={recover.isPending}
+              onPress={() =>
+                void run(async () => {
+                  const res = await recover.mutateAsync(recoveryCode.trim());
+                  setRecovering(false);
+                  setRecoveryCode('');
+                  return res;
+                })
+              }
+            />
+            <Pressable accessibilityRole="button" onPress={() => setRecovering(false)} style={styles.refresh}>
+              <Text variant="micro" weight="semibold" tone="muted">
+                Use the authenticator instead
+              </Text>
+            </Pressable>
+          </Animated.View>
+        ) : (
+          <Pressable accessibilityRole="button" onPress={() => setRecovering(true)} style={styles.refresh}>
+            <Text variant="micro" weight="semibold" tone="muted">
+              Lost your authenticator? Use a recovery code
+            </Text>
+          </Pressable>
+        )
+      )}
+
       {error && (
         <Animated.View entering={FadeIn.duration(180)}>
           <Text variant="caption" style={{ color: palette.danger }}>
@@ -162,5 +216,6 @@ const styles = StyleSheet.create({
     color: palette.text,
   },
   warn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF6E0', borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
+  recovery: { gap: spacing.sm },
   refresh: { alignItems: 'center', minHeight: 32, justifyContent: 'center' },
 });
