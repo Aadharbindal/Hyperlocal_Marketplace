@@ -8,6 +8,7 @@ import { activeFilterCount } from '@/api/growth';
 import { useNearbyJobs, useProviderProfile, useSetAvailability } from '@/api/provider';
 import { BidSheet } from '@/features/provider/BidSheet';
 import { FeedFilterSheet } from '@/features/provider/FeedFilterSheet';
+import { RedispatchInvites } from '@/features/provider/RedispatchInvites';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
@@ -97,6 +98,11 @@ export default function ProviderJobsScreen() {
           />
         </View>
       </View>
+
+      {/* Above everything, including the feed. A booking somebody has already paid for and is
+          waiting at home for beats any new opportunity on the list, and it expires in twenty
+          minutes. Renders nothing when there is nothing to answer. */}
+      <RedispatchInvites />
 
       {/* verification / setup state */}
       {profile.data && profile.data.verificationStatus !== 'VERIFIED' ? (
