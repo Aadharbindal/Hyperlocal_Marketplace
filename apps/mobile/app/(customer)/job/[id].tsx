@@ -21,14 +21,19 @@ import { Button, Card, ErrorState, IconButton, Screen, Skeleton, Text } from '@/
 import { RealisticIcon } from '@/ui/RealisticIcon';
 
 const LIVE: JobStatus[] = ['SUBMITTED', 'QUALIFYING', 'OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING'];
-const CANCELLABLE: JobStatus[] = ['DRAFT', 'SUBMITTED', 'QUALIFYING', 'OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING', 'PAYMENT_PENDING', 'CONFIRMED', 'PROVIDER_ASSIGNED', 'EN_ROUTE', 'ARRIVED'];
+// REDISPATCHING is cancellable: somebody waiting to hear whether anyone will come must be able
+// to stop waiting and make other arrangements.
+const CANCELLABLE: JobStatus[] = ['DRAFT', 'SUBMITTED', 'QUALIFYING', 'OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING', 'PAYMENT_PENDING', 'REDISPATCHING', 'CONFIRMED', 'PROVIDER_ASSIGNED', 'EN_ROUTE', 'ARRIVED'];
 
 /** The customer-facing milestones; the server owns the real state machine. */
 const MILESTONES: Array<{ key: string; label: string; statuses: JobStatus[] }> = [
   { key: 'submitted', label: 'Request submitted', statuses: ['SUBMITTED', 'QUALIFYING'] },
   { key: 'finding', label: 'Finding providers', statuses: ['OPEN_FOR_BIDS'] },
   { key: 'offers', label: 'Offers received', statuses: ['BID_RECEIVED', 'NEGOTIATING'] },
-  { key: 'confirmed', label: 'Provider confirmed', statuses: ['PAYMENT_PENDING', 'CONFIRMED', 'PROVIDER_ASSIGNED'] },
+  // REDISPATCHING sits at this step rather than earlier. The booking has not gone backwards
+  // from the customer's point of view - it is still paid for and still happening - so a timeline
+  // that jumped back to 'Request submitted' would read as losing their place in a queue.
+  { key: 'confirmed', label: 'Provider confirmed', statuses: ['PAYMENT_PENDING', 'REDISPATCHING', 'CONFIRMED', 'PROVIDER_ASSIGNED'] },
   { key: 'work', label: 'Work in progress', statuses: ['EN_ROUTE', 'ARRIVED', 'STARTED', 'IN_PROGRESS', 'PRICE_REVISION_PENDING'] },
   { key: 'done', label: 'Completed', statuses: ['COMPLETION_PENDING', 'CUSTOMER_APPROVAL_PENDING', 'COMPLETED', 'SETTLED'] },
 ];
@@ -109,6 +114,9 @@ export default function JobDetailScreen() {
   const j = job.data;
   const reached = reachedIndex(j.status);
   const cancelled = j.status.startsWith('CANCELLED') || j.status === 'AUTO_CANCELLED';
+  // Its own colour, because this is neither business as usual nor an ending. Green would say
+  // everything is fine and grey would say it is over; amber is the honest one.
+  const rescuing = j.status === 'REDISPATCHING';
 
   return (
     <Screen withTabBar refreshing={job.isRefetching} onRefresh={() => void job.refetch()}>
@@ -136,7 +144,7 @@ export default function JobDetailScreen() {
 
       {/* live status hero */}
       <Animated.View entering={FadeInDown.duration(420)}>
-        <LinearGradient colors={cancelled ? ['#8A9B94', '#5B6E67'] : ['#12886A', '#0A6A51']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+        <LinearGradient colors={cancelled ? ['#8A9B94', '#5B6E67'] : rescuing ? ['#C98A1B', '#9A6510'] : ['#12886A', '#0A6A51']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           <View style={styles.heroTop}>
             <View style={styles.statusDotWrap}>
               {live && <Animated.View style={[styles.statusPulse, pulseStyle]} />}
@@ -146,7 +154,14 @@ export default function JobDetailScreen() {
               {t(j.statusLabelKey as never)}
             </Text>
           </View>
-          {j.status === 'OPEN_FOR_BIDS' && j.bidWindowEndsAt ? (
+          {rescuing ? (
+            <Text variant="caption" tone="onPrimaryMuted">
+              {/* Says the one thing the customer most wants to know and we can actually promise.
+                  It deliberately does not promise that somebody will be found. */}
+              The professional had to cancel. We are asking the others who offered on your
+              booking - you will not pay any more than you already have.
+            </Text>
+          ) : j.status === 'OPEN_FOR_BIDS' && j.bidWindowEndsAt ? (
             <View style={styles.heroRow}>
               <Text variant="caption" tone="onPrimaryMuted">
                 Offers close in

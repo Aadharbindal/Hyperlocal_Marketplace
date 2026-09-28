@@ -38,6 +38,8 @@ export const JOB_STATUSES = [
   'BID_RECEIVED',
   'NEGOTIATING',
   'PAYMENT_PENDING',
+  /** The provider walked away and the booking is being offered to the people whose offers lost. */
+  'REDISPATCHING',
   'CONFIRMED',
   'PROVIDER_ASSIGNED',
   'EN_ROUTE',

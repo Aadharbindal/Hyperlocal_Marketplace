@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   JOB_STATUS_LABEL_KEY,
   JobCancelBody,
+  RespondToRedispatchBody,
   ProposeTimeBody,
   RescheduleBody,
   RespondToProposalBody,
@@ -360,9 +361,62 @@ export async function jobRoutes(app: FastifyInstance, ctx: AppContext) {
     const onJob = [assignment?.provider_id, assignment?.technician_id].filter(Boolean).includes(auth.userId);
     if (!onJob) throw forbidden('not the assigned provider');
 
-    const { job: cancelled } = await services.finance.cancelWithMoney(job, auth.userId, reason, 'PROVIDER', transitionCtx(req));
+    const result = await services.finance.cancelWithMoney(job, auth.userId, reason, 'PROVIDER', transitionCtx(req));
     await services.audit.record(req.auditCtx(), { action: 'job.cancelled_by_provider', entityType: 'job', entityId: job.id, reason });
-    return { id: cancelled.id, status: cancelled.status };
+    // The provider is told what happened to the customer they let down. A booking that was saved
+    // and one that died are different outcomes and should not read the same.
+    return {
+      id: result.job.id,
+      status: result.job.status,
+      redispatch: result.redispatch ? { invited: result.redispatch.invited, expiresAt: result.redispatch.expiresAt.toISOString() } : null,
+    };
+  });
+
+  // ---------------------------------------------------------------- re-dispatch
+  /**
+   * The bookings this professional is being asked to cover, because whoever had them pulled out.
+   *
+   * Kept out of the ordinary bid feed on purpose. These are not new work to quote on: the price
+   * is already fixed at what this provider themselves asked for last time, the clock is twenty
+   * minutes rather than a bidding window, and the only two answers are yes and no.
+   */
+  app.get('/me/redispatch-invitations', { preHandler: requireAction('bid.create') }, async (req) => {
+    const auth = requireAuth(req);
+    const open = await store.redispatch.listOpenForProvider(auth.userId, new Date());
+    const lang = langOf(req);
+    const cats = await store.categories.listEnabled();
+
+    const items = [];
+    for (const inv of open) {
+      const job = await store.jobs.get(inv.job_id);
+      // A job that has moved on - somebody else took it, or the customer gave up - is simply not
+      // listed, rather than shown and then refused when tapped.
+      if (!job || job.status !== 'REDISPATCHING') continue;
+      const cat = cats.find((c) => c.id === job.category_id);
+      const address = job.address_id ? await store.addresses.get(job.address_id) : null;
+      items.push({
+        id: inv.id,
+        jobId: job.id,
+        categoryName: cat ? (lang === 'hi' ? cat.name_hi : cat.name_en) : 'Service',
+        // Coarse until they accept. A full address is not handed out on a maybe.
+        areaLabel: address?.city ?? 'Nearby',
+        distanceKm: 0,
+        totalPaise: Number(inv.total_paise),
+        reason: 'PROVIDER_DROPPED' as const,
+        preferredStart: job.preferred_start?.toISOString() ?? null,
+        expiresAt: inv.expires_at.toISOString(),
+      });
+    }
+    return { items };
+  });
+
+  app.post('/redispatch-invitations/:id/respond', { preHandler: requireAction('bid.create') }, async (req) => {
+    const auth = requireAuth(req);
+    const { id } = parse(IdParam, req.params);
+    const body = parse(RespondToRedispatchBody, req.body ?? {});
+    if (!body.accept) return services.redispatch.decline(id, auth.userId, body.reason);
+    const job = await services.redispatch.accept(id, auth.userId);
+    return jobs.toJobView(job, langOf(req), { includeToken: false });
   });
 
   // ---------------------------------------------------------------- public tracking link

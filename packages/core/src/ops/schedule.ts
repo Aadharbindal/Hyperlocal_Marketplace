@@ -18,6 +18,7 @@ export const SCHEDULED_TASKS = [
   'retention-sweep',
   'escalate-warranty',
   'expire-proposals',
+  'expire-redispatch',
 ] as const;
 export type ScheduledTask = (typeof SCHEDULED_TASKS)[number];
 
@@ -39,6 +40,9 @@ export const TASK_SCHEDULE: readonly TaskSpec[] = [
   { task: 'retention-sweep', everySeconds: 3600, description: 'Execute retention events whose time has come' },
   { task: 'escalate-warranty', everySeconds: 3600, description: 'Hand support the warranty claims a professional has left unanswered' },
   { task: 'expire-proposals', everySeconds: 900, description: 'Close the suggested times nobody answered, so they stop hanging over a booking' },
+  // Every minute, because the person this runs for is sitting at home waiting to find out
+  // whether anybody is coming, and their money is held until it answers.
+  { task: 'expire-redispatch', everySeconds: 60, description: 'Give up on bookings nobody agreed to cover, release the money and tell the customer' },
 ];
 
 /** How long a draft is left alone before it is treated as abandoned. */

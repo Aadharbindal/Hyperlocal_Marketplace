@@ -4,6 +4,7 @@ import { postgresReports } from './reports';
 import pg from 'pg';
 import { conflict } from '../../lib/errors';
 import { createPostgresBidsRepo, createPostgresKycRepo } from './bids';
+import { createPostgresRedispatchRepo } from './redispatch';
 import { createPostgresJobsRepo } from './jobs';
 import { createPostgresExecutionRepo } from './execution';
 import { createPostgresAdminRepo } from './admin';
@@ -356,6 +357,7 @@ function buildStore(q: Queryable, pool: pg.Pool): DataStore {
 
     jobs: createPostgresJobsRepo(q),
     bids: createPostgresBidsRepo(q),
+    redispatch: createPostgresRedispatchRepo(q),
     kyc: createPostgresKycRepo(q),
     negotiation: createPostgresNegotiationRepo(q),
     execution: createPostgresExecutionRepo(q),

@@ -275,6 +275,10 @@ export interface JobRecord {
   active_quote_id: string | null;
   cancelled_reason: string | null;
   cancelled_by_role: UserRole | null;
+  /** When the current re-dispatch stops. Non-null exactly while the status is REDISPATCHING (0018). */
+  redispatch_deadline: Date | null;
+  /** How many times this booking has been dropped. Two is a pattern; three is support's problem. */
+  redispatch_count: number;
   submitted_at: Date | null;
   completed_at: Date | null;
   settled_at: Date | null;
@@ -814,6 +818,41 @@ export interface UsersRepo {
   removeEmergencyContact(userId: string, id: string): Promise<void>;
 }
 
+/** See 0018. Who was asked to rescue a dropped booking, and what they said. */
+export interface RedispatchInvitationRecord {
+  id: string;
+  job_id: string;
+  provider_id: string;
+  bid_id: string;
+  total_paise: number;
+  invited_at: Date;
+  expires_at: Date;
+  responded_at: Date | null;
+  outcome: 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | 'SUPERSEDED' | null;
+  created_at: Date;
+}
+
+export interface RedispatchRepo {
+  invite(i: New<RedispatchInvitationRecord>): Promise<RedispatchInvitationRecord>;
+  listForJob(jobId: string): Promise<RedispatchInvitationRecord[]>;
+  /** Open invitations for one provider - what their feed shows as "somebody dropped this". */
+  listOpenForProvider(providerId: string, now: Date): Promise<RedispatchInvitationRecord[]>;
+  get(id: string): Promise<RedispatchInvitationRecord | null>;
+  /**
+   * Records an answer, and refuses a second winner.
+   *
+   * Returns null when this job already has an accepted invitation, which is the race two
+   * professionals tapping "take it" at once actually produces. The caller must treat null as
+   * "somebody else got there first" rather than as a failure.
+   */
+  respond(id: string, outcome: NonNullable<RedispatchInvitationRecord['outcome']>, at: Date): Promise<RedispatchInvitationRecord | null>;
+  /** Closes every still-open invitation on a job, for when it is settled or given up on. */
+  closeOpen(jobId: string, outcome: 'EXPIRED' | 'SUPERSEDED', at: Date): Promise<number>;
+  // No strike methods here on purpose: `strikes` and `finance.addStrike` have handled this since
+  // 0007, including the reliability cost and the suspension threshold. A second penalty store
+  // would give the system two answers to "is this person reliable".
+}
+
 /** See 0016. A name and a number the customer typed, and nothing we inferred about them. */
 export interface EmergencyContactRecord {
   id: string;
@@ -1132,6 +1171,13 @@ export interface JobsRepo {
   listOpenForFeed(opts: { categoryIds: string[]; limit: number }): Promise<JobRecord[]>;
   /** Jobs sitting in these statuses, oldest first - what the background sweeps work through. */
   listByStatus(statuses: JobStatus[], limit: number): Promise<JobRecord[]>;
+  /**
+   * Re-dispatches whose clock has run out, so the customer can be told rather than left waiting.
+   *
+   * Its own method rather than `listByStatus('REDISPATCHING')` filtered in the caller, because
+   * the index in 0018 is on the deadline and this is the query that should use it.
+   */
+  listRedispatchExpired(now: Date): Promise<JobRecord[]>;
 
   addMedia(m: New<JobMediaRecord>): Promise<JobMediaRecord>;
   listMedia(jobId: string, phase?: JobMediaRecord['phase']): Promise<JobMediaRecord[]>;
@@ -1411,6 +1457,7 @@ export interface DataStore {
   categories: CategoriesRepo;
   jobs: JobsRepo;
   bids: BidsRepo;
+  redispatch: RedispatchRepo;
   kyc: KycRepo;
   negotiation: NegotiationRepo;
   execution: ExecutionRepo;

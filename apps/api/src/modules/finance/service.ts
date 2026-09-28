@@ -47,11 +47,19 @@ import { newId } from '../../lib/crypto';
 import { AppError, forbidden, notFound } from '../../lib/errors';
 import type { JobService, TransitionContext } from '../jobs/service';
 
+import type { RedispatchService } from '../jobs/redispatch-service';
+
 export interface FinanceDeps {
   env: Env;
   store: DataStore;
   adapters: Adapters;
   jobs: JobService;
+  /**
+   * Optional, and set after construction, because re-dispatch needs finance and finance needs
+   * re-dispatch: a provider cancelling is the one event that belongs to both. Injected rather
+   * than imported so neither module has to know how the other is built.
+   */
+  redispatch?: RedispatchService;
 }
 
 function blocked(code: string, extra: Record<string, unknown> = {}): never {
@@ -60,6 +68,16 @@ function blocked(code: string, extra: Record<string, unknown> = {}): never {
 
 export function financeService(d: FinanceDeps) {
   const { store, adapters, jobs } = d;
+  const deps = d;
+
+  /**
+   * Closes the loop with re-dispatch after both services exist. See app.ts: a provider walking
+   * away is one event whose two halves live in different modules, and something has to be
+   * assigned last.
+   */
+  function attachRedispatch(r: RedispatchService) {
+    deps.redispatch = r;
+  }
 
   const systemCtx = (requestId: string | null): TransitionContext => ({
     actorUserId: null,
@@ -202,6 +220,8 @@ export function financeService(d: FinanceDeps) {
   }
 
   return {
+    attachRedispatch,
+
     // ------------------------------------------------------------------ capture
     /**
      * Called when the customer approves the work. This is the only moment labour money is
@@ -625,6 +645,29 @@ export function financeService(d: FinanceDeps) {
 
       if (cancellationNeedsSupport(job.status) && byRole === 'CUSTOMER') {
         blocked('CANCELLATION_NEEDS_SUPPORT', { stage });
+      }
+
+      /**
+       * A provider leaving is not the same event as the booking ending.
+       *
+       * Before anybody has arrived there are usually other people who offered on this job and
+       * lost, and asking them is far better for the customer - who has taken time off work - than
+       * handing back an empty screen and an invitation to start again. `open` returns null when
+       * there is genuinely nobody to ask, and the cancellation below then proceeds as it always
+       * did. The money is deliberately left authorised while this runs: releasing and re-taking
+       * it would mean a second charge on somebody's card for a problem they did not cause.
+       */
+      if (byRole === 'PROVIDER' && quote && deps.redispatch) {
+        const opened = await deps.redispatch.open(job, quote.provider_id, reason);
+        if (opened) {
+          // The strike still lands. Dropping a confirmed booking costs the same whether or not
+          // we manage to cover for it - otherwise the penalty depends on the customer's luck.
+          await this.addStrike(quote.provider_id, 'MAJOR', `Cancelled a confirmed job: ${reason}`, {
+            jobId: job.id,
+            issuedBy: null,
+          });
+          return { job: opened.job, chargePaise: 0, redispatch: { invited: opened.invited, expiresAt: opened.expiresAt } };
+        }
       }
 
       const cancelled = await jobs.transition(

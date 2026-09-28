@@ -42,6 +42,7 @@ import { negotiationRoutes } from './modules/negotiation/routes';
 import { negotiationService, type NegotiationService } from './modules/negotiation/service';
 import { providerRoutes } from './modules/provider/routes';
 import { providerService, type ProviderService } from './modules/provider/service';
+import { redispatchService, type RedispatchService } from './modules/jobs/redispatch-service';
 import { userRoutes } from './modules/users/routes';
 import { makeAuthenticate } from './plugins/auth';
 
@@ -63,6 +64,7 @@ export interface AppContext {
     admin: AdminService;
     events: EventsService;
     scheduler: SchedulerService;
+    redispatch: RedispatchService;
   };
 }
 
@@ -158,6 +160,35 @@ export async function buildApp(opts: BuildOptions = {}) {
   });
   const provider = providerService({ env, store, adapters });
   const finance = financeService({ env, store, adapters, jobs });
+
+  /**
+   * Re-dispatch and finance need each other, and the knot is tied here rather than by an import
+   * between them.
+   *
+   * A provider walking away is one event with two halves: somebody has to find a replacement,
+   * and somebody has to decide what happens to the authorised money. Re-dispatch calls the state
+   * machine and finance calls re-dispatch, so one of the two links is assigned after both exist.
+   */
+  const redispatch = redispatchService({
+    store,
+    adapters,
+    audit,
+    notify: async (userId, type, title, body, jobId) => {
+      await store.notifications.create({
+        user_id: userId,
+        type,
+        title,
+        body,
+        data: jobId ? { jobId } : {},
+        channel: 'IN_APP',
+        read_at: null,
+        sent_at: new Date(),
+      });
+    },
+    transition: (job, to, reason, patch) =>
+      jobs.transition(job, to as never, { actorUserId: null, actorRole: null, actor: 'SYSTEM', requestId: null }, { reason, patch }),
+  });
+  finance.attachRedispatch(redispatch);
   const adminSvc = adminService({ env, store, adapters });
   const growth = growthService({ env, store, adapters });
   const warranty = warrantyService({ env, store, adapters, jobs });
@@ -198,12 +229,12 @@ export async function buildApp(opts: BuildOptions = {}) {
     },
   });
   // The background worker is built last: it drives the other services rather than the reverse.
-  const scheduler = schedulerService({ env, store, adapters, jobs, finance, negotiation, warranty });
+  const scheduler = schedulerService({ env, store, adapters, jobs, finance, negotiation, warranty, redispatch });
   const ctx: AppContext = {
     env,
     store,
     adapters,
-    services: { auth, audit, jobs, provider, negotiation, execution, materials, finance, growth, warranty, admin: adminSvc, events, scheduler },
+    services: { auth, audit, jobs, provider, negotiation, execution, materials, finance, growth, warranty, admin: adminSvc, events, scheduler, redispatch },
   };
 
   if (opts.seed ?? (env.DATA_MODE === 'memory' && env.APP_ENV !== 'test')) {

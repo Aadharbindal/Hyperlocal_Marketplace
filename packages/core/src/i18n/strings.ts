@@ -12,6 +12,10 @@ export const STRINGS = {
     'status.finding_providers': 'Finding providers',
     'status.offers_received': 'Offers received',
     'status.payment_pending': 'Payment pending',
+    // Deliberately not 'Cancelled'. Nothing is cancelled yet, and telling somebody it is would
+    // send them off to book again while we are still trying to rescue the one they have.
+    'status.redispatching': 'Finding another professional',
+    'status.redispatching_none': 'No one else is available yet',
     'status.provider_confirmed': 'Provider confirmed',
     'status.on_the_way': 'Provider is on the way',
     'status.arrived': 'Provider has arrived',
@@ -59,6 +63,8 @@ export const STRINGS = {
     'status.finding_providers': 'प्रोवाइडर खोजे जा रहे हैं',
     'status.offers_received': 'ऑफ़र मिले',
     'status.payment_pending': 'भुगतान बाकी है',
+    'status.redispatching': 'दूसरा कारीगर ढूँढ रहे हैं',
+    'status.redispatching_none': 'अभी कोई और उपलब्ध नहीं है',
     'status.provider_confirmed': 'प्रोवाइडर कन्फ़र्म',
     'status.on_the_way': 'प्रोवाइडर रास्ते में है',
     'status.arrived': 'प्रोवाइडर पहुँच गया',

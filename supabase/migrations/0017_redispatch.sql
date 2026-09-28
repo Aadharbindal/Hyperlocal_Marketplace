@@ -1,0 +1,20 @@
+-- 0017_redispatch.sql
+-- One new job status, and nothing else.
+--
+-- Forward-only. Nothing in 0001-0016 is rewritten.
+--
+-- This file is one line long for a reason that is not stylistic. Postgres will not let a new
+-- enum value be *used* in the same transaction that adds it - a check constraint or a partial
+-- index mentioning 'REDISPATCHING' fails with "unsafe use of new value of enum type" - and the
+-- migration runner sends each file as a single multi-statement query, which is one implicit
+-- transaction. So the value is added here and everything that refers to it lives in 0018.
+--
+-- What it is for: until now `cancel-as-provider` moved a booking straight to
+-- CANCELLED_BY_PROVIDER, which ends it. The customer has taken time off work and arranged their
+-- day around a window somebody else then walked away from, and they were handed an empty screen
+-- and asked to start again - describe the problem, wait out a bidding window, compare offers,
+-- pay - for the one failure that is entirely not their fault.
+--
+-- The losing offers were never deleted: `negotiation.accept` marks them INACTIVE. The people who
+-- wanted this job are still on file, and this status is the room in which they get asked again.
+alter type job_status add value if not exists 'REDISPATCHING' after 'PAYMENT_PENDING';

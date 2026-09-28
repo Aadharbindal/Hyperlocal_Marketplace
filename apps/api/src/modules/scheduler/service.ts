@@ -14,6 +14,7 @@ import type { DataStore, JobRecord } from '../../data/types';
 import type { FinanceService } from '../finance/service';
 import type { JobService, TransitionContext } from '../jobs/service';
 import type { NegotiationService } from '../negotiation/service';
+import type { RedispatchService } from '../jobs/redispatch-service';
 import type { WarrantyService } from '../warranty/service';
 
 export interface SchedulerDeps {
@@ -24,6 +25,7 @@ export interface SchedulerDeps {
   finance: FinanceService;
   negotiation: NegotiationService;
   warranty: WarrantyService;
+  redispatch: RedispatchService;
 }
 
 export interface TaskResult {
@@ -282,6 +284,20 @@ export function schedulerService(d: SchedulerDeps) {
     return handled;
   }
 
+  /**
+   * A booking nobody agreed to cover.
+   *
+   * The customer has now been let down twice - once by the provider and once by us - so the
+   * priority is that they find out quickly and get their money released, not that we keep
+   * trying. The cancellation itself goes through finance, which is where releasing an
+   * authorisation and writing the ledger belongs.
+   */
+  async function expireRedispatch(now: Date) {
+    return d.redispatch.sweepExpired(now, async (job) => {
+      await finance.cancelWithMoney(job, job.customer_id, 'Nobody else could take this booking', 'PROVIDER', systemCtx());
+    });
+  }
+
   const RUNNERS: Record<ScheduledTask, (now: Date) => Promise<number>> = {
     'expire-bid-windows': expireBidWindows,
     'expire-offers': expireOffers,
@@ -293,6 +309,7 @@ export function schedulerService(d: SchedulerDeps) {
     'retention-sweep': retentionSweep,
     'escalate-warranty': escalateWarranty,
     'expire-proposals': expireProposals,
+    'expire-redispatch': expireRedispatch,
   };
 
   let running = false;

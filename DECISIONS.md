@@ -293,3 +293,48 @@ consented to nothing, so the design goal is to hold as little of them as possibl
 list boring to steal. Offered to customers only: the provider is the stranger in this
 relationship, and showing them the same row would read as a suggestion that the customer is the
 danger.
+
+## D-020: A provider leaving is not the same event as the booking ending
+
+**Context.** `POST /jobs/:id/cancel-as-provider` moved the booking straight to
+CANCELLED_BY_PROVIDER. That is the end of it. The customer had taken time off work and arranged
+their day around a window somebody else then walked away from, and the app returned them to an
+empty screen and asked them to start again - describe the problem, wait out a bidding window,
+compare offers, pay - for the one failure in this product that is entirely not their fault.
+
+Meanwhile the losing offers were sitting in the table doing nothing. `negotiation.accept` marks
+them INACTIVE rather than deleting them, so the people who wanted that job were always one status
+change away from being asked again.
+
+**Decision.** Before anybody has arrived, a provider's cancellation opens a re-dispatch instead
+of ending the booking. Four rules make it fair rather than merely clever:
+
+- **It is an invitation, not a reassignment.** A bid placed on Tuesday is not consent to be
+  handed the job on Thursday afternoon. Everyone eligible is asked at once with a twenty-minute
+  clock, and first to accept wins - sequential invitations would mean a customer whose first
+  three candidates are asleep waits an hour to hear "no".
+- **Nobody dearer than the authorised amount is invited.** A provider walking away must never
+  turn into a request for more money from the person it was done to. Anybody cheaper is invited
+  at *their own* price, so the bill can only go down.
+- **The ranking is the original one, not price.** The customer chose on a blend of distance,
+  rating, experience and reliability; being let down does not mean they now want whoever is
+  cheapest.
+- **It stops at the door.** ARRIVED and later go to support. Sending a stranger to a half-
+  dismantled geyser is a second problem, not a rescue.
+
+The money stays authorised throughout. Releasing and re-taking it would put a second charge on
+the card of somebody who has already been inconvenienced.
+
+**Consequences.** One new job status and a table of invitations, which is also the answer when
+support is asked "why wasn't X offered this?" - the skip reason is recorded per candidate. The
+strike on the departing provider is unchanged and still lands whether or not the rescue works,
+because otherwise the penalty for letting somebody down would depend on that customer's luck.
+No new penalty machinery: `strikes` and `shouldSuspend` have done this since 0007, and a second
+strike table would give the ranking two answers to the same question.
+
+Two bugs came out of building it, both found by tests rather than by reading. The departing
+provider's assignment has to be closed before the replacement can be given the job, or
+`createAssignment` refuses and the rescue fails at the last step - after the customer has been
+told help is coming. And the give-up sweep cleared the re-dispatch deadline before the status
+left REDISPATCHING, which the check constraint in 0018 rejects; that one passed in memory mode
+and failed against Postgres, so the memory store now mirrors that constraint too.

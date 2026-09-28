@@ -48,6 +48,15 @@ export function createPostgresJobsRepo(q: Queryable): JobsRepo {
       ),
     listByStatus: (statuses, limit) =>
       many<JobRecord>('select * from jobs where status = any($1) order by created_at limit $2', [statuses, limit]),
+    // Shaped to use jobs_redispatching_idx from 0018: the predicate on the index is the status,
+    // so the ordering column is the deadline rather than created_at.
+    listRedispatchExpired: (at) =>
+      many<JobRecord>(
+        `select * from jobs
+          where status = 'REDISPATCHING' and redispatch_deadline is not null and redispatch_deadline <= $1
+          order by redispatch_deadline`,
+        [at],
+      ),
     listOpenForFeed: ({ categoryIds, limit }) =>
       many<JobRecord>(
         `select * from jobs

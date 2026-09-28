@@ -6,6 +6,7 @@ import { createMemoryBidsRepo, createMemoryKycRepo } from './bids';
 import { createMemoryCluster } from './cluster';
 import { createMemoryReports } from './reports';
 import { createMemoryJobsRepo } from './jobs';
+import { memoryRedispatchRepo } from './redispatch';
 import { createMemoryExecutionRepo } from './execution';
 import { createMemoryAdminRepo } from './admin';
 import { createMemoryFinanceRepo } from './finance';
@@ -67,6 +68,7 @@ export function createMemoryStore(): DataStore {
   const idem = new Map<string, IdempotencyRecord>();
   const jobsRepo = createMemoryJobsRepo();
   const bidsRepo = createMemoryBidsRepo();
+  const redispatchRepo = memoryRedispatchRepo();
   const kycRepo = createMemoryKycRepo();
   const negotiationRepo = createMemoryNegotiationRepo();
   const executionRepo = createMemoryExecutionRepo();
@@ -435,6 +437,7 @@ export function createMemoryStore(): DataStore {
 
     jobs: jobsRepo,
     bids: bidsRepo,
+    redispatch: redispatchRepo,
     kyc: kycRepo,
     negotiation: negotiationRepo,
     execution: executionRepo,

@@ -27,6 +27,15 @@ const CANCEL_BY_PROVIDER: TransitionRule = {
   label: 'Cancelled by provider',
 };
 const AUTO_CANCEL: TransitionRule = { to: 'AUTO_CANCELLED', actors: A_SYSTEM, label: 'Auto-cancelled' };
+/**
+ * The provider dropped a booking somebody has arranged their day around.
+ *
+ * SYSTEM-only, although a provider's tap is what starts it: the provider asks to leave, and the
+ * server decides whether that ends the booking or re-opens it to the offers that lost. Letting
+ * a provider name this transition directly would let them put a job into re-dispatch without
+ * actually leaving it.
+ */
+const REDISPATCH: TransitionRule = { to: 'REDISPATCHING', actors: A_SYSTEM, label: 'Finding another professional' };
 const DISPUTE: TransitionRule = {
   to: 'DISPUTED',
   actors: [...A_CUSTOMER, ...A_PROVIDER],
@@ -78,16 +87,30 @@ export const JOB_TRANSITIONS: Readonly<Record<JobStatus, readonly TransitionRule
   ],
   CONFIRMED: [
     { to: 'PROVIDER_ASSIGNED', actors: [...A_PROVIDER, 'SYSTEM'], label: 'Provider assigned' },
+    REDISPATCH,
     CANCEL_BY_CUSTOMER,
     CANCEL_BY_PROVIDER,
   ],
   PROVIDER_ASSIGNED: [
     { to: 'EN_ROUTE', actors: A_PROVIDER, label: 'Provider is on the way' },
+    REDISPATCH,
     CANCEL_BY_CUSTOMER,
     CANCEL_BY_PROVIDER,
   ],
+  /**
+   * Nobody is doing this job at this moment, and the customer is waiting to find out whether
+   * anybody will. Every edge out of here is the system's: the customer may give up, but the
+   * other three outcomes are decided by whether an invitation is accepted before the clock runs
+   * out, and neither side gets to force that by tapping something.
+   */
+  REDISPATCHING: [
+    { to: 'CONFIRMED', actors: A_SYSTEM, label: 'Another professional took it' },
+    { to: 'CANCELLED_BY_PROVIDER', actors: A_SYSTEM, label: 'Nobody else could take it' },
+    CANCEL_BY_CUSTOMER,
+  ],
   EN_ROUTE: [
     { to: 'ARRIVED', actors: A_PROVIDER, label: 'Provider has arrived' },
+    REDISPATCH,
     CANCEL_BY_CUSTOMER,
     CANCEL_BY_PROVIDER,
     DISPUTE,
@@ -174,6 +197,7 @@ export const JOB_STATUS_LABEL_KEY: Readonly<Record<JobStatus, string>> = {
   BID_RECEIVED: 'status.offers_received',
   NEGOTIATING: 'status.offers_received',
   PAYMENT_PENDING: 'status.payment_pending',
+  REDISPATCHING: 'status.redispatching',
   CONFIRMED: 'status.provider_confirmed',
   PROVIDER_ASSIGNED: 'status.provider_confirmed',
   EN_ROUTE: 'status.on_the_way',

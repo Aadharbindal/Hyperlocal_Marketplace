@@ -44,7 +44,19 @@ export function createMemoryJobsRepo(): JobsRepo & { _events: JobStatusEventReco
       if ((j.status ?? 'DRAFT') === 'DRAFT' && liveDraft(j.customer_id, j.category_id, j.address_id ?? null)) {
         throw conflict({ reason: 'draft_exists' });
       }
-      const rec: JobRecord = { ...j, id: j.id ?? newId(), created_at: now(), updated_at: now() } as JobRecord;
+      const rec: JobRecord = {
+        ...j,
+        id: j.id ?? newId(),
+        // Columns with a SQL default are defaulted here too, and *after* the spread so a caller
+        // that does supply one still wins. The cast below hides a missing field from the
+        // compiler, so anything Postgres fills in has to be filled in here or the two stores
+        // disagree about what a brand-new job looks like - `redispatch_count` would be undefined
+        // in memory and 0 in Postgres, and arithmetic on it would quietly produce NaN.
+        redispatch_deadline: j.redispatch_deadline ?? null,
+        redispatch_count: j.redispatch_count ?? 0,
+        created_at: now(),
+        updated_at: now(),
+      } as JobRecord;
       jobs.set(rec.id, rec);
       return rec;
     },
@@ -60,6 +72,13 @@ export function createMemoryJobsRepo(): JobsRepo & { _events: JobStatusEventReco
       const j = jobs.get(id);
       if (!j) throw new Error('job not found');
       const next = { ...j, ...patch, updated_at: now() };
+      // mirrors jobs_redispatch_needs_deadline (0018). A booking being re-dispatched with no
+      // clock on it is a customer watching a spinner while their payment stays held, so the
+      // database refuses the row - and this store has to refuse it too, or a bug that Postgres
+      // catches passes in memory. That is exactly how the give-up sweep shipped broken once.
+      if (next.status === 'REDISPATCHING' && next.redispatch_deadline == null) {
+        throw conflict({ reason: 'jobs_redispatch_needs_deadline' });
+      }
       jobs.set(id, next);
       return next;
     },
@@ -87,6 +106,11 @@ export function createMemoryJobsRepo(): JobsRepo & { _events: JobStatusEventReco
         .filter((j) => statuses.includes(j.status))
         .sort((a, b) => a.created_at.getTime() - b.created_at.getTime())
         .slice(0, limit);
+    },
+    async listRedispatchExpired(at) {
+      return [...jobs.values()]
+        .filter((j) => j.status === 'REDISPATCHING' && j.redispatch_deadline !== null && j.redispatch_deadline <= at)
+        .sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
     },
     async listOpenForFeed({ categoryIds, limit }) {
       const open: JobStatus[] = ['OPEN_FOR_BIDS', 'BID_RECEIVED', 'NEGOTIATING'];
