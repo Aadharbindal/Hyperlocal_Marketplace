@@ -53,7 +53,9 @@ document. There is a test for exactly that.
 *Somebody to call.* Up to three emergency contacts, typed by the customer, capped by a trigger
 and de-duplicated by a unique index rather than by a count-then-insert two taps could race past.
 Numbers come back masked, and the audit row records that a contact was added, not what it was
-(D-019). Sharing a live job with one of them is contracted but not built, and is listed as such.
+(D-019). Sharing a live job already worked on its own - a minimal public tracking page and the
+OS share sheet, both built earlier - so what is left is only the shortcut of sending that link
+straight to a saved contact; `ShareJobBody` is written and unrouted.
 
 *The rest of the account section.* Edit profile, help with five answers this codebase can
 actually stand behind, and account deletion with a typed confirmation and a plain statement of
@@ -103,7 +105,8 @@ avatar round trip end to end (70-byte PNG PUT, 204, committed by key, signed lin
 byte-identical), email lower-casing, and the emergency-contact mask.
 
 **Known limitations:** email verification is not built and nothing sets the verified flag;
-sharing a job with an emergency contact is contracted but not routed; there is still no
+sending the existing tracking link straight to a saved contact is contracted but not routed
+(the link and the share sheet themselves already work); there is still no
 onboarding tour. Device testing was stopped early rather than continued, because the phone's
 browser kept returning to the foreground and capturing it would have meant capturing the owner's
 personal accounts.
