@@ -10,6 +10,7 @@ import { useCancelJob, useJob } from '@/api/jobs';
 import { useCancellationQuote } from '@/api/finance';
 import { BookingCard } from '@/features/customer/BookingCard';
 import { AfterJobCard } from '@/features/customer/AfterJobCard';
+import { RepeatThisCard } from '@/features/customer/RepeatThisCard';
 import { ContactAndTimeCard } from '@/features/customer/ContactAndTimeCard';
 import { WarrantyCard } from '@/features/customer/WarrantyCard';
 import { LiveJobPanel } from '@/features/customer/LiveJobPanel';
@@ -217,6 +218,9 @@ export default function JobDetailScreen() {
       <MaterialPanel jobId={j.id} status={j.status} />
 
       <AfterJobCard jobId={j.id} status={j.status} />
+      {/* Straight after what they paid, because this is the moment somebody knows whether this
+          is the kind of work that comes back - and everything a repeat needs is already here. */}
+      <RepeatThisCard job={j} />
 
       <OffersList jobId={j.id} live={live} />
 

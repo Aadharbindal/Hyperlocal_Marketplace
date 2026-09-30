@@ -69,7 +69,42 @@ for (const route of [...routes].sort()) {
   if (!shapeOf(path).test(appSrc)) orphans.push(route);
 }
 
+/**
+ * The second question, which the path check cannot answer.
+ *
+ * An endpoint can be called by a hook that no screen ever uses - which is exactly how the
+ * repeat-booking setup shipped missing: `useCreateServicePlan` mentioned the path, so the
+ * endpoint read as wired while a customer had no way to reach it. So: every exported hook in
+ * `src/api`, and whether anything outside its own file uses it.
+ */
+const hookFiles = walk(join(ROOT, 'apps/mobile/src/api'));
+// Read every file once. Re-walking per hook made this quadratic and slow enough to discourage
+// running it, which for a check like this is the same as deleting it.
+const elsewhere = walk(join(ROOT, 'apps/mobile')).map((f) => ({ path: f, src: readFileSync(f, 'utf8') }));
+
+const unusedHooks = [];
+for (const f of hookFiles) {
+  const own = readFileSync(f, 'utf8');
+  for (const m of own.matchAll(/export function (use[A-Z]\w+)/g)) {
+    const name = m[1];
+    const word = new RegExp(`\\b${name}\\b`, 'g');
+    // Counted in its own file too, because a hook can legitimately exist only to be called by
+    // another hook beside it - `useReportPosition` is called by `useShareArrivalPosition` in the
+    // same file, and reporting that as dead would teach people to ignore this list. More than
+    // one occurrence means the definition plus at least one call.
+    const usedInOwnFile = (own.match(word) ?? []).length > 1;
+    const usedElsewhere = elsewhere.some((o) => o.path !== f && word.test(o.src));
+    if (!usedInOwnFile && !usedElsewhere) {
+      unusedHooks.push(`${name}  (${f.slice(ROOT.length + 1).split('\\').join('/')})`);
+    }
+  }
+}
+
 console.log(`${routes.size} endpoints, ${BY_DESIGN.size} of them not app-facing by design.`);
 console.log(`${orphans.length} built with nothing in the app calling them:\n`);
 for (const o of orphans) console.log('  ' + o);
 if (orphans.length === 0) console.log('  (none)');
+
+console.log(`\n${unusedHooks.length} API hook(s) no screen uses - built and unreachable:\n`);
+for (const h of unusedHooks) console.log('  ' + h);
+if (unusedHooks.length === 0) console.log('  (none)');
