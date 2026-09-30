@@ -147,6 +147,15 @@ export async function userRoutes(app: FastifyInstance, ctx: AppContext) {
       ...(body.email ? { email: body.email } : {}),
       ...(body.preferredLanguage ? { preferredLanguage: body.preferredLanguage } : {}),
     });
+    /**
+     * The delivery switch is set from the same answer as the consent record.
+     *
+     * Without this line the two disagreed from the first minute of an account's life: somebody
+     * ticking "send me offers" at signup had their consent recorded as granted and the marketing
+     * switch left off, so the settings screen told them they had said no. Found by signing up on
+     * a real phone and then opening that screen.
+     */
+    patch.push_marketing = body.marketingOptIn;
     const updated = await store.users.update(auth.userId, patch);
 
     await store.users.addConsent({

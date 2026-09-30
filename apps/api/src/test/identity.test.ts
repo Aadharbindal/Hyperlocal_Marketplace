@@ -52,6 +52,36 @@ describe('completing a profile after signup', () => {
     expect(me.json().consents.find((c: { type: string }) => c.type === 'MARKETING')).toMatchObject({ granted: false });
   });
 
+  it('sets the marketing switch from the same answer as the consent', async () => {
+    // These disagreed from the first minute of an account's life: the consent was recorded as
+    // granted and the delivery switch left off, so the settings screen told somebody they had
+    // said no to something they had just said yes to. Found by signing up on a real phone.
+    const s = await freshCustomer('+919222000017');
+    await app.inject({
+      method: 'POST',
+      url: '/me/complete-profile',
+      payload: { displayName: 'Opted In', acceptedTermsVersion: '1.0', marketingOptIn: true },
+      headers: bearer(s.accessToken),
+    });
+
+    const settings = await app.inject({ method: 'GET', url: '/me/notification-settings', headers: bearer(s.accessToken) });
+    expect(settings.json().marketing).toBe(true);
+    const me = await app.inject({ method: 'GET', url: '/me', headers: bearer(s.accessToken) });
+    expect(me.json().consents.find((c: { type: string }) => c.type === 'MARKETING')?.granted).toBe(true);
+  });
+
+  it('leaves both off for somebody who declined', async () => {
+    const s = await freshCustomer('+919222000018');
+    await app.inject({
+      method: 'POST',
+      url: '/me/complete-profile',
+      payload: { displayName: 'Opted Out', acceptedTermsVersion: '1.0', marketingOptIn: false },
+      headers: bearer(s.accessToken),
+    });
+    const settings = await app.inject({ method: 'GET', url: '/me/notification-settings', headers: bearer(s.accessToken) });
+    expect(settings.json().marketing).toBe(false);
+  });
+
   it('refuses a name that is not one', async () => {
     const s = await freshCustomer('+919222000002');
     const r = await app.inject({
