@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import type { Logger } from 'pino';
+import { isWithinRadius } from '@hyperlocal/core';
 import type { Env } from '../config/env';
 import { sha256, newId } from '../lib/crypto';
 import type {
@@ -60,8 +61,28 @@ export function mockMaps(env: Env): MapsAdapter {
         confidence: 'MEDIUM',
       };
     },
+    /**
+     * There is no data behind this, and `coarse: true` says so on every single answer.
+     *
+     * It still returns a PIN code, because a picker that silently has no PIN to offer cannot be
+     * exercised at all before the key exists - but the PIN is derived from the point in a way that
+     * agrees with `geocode` above (outside the pilot radius ends in 99), so the zone logic the
+     * screen depends on behaves the same in mock and live mode. The client is told it is coarse and
+     * asks the person to confirm it; nothing here is presented as a real postal lookup.
+     */
     async reverseGeocode(p) {
-      return { formatted: `Near ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}, ${env.PILOT_CITY}` };
+      const h = sha256(`${p.lat.toFixed(4)}|${p.lng.toFixed(4)}`);
+      const inside = isWithinRadius({ lat: env.PILOT_CENTER_LAT, lng: env.PILOT_CENTER_LNG }, p, env.PILOT_RADIUS_KM);
+      // First digit 1-8 so the result satisfies the same PIN shape the contract enforces.
+      const first = (parseInt(h.slice(8, 10), 16) % 8) + 1;
+      const middle = (parseInt(h.slice(10, 14), 16) % 1000).toString().padStart(3, '0');
+      const pincode = `${first}${middle}${inside ? '01' : '99'}`;
+      return {
+        formatted: `Near ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}, ${env.PILOT_CITY}`,
+        pincode,
+        city: env.PILOT_CITY,
+        coarse: true,
+      };
     },
   };
 }

@@ -136,7 +136,9 @@ function JobCard({ job, live }: { job: TechnicianJob; live: boolean }) {
         </Text>
       ) : null}
 
-      {job.address ? (
+      {/* Hidden on a live job, where `JobRunner` below shows the same place on a map with the gate
+          instructions and its own Directions button. Two address rows on one card is clutter. */}
+      {job.address && !live ? (
         <Pressable onPress={() => void navigate()} accessibilityRole="button" accessibilityLabel="Open directions" style={styles.address}>
           <Ionicons name="location-outline" size={18} color={palette.primary} />
           <Text variant="micro" tone="secondary" style={{ flex: 1 }}>

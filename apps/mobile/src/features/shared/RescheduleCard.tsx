@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Alert, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
-import type { JobStatus } from '@hyperlocal/core';
+import { checkFutureDateTime, checkReason, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useProposeTime, useRescheduleBooking, useRespondToProposal, useTimeProposal, useWithdrawProposal } from '@/api/jobs';
 import { palette, radius, spacing, typography } from '@/theme';
@@ -55,13 +55,21 @@ export function RescheduleCard({ jobId, status, side }: { jobId: string; status:
    * A picker would be better and is a bigger piece of work; this is deliberately the smallest
    * thing that makes the feature reachable at all, and it is listed as such in KNOWN_LIMITATIONS
    * rather than presented as finished.
+   *
+   * What the field *does* get is a specific complaint. It used to answer every mistake with one
+   * sentence covering four rules at once, so somebody who typed 31 February and somebody who typed
+   * yesterday both had to work out which half applied to them. `checkFutureDateTime` is shared with
+   * the rest of the app and names the actual problem.
    */
+  const whenProblem = checkFutureDateTime(when);
   const parsed = (() => {
+    if (!when.trim() || whenProblem) return null;
     const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/.exec(when.trim());
     if (!m) return null;
-    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
-    return Number.isNaN(d.getTime()) || d.getTime() < Date.now() ? null : d;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
   })();
+  /** The provider must say why; for the customer the field is optional, so empty is not a problem. */
+  const reasonProblem = reason.trim() ? checkReason(reason) : null;
 
   async function send() {
     setError(null);
@@ -195,9 +203,14 @@ export function RescheduleCard({ jobId, status, side }: { jobId: string; status:
           style={[styles.input, styles.multiline]}
           accessibilityLabel="Reason"
         />
-        {when.trim() && !parsed ? (
+        {whenProblem ? (
           <Text variant="micro" tone="danger">
-            Use the form 2026-10-04 15:30, and pick a time in the future.
+            {whenProblem.message}
+          </Text>
+        ) : null}
+        {reasonProblem ? (
+          <Text variant="micro" tone="danger">
+            {reasonProblem.message}
           </Text>
         ) : null}
         {error ? (
@@ -219,7 +232,7 @@ export function RescheduleCard({ jobId, status, side }: { jobId: string; status:
             // The provider must give a reason of at least ten characters; the customer need not
             // explain moving their own booking. Enforced here too, because a rejection after
             // typing is a worse way to learn it.
-            disabled={!parsed || (side === 'PROVIDER' && reason.trim().length < 10)}
+            disabled={!parsed || !!reasonProblem || (side === 'PROVIDER' && !!checkReason(reason))}
             loading={propose.isPending || reschedule.isPending}
             onPress={() => void send()}
           />

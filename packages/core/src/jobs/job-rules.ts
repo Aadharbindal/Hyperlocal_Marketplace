@@ -1,4 +1,5 @@
 import type { JobPriority } from '../contracts/enums';
+import { checkMeaningfulText } from '../validation/validation';
 
 // ---------------------------------------------------------------------------
 // Media limits (PRODUCT_SPEC section 4: photos, voice note up to 60 s)
@@ -84,6 +85,7 @@ export type SubmitBlocker =
   | 'ADDRESS_OUT_OF_ZONE'
   | 'SCHEDULE_IN_PAST'
   | 'SCHEDULE_RANGE_INVALID'
+  | 'DESCRIPTION_NOT_MEANINGFUL'
   | 'PROHIBITED_CONTENT'
   | 'RECIPIENT_PHONE_INVALID';
 
@@ -115,6 +117,17 @@ export function checkSubmittable(i: SubmitCheckInput): SubmitBlocker[] {
     if (i.preferredEnd && i.preferredEnd.getTime() <= i.preferredStart.getTime()) blockers.push('SCHEDULE_RANGE_INVALID');
   }
   if (!i.bookedForPhoneValid) blockers.push('RECIPIENT_PHONE_INVALID');
+  /**
+   * A description that is present but says nothing.
+   *
+   * Checked separately from the length rule above, and only when something was actually written.
+   * A job with photos and "Tap leak" is perfectly clear and must not be blocked for being short -
+   * but "asdasdasdasd" is twelve characters, passes every length check ever written, and sends a
+   * professional across the city to find out what the customer wanted.
+   */
+  if ((i.description ?? '').trim().length > 0 && checkMeaningfulText(i.description ?? '', 1, 'The description')) {
+    blockers.push('DESCRIPTION_NOT_MEANINGFUL');
+  }
   if (containsProhibitedRequest(i.description ?? '')) blockers.push('PROHIBITED_CONTENT');
 
   return blockers;

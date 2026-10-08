@@ -27,6 +27,8 @@ audit event asserted · business-critical rule asserted. A feature without these
 | Permissions | role × action matrix, ownership, multi-role |
 | Strikes | thresholds, suspension windows, expiry |
 | OTP | code generation, hashing, attempts |
+| Arrival | tracking window, staleness, coarse storage, who may see the point, and that `STALE` carries none |
+| Input validation | **two halves, and the second matters more.** Junk refused: held-down keys, repeated short chunks, keyboard runs, 9999999999, an IFSC without the RBI's reserved zero, an email in a UPI box, a rupee amount with an extra zero, a referral code containing a character the generator never emits, 31 February. Real answers **not** refused: 9876543210, an address line with no house number, a name in Devanagari, a two-letter name, Hindi reduplication ("dhire dhire"), a bank account held in a firm's name with digits in it |
 
 ## Integration flows (apps/api)
 
@@ -38,6 +40,11 @@ INF — ids from `EDGE_CASE_MATRIX.md`. Core flows:
 2. Material request → vendor quote → selection → delivery → invoice → vendor settlement.
 3. Dispute creation → hold → resolution → refund.
 4. Account suspension → balances retained → reactivation.
+5. Map and address: the service area reads `mapsLive: false` while maps are mocked → a pin resolves
+   to something the address contract would accept → an address saved from that pin keeps exactly
+   those coordinates → a point outside the circle is reported as outside before anything is typed.
+6. Disclosure boundaries around the live point: the customer sees it, the professional being located
+   does not, the forwardable tracking link does not, and nobody does once it is stale.
 
 ## Security tests
 

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { formatInr, type DisputeView, type JobStatus } from '@hyperlocal/core';
+import { checkMeaningfulText, checkReviewComment, formatInr, type DisputeView, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useDisputes, useJobMoney, useLeaveReview, useRaiseDispute } from '@/api/finance';
 import { palette, radius, spacing, typography } from '@/theme';
@@ -118,6 +118,7 @@ function ReviewSheet({ jobId, visible, onClose }: { jobId: string; visible: bool
   const review = useLeaveReview();
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
+  const commentProblem = comment.trim() ? checkReviewComment(comment) : null;
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
@@ -153,7 +154,14 @@ function ReviewSheet({ jobId, visible, onClose }: { jobId: string; visible: bool
           {error}
         </Text>
       )}
-      <Button title="Post rating" fullWidth loading={review.isPending} onPress={submit} />
+      {/* A review is optional - the stars alone are a complete answer - so this only appears once
+          somebody has started writing. */}
+      {commentProblem ? (
+        <Text variant="caption" style={{ color: palette.danger }}>
+          {commentProblem.message}
+        </Text>
+      ) : null}
+      <Button title="Post rating" fullWidth loading={review.isPending} disabled={!!commentProblem} onPress={submit} />
     </Sheet>
   );
 }
@@ -162,6 +170,7 @@ function DisputeSheet({ jobId, visible, onClose }: { jobId: string; visible: boo
   const raise = useRaiseDispute();
   const [category, setCategory] = useState(CATEGORIES[0]!.key);
   const [description, setDescription] = useState('');
+  const descriptionProblem = description.trim() ? checkMeaningfulText(description, 20, 'Your report') : null;
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
@@ -208,7 +217,20 @@ function DisputeSheet({ jobId, visible, onClose }: { jobId: string; visible: boo
           {error}
         </Text>
       )}
-      <Button title="Send report" fullWidth loading={raise.isPending} onPress={submit} />
+      {/* Not optional. A dispute holds the provider's money while somebody reads it, so it has to
+          say something a person can act on. */}
+      {descriptionProblem ? (
+        <Text variant="caption" style={{ color: palette.danger }}>
+          {descriptionProblem.message}
+        </Text>
+      ) : null}
+      <Button
+        title="Send report"
+        fullWidth
+        loading={raise.isPending}
+        disabled={!description.trim() || !!descriptionProblem}
+        onPress={submit}
+      />
     </Sheet>
   );
 }

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { checkMeaningfulText } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useMaterials, useRequestMaterials } from '@/api/materials';
 import { palette, radius, spacing, typography } from '@/theme';
@@ -24,6 +25,16 @@ export function MaterialRequestForm({ jobId, onDone }: { jobId: string; onDone: 
   const [rows, setRows] = useState<Row[]>([{ ...EMPTY }]);
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Item names, checked one at a time.
+   *
+   * A supplier reads these and quotes against them, so "asdasd" costs somebody a reply they then
+   * have to chase. Two characters is the floor on purpose - "6mm", "T", "L bend" are all real
+   * answers a plumber would write - so this only refuses what is clearly not an item.
+   */
+  const rowProblems = rows.map((r) => (r.name.trim() ? checkMeaningfulText(r.name, 2, 'An item name') : null));
+  const noteProblem = note.trim() ? checkMeaningfulText(note, 5, 'The note') : null;
 
   const open = panel.data?.request && (panel.data.request.status === 'OPEN' || panel.data.request.status === 'QUOTED');
   const filled = rows.filter((r) => r.name.trim().length >= 2);
@@ -69,7 +80,7 @@ export function MaterialRequestForm({ jobId, onDone }: { jobId: string; onDone: 
             onChangeText={(v) => setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, name: v } : r)))}
             placeholder="e.g. brass tap cartridge"
             placeholderTextColor="#A9B8B1"
-            style={[styles.input, { flex: 1 }]}
+            style={[styles.input, { flex: 1 }, rowProblems[idx] && styles.inputBad]}
             accessibilityLabel={`Item ${idx + 1}`}
           />
           <TextInput
@@ -101,9 +112,19 @@ export function MaterialRequestForm({ jobId, onDone }: { jobId: string; onDone: 
         onChangeText={setNote}
         placeholder="Anything the supplier should know"
         placeholderTextColor="#A9B8B1"
-        style={styles.input}
+        style={[styles.input, noteProblem && styles.inputBad]}
         accessibilityLabel="Note for the supplier"
       />
+      {noteProblem ? (
+        <Text variant="micro" style={{ color: palette.danger }}>
+          {noteProblem.message}
+        </Text>
+      ) : null}
+      {rowProblems.find((p) => p) ? (
+        <Text variant="micro" style={{ color: palette.danger }}>
+          {rowProblems.find((p) => p)!.message}
+        </Text>
+      ) : null}
 
       {error && (
         <Text variant="micro" style={{ color: palette.danger }}>
@@ -113,7 +134,14 @@ export function MaterialRequestForm({ jobId, onDone }: { jobId: string; onDone: 
 
       <View style={styles.actions}>
         <Button title="Cancel" size="sm" variant="ghost" style={styles.action} onPress={onDone} />
-        <Button title="Ask suppliers" size="sm" style={styles.action} loading={request.isPending} onPress={submit} />
+        <Button
+          title="Ask suppliers"
+          size="sm"
+          style={styles.action}
+          disabled={rowProblems.some((p) => p) || !!noteProblem}
+          loading={request.isPending}
+          onPress={submit}
+        />
       </View>
       <Text variant="micro" tone="muted">
         The customer approves and pays for materials separately. Your job price does not change.
@@ -153,6 +181,7 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.regular,
     color: palette.text,
   },
+  inputBad: { borderColor: palette.danger },
   qty: { width: 62, textAlign: 'center' },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 34 },
   actions: { flexDirection: 'row', gap: spacing.sm },

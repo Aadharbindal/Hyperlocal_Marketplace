@@ -111,6 +111,81 @@ describe('completing a profile after signup', () => {
   });
 });
 
+describe('what the server refuses to believe', () => {
+  // Shape checks let all of this through for the life of the project. These go through the real
+  // endpoints, because a validator that is only unit-tested is a validator somebody forgot to
+  // wire up.
+  it('refuses a name that is a held-down key', async () => {
+    const s = await freshCustomer('+919222000021');
+    const r = await app.inject({
+      method: 'POST', url: '/me/complete-profile',
+      payload: { displayName: 'aaaaaa', acceptedTermsVersion: '1.0' },
+      headers: bearer(s.accessToken),
+    });
+    expect(r.statusCode).toBe(400);
+  });
+
+  it('refuses a throwaway email, because receipts and recovery go there', async () => {
+    const s = await freshCustomer('+919222000022');
+    const r = await app.inject({
+      method: 'PATCH', url: '/me',
+      payload: { email: 'someone@mailinator.com' },
+      headers: bearer(s.accessToken),
+    });
+    expect(r.statusCode).toBe(400);
+  });
+
+  it('tells somebody the domain they meant', async () => {
+    const s = await freshCustomer('+919222000023');
+    const r = await app.inject({
+      method: 'PATCH', url: '/me',
+      payload: { email: 'ravi@gmial.com' },
+      headers: bearer(s.accessToken),
+    });
+    expect(r.statusCode).toBe(400);
+    expect(JSON.stringify(r.json())).toContain('gmail.com');
+  });
+
+  it('refuses an address that is not one', async () => {
+    const s = await freshCustomer('+919222000024');
+    const junk = await app.inject({
+      method: 'POST', url: '/me/addresses',
+      payload: { line1: 'asdasd', city: 'Delhi', pincode: '110003' },
+      headers: bearer(s.accessToken),
+    });
+    expect(junk.statusCode).toBe(400);
+
+    const badPin = await app.inject({
+      method: 'POST', url: '/me/addresses',
+      payload: { line1: '12, Lodhi Colony', city: 'Delhi', pincode: '999999' },
+      headers: bearer(s.accessToken),
+    });
+    expect(badPin.statusCode).toBe(400);
+  });
+
+  it('still accepts an address written without a number', async () => {
+    // The line that matters: "Green Park Extension" is a real address and a stricter rule would
+    // have turned away the person who lives there.
+    const s = await freshCustomer('+919222000025');
+    const r = await app.inject({
+      method: 'POST', url: '/me/addresses',
+      payload: { line1: 'Green Park Extension', city: 'Delhi', pincode: '110016' },
+      headers: bearer(s.accessToken),
+    });
+    expect([200, 201]).toContain(r.statusCode);
+  });
+
+  it('refuses a mobile number that is one digit repeated', async () => {
+    const r = await app.inject({ method: 'POST', url: '/auth/request-otp', payload: { phone: '9999999999' } });
+    expect(r.statusCode).toBe(400);
+  });
+
+  it('still accepts a memorable number somebody really holds', async () => {
+    const r = await app.inject({ method: 'POST', url: '/auth/request-otp', payload: { phone: '9876543211' } });
+    expect(r.statusCode).toBe(200);
+  });
+});
+
 describe('email', () => {
   it('refuses an address that is already on another account', async () => {
     const a = await freshCustomer('+919222000004');

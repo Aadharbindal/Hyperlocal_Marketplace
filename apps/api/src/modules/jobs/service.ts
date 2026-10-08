@@ -119,6 +119,8 @@ export function jobService(d: JobDeps) {
       gateInstructions: a.gate_instructions,
       city: a.city,
       pincode: a.pincode,
+      lat: a.lat,
+      lng: a.lng,
     };
   }
 

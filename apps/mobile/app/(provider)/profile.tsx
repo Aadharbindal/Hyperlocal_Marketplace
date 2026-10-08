@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import type { VerificationStatus } from '@hyperlocal/core';
+import { checkBusinessName, type VerificationStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useCategories, useLogout, useMe } from '@/api/hooks';
 import { useAddresses } from '@/api/jobs';
@@ -45,6 +45,7 @@ export default function ProviderProfileScreen() {
   const setActiveRole = useSession((s) => s.setActiveRole);
 
   const [businessName, setBusinessName] = useState('');
+  const nameProblem = checkBusinessName(businessName);
   const [radiusKm, setRadiusKm] = useState(3);
   const [skillIds, setSkillIds] = useState<string[]>([]);
   const [docType, setDocType] = useState('AADHAAR');
@@ -68,6 +69,8 @@ export default function ProviderProfileScreen() {
   async function save() {
     setError(null);
     setSaved(false);
+    // The field already shows what is wrong; this stops a save that the server would reject anyway.
+    if (nameProblem) return;
     try {
       await update.mutateAsync({
         businessName: businessName.trim() || undefined,
@@ -218,8 +221,15 @@ export default function ProviderProfileScreen() {
             placeholder="Business name"
             placeholderTextColor="#A9B8B1"
             accessibilityLabel="Business name"
-            style={styles.input}
+            style={[styles.input, nameProblem && styles.inputBad]}
           />
+          {/* This is the name customers see on an offer, so a held-down key here costs the provider
+              the work rather than costing us a support ticket. */}
+          {nameProblem ? (
+            <Text variant="micro" style={{ color: palette.danger }}>
+              {nameProblem.message}
+            </Text>
+          ) : null}
 
           <Text variant="caption" tone="secondary" style={styles.subLabel}>
             How far will you travel?
@@ -326,6 +336,7 @@ const styles = StyleSheet.create({
   subLabel: { marginTop: spacing.sm },
 
   input: { height: 52, borderRadius: radius.md, backgroundColor: palette.surfaceMuted, paddingHorizontal: spacing.lg, fontSize: 15, color: palette.text },
+  inputBad: { borderWidth: 1, borderColor: palette.danger },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.md, minHeight: 38, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: palette.surfaceMuted },
   chipActive: { backgroundColor: palette.primary },

@@ -18,7 +18,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { normaliseIndianPhone } from '@hyperlocal/core';
+import { checkMobileField, normaliseIndianPhone } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useRequestOtp } from '@/api/hooks';
 import { useStrings } from '@/i18n';
@@ -122,8 +122,12 @@ export default function PhoneScreen() {
 
   const submit = async () => {
     const e164 = normaliseIndianPhone(phone);
-    if (!e164) {
-      setError('Enter a valid 10-digit Indian mobile number');
+    // The same check the server runs, so the sentence under the field is the sentence the API would
+    // have sent back. Before this, 9999999999 got a green tick here and a refusal from the server,
+    // which reads as the app being broken rather than the number being wrong.
+    const problem = checkMobileField(phone);
+    if (!e164 || problem) {
+      setError(problem?.message ?? 'Enter a valid 10-digit Indian mobile number');
       shakeField();
       return;
     }
@@ -139,7 +143,7 @@ export default function PhoneScreen() {
 
   const borderColor = error ? palette.danger : focused ? palette.primary : '#E4EDE9';
   const digits = phone.replace(/\D/g, '');
-  const complete = normaliseIndianPhone(phone) !== null;
+  const complete = normaliseIndianPhone(phone) !== null && !checkMobileField(phone);
 
   // a focus halo that follows the field's rounded corners, instead of the square
   // outline a browser draws on the input itself

@@ -209,7 +209,11 @@ export default function JobDetailScreen() {
       {/* offers still open for comparison */}
       {/* Above the live panel: while somebody is on their way, "how far" is the only thing
           the customer is actually looking at. */}
-      <ArrivalCard jobId={j.id} status={j.status} />
+      <ArrivalCard
+        jobId={j.id}
+        status={j.status}
+        destination={j.address?.lat != null && j.address?.lng != null ? { lat: j.address.lat, lng: j.address.lng } : null}
+      />
       {/* Moving a booking beats losing it: cancelling costs the customer the price they agreed
           and costs the professional the job. */}
       <RescheduleCard jobId={j.id} status={j.status} side="CUSTOMER" />

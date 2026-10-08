@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import { MATERIAL_RESPONSIBILITIES, VERIFICATION_STATUSES } from './enums';
 import { PhoneSchema } from './auth';
+import { checkBusinessName, checkPersonName, refineWith } from '../validation/validation';
 
 // ---------------------------------------------------------------------------
 // Provider profile
 // ---------------------------------------------------------------------------
 export const ProviderProfileUpdate = z
   .object({
-    businessName: z.string().trim().min(2).max(80).optional(),
+    businessName: z.string().trim().min(2).max(80).superRefine(refineWith(checkBusinessName)).optional(),
     bio: z.string().trim().max(500).optional(),
     experienceYears: z.number().int().min(0).max(60).optional(),
     serviceRadiusKm: z.number().min(0.5).max(25).optional(),
@@ -159,7 +160,7 @@ export type OfferView = z.infer<typeof OfferView>;
 
 export const ContractorProfileUpdate = z
   .object({
-    businessName: z.string().trim().min(3).max(80),
+    businessName: z.string().trim().min(3).max(80).superRefine(refineWith(checkBusinessName)),
     baseAddressId: z.string().uuid().optional(),
     serviceRadiusKm: z.number().min(1).max(25).optional(),
   })
@@ -174,7 +175,7 @@ export type ContractorProfileUpdate = z.infer<typeof ContractorProfileUpdate>;
 export const AddTechnicianBody = z
   .object({
     phone: PhoneSchema,
-    fullName: z.string().trim().min(3).max(80),
+    fullName: z.string().trim().min(3).max(80).superRefine(refineWith(checkPersonName)),
     skills: z.array(z.string().uuid()).max(10).optional(),
   })
   .strict();

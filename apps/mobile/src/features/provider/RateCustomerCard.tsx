@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import type { JobStatus } from '@hyperlocal/core';
+import { checkReviewComment, type JobStatus } from '@hyperlocal/core';
 import { useLeaveReview } from '@/api/finance';
 import { palette, radius, spacing, typography } from '@/theme';
 import { Button, Card, Text } from '@/ui';
@@ -25,6 +25,9 @@ export function RateCustomerCard({ jobId, status, customerName }: { jobId: strin
   const review = useLeaveReview();
   const [rating, setRating] = useState(0);
   const [note, setNote] = useState('');
+  // The next professional reads this before deciding whether to take the job, so it has to say
+  // something. Optional, so an empty box is not a problem - only a written one that says nothing is.
+  const noteProblem = note.trim() ? checkReviewComment(note) : null;
   const [done, setDone] = useState(false);
 
   if (!FINISHED.includes(status)) return null;
@@ -85,8 +88,20 @@ export function RateCustomerCard({ jobId, status, customerName }: { jobId: strin
         maxLength={300}
         accessibilityLabel="A note about this customer"
       />
+      {noteProblem ? (
+        <Text variant="micro" style={{ color: palette.danger }}>
+          {noteProblem.message}
+        </Text>
+      ) : null}
       {note.trim().length > 0 && rating > 0 ? (
-        <Button title="Send" size="sm" variant="secondary" onPress={() => void submit(rating)} loading={review.isPending} />
+        <Button
+          title="Send"
+          size="sm"
+          variant="secondary"
+          disabled={!!noteProblem}
+          onPress={() => void submit(rating)}
+          loading={review.isPending}
+        />
       ) : null}
     </Card>
   );

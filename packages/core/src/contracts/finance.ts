@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DISPUTE_CATEGORIES, STRIKE_SEVERITIES } from './enums';
 import { DISPUTE_RESOLUTIONS, DISPUTE_STATUSES, SETTLEMENT_STATUSES } from '../finance/settlement';
 import { LEDGER_ENTRY_TYPES } from '../finance/ledger';
+import { checkBankAccountNumber, checkBusinessName, checkIfsc, checkUpiVpa, refineWith } from '../validation/validation';
 
 // ---------------------------------------------------------------------------
 // Cancellation
@@ -109,16 +110,29 @@ export const PayoutAccountBody = z
     z
       .object({
         method: z.literal('BANK_ACCOUNT'),
-        accountHolderName: z.string().trim().min(3).max(100),
-        accountNumber: z.string().trim().regex(/^\d{9,18}$/),
-        ifsc: z.string().trim().length(11),
+        /**
+         * Checked as a *business* name rather than a person's.
+         *
+         * It was the latter for one commit and the test suite caught it: "A1 Electricals" and
+         * "Services 1001" are both perfectly ordinary names on an Indian bank account, and a
+         * person-name rule that refuses digits would have quietly stopped every proprietorship from
+         * being paid. The field is "name on the account", and plenty of accounts are not held by a
+         * person at all.
+         */
+        accountHolderName: z.string().trim().min(3).max(100).superRefine(refineWith(checkBusinessName)),
+        accountNumber: z.string().trim().superRefine(refineWith(checkBankAccountNumber)),
+        // Was a bare length(11), which accepted any eleven characters. The RBI reserves the fifth
+        // character as 0, and a transposition into that position is the common typo that a length
+        // check waves through and that then fails at the bank days later.
+        ifsc: z.string().trim().toUpperCase().superRefine(refineWith(checkIfsc)),
       })
       .strict(),
     z
       .object({
         method: z.literal('UPI'),
-        accountHolderName: z.string().trim().min(3).max(100),
-        vpa: z.string().trim().min(5).max(80),
+        /** A business name here too - see the bank branch above. */
+        accountHolderName: z.string().trim().min(3).max(100).superRefine(refineWith(checkBusinessName)),
+        vpa: z.string().trim().max(80).superRefine(refineWith(checkUpiVpa)),
       })
       .strict(),
   ]);

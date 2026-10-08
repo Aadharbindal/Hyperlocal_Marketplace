@@ -341,6 +341,10 @@ and failed against Postgres, so the memory store now mirrors that constraint too
 
 ## D-021: A distance, not a dot
 
+> **Partly superseded by D-023.** The customer now sees a map while the professional is on their way.
+> Every narrowing below still holds and is still enforced where it cannot be forgotten; what changed
+> is the conclusion drawn from them, and D-023 says why.
+
 **Context.** EN_ROUTE has existed since 0002 with nothing behind it. The app could say "on the
 way" and could not say whether that meant five minutes or fifty, to somebody who has taken the
 afternoon off to wait at home. It is the most-asked question in this product and the one it
@@ -430,3 +434,94 @@ producing four backdated visits.
 This work also found a timezone bug that only a real database could show: `pg` reads `date`
 columns at local midnight, so a plan due on the 29th was read as due on the 28th and its booking
 was rejected for being scheduled in the past. Date columns are now parsed as UTC midnight.
+
+## D-023: The dot, reconsidered - and a map the customer points at
+
+**Context.** D-021 decided the customer gets a distance and never a map, and that decision was
+revisited rather than quietly broken. Two things pushed against it.
+
+The first is what people asked for. Every app that sends somebody to a door shows a map, so the
+absence does not read as restraint - it reads as a product that does not know where its own
+professional is, and the number that *is* shown has nothing to corroborate it.
+
+The second is that the argument turned out to be answerable. D-021's objection is that a point is
+something you can follow. But the position had already been blunted to ~110 m **before storage**
+since the day that feature shipped, so there is no doorway-level fix anywhere in the system to hand
+out. The sharpest thing that exists is a street.
+
+**Decision.** Three maps, built on one component, and every narrowing in D-021 kept:
+
+1. **An address picker** - `app/address-picker.tsx`. Drag the map, drop the pin, then type the flat
+   number. This is the one that mattered most and has nothing to do with tracking: every address in
+   the app was typed, so the coordinates a professional navigated to were the geocoder's guess at
+   what somebody had written. For "12, Lodhi Colony" that guess is fine. For a plot number in an
+   unnumbered lane, or one of four identical society gates, it is a coin toss - and the cost of
+   losing it is a worker ringing the wrong bell while somebody waits inside.
+2. **A live map while EN_ROUTE** - the `ON_THE_WAY` and `ARRIVING_NOW` payloads now carry the stored
+   (already-coarse) point. `STALE` deliberately does not, because a three-minute-old dot drawn on a
+   map is indistinguishable from a live one.
+3. **A destination map for the person going there** - `DestinationCard`, in the execution panel.
+   This closed a hole rather than adding a nicety: the provider's "Working now" screen showed the
+   controls for running a job and not one word about where it was.
+
+What did **not** change: only while EN_ROUTE, no trail, deleted by trigger on status change,
+coarse before storage, never on the forwardable tracking link, never to the provider about
+themselves, foreground only. The provider's disclosure was rewritten in the same commit, because
+"the customer can see how far away you are" stopped being the whole truth the moment a dot appeared;
+it now says a map, and says a hundred metres.
+
+**What the picker refuses to do** is fill in an address from a point. No reverse geocoder knows a
+flat number, so the pin gives the area, the city and the PIN, and the person gives the part only
+they know. When the match is not street-level the prefilled PIN is presented as a field to check
+rather than a fact, and `coarse` from the server decides that rather than the client guessing.
+
+**Consequences.** `react-native-maps` is now a dependency, and `app.json` had to become
+`app.config.ts` so the Android Google Maps key arrives from the environment - a key committed to the
+repository is a credential in the repository. **Without `EXPO_PUBLIC_MAPS_ANDROID_KEY` the map area
+renders without tiles**, and `GET /geo/service-area` returns `mapsLive: false` so the screen says so
+instead of showing a blank grey rectangle that looks like our bug. Without `MAPS_API_KEY` on the
+server, reverse geocoding is the mock: it returns a deterministic PIN that agrees with the mock
+forward geocoder's zone logic, and it reports `coarse: true` on every single answer. Neither is
+presented as a working integration. On web and in any build without the native module the picker
+skips the map stage entirely and saves a typed address, because a Confirm button over an empty box
+would store the pilot centre as somebody's home.
+
+`/geo/resolve-point` is a POST, not a GET with query parameters: coordinates in a URL end up in
+access logs and proxy logs. It is authenticated and rate-limited to 60/minute, because a dragged pin
+fires it on every settle and each call costs money upstream once the real key is in place.
+
+## D-024: A validator that turns away a real customer is the expensive kind
+
+**Context.** Every input in the app enforced a length and a shape and nothing else, so
+`aaaaaaaaaa` was a job description, `9999999999` was a phone number, `HDFCO001234` was an IFSC, and
+`asdasdasdasd` was a reason a customer would read. The instinct is to tighten everything.
+
+**Decision.** One shared module, `packages/core/src/validation`, used by the zod contracts **and**
+by the app's fields, so the sentence under the field is the sentence the server would have sent
+back - when those two disagree the app looks broken even though both are working.
+
+The line is not "be strict". For almost everything here a false *rejection* costs a customer who
+never says why they left, and a false acceptance costs a support ticket, so these rules refuse only
+what is clearly not a real answer, and the reasoning is written beside each one:
+
+- `9876543210` is accepted. It is a validly allocated number and somebody holds it. Only
+  all-identical digits are refused - a convention is not an invalid number.
+- An address line needs no house number. "Green Park Extension" is an address.
+- Names are not script-restricted and no surname is required.
+- Reduplication is left alone. "dhire dhire" and "chhota chhota" are how people write, so the
+  repeated-chunk detector needs **three** repeats, not two.
+- A domain typo is suggested, never corrected. Nobody's email gets silently rewritten.
+
+**The payout fields are the exception and lean the other way**, because a false acceptance there
+sends somebody's earnings to a valid account belonging to a stranger and nothing unwinds it. These
+can afford to be strict: the formats are specified by the RBI and NPCI rather than by how people
+live. A UPI field that receives `name@gmail.com` says "that looks like your email" instead of
+"invalid", because it is a real address the person really has.
+
+**Consequences.** Getting this wrong in the strict direction is easy and the test suite caught it
+happening: tightening these fields, the account-holder name was briefly checked as a *person's*
+name, which refuses digits - silently stopping every proprietorship in the country from being paid.
+"A1 Electricals" is not an edge case here, it is most of the provider base. It is a business-name
+check now, with a regression test naming the mistake. Every rule in the module has a companion test
+asserting that a real answer is **not** rejected, and that half of the suite is the half that
+matters.

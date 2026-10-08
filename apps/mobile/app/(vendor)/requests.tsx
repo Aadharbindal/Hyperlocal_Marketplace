@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { formatInr, type VendorRequestView } from '@hyperlocal/core';
+import { checkRupees, formatInr, type VendorRequestView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useSendMaterialQuote, useVendorRequests } from '@/api/materials';
 import { palette, radius, spacing, typography } from '@/theme';
@@ -113,6 +113,27 @@ function QuoteSheet({ request, onClose }: { request: VendorRequestView | null; o
   const [stock, setStock] = useState<Record<number, boolean>>({});
   const [delivery, setDelivery] = useState('');
   const [eta, setEta] = useState('45');
+
+  /**
+   * Every price the vendor typed, plus the delivery charge and the time.
+   *
+   * The customer is shown a total and approves it, so a stray zero here is money they are asked for
+   * on the strength of a typo - and the vendor finds out when the order is rejected. A unit price of
+   * one lakh is not impossible for materials, hence the generous ceiling; delivery is kept much
+   * tighter because nothing in this pilot is delivered from far enough away to cost more.
+   */
+  const priceProblems = Object.entries(prices).map(([, v]) => checkRupees(v, { max: 100_000, what: 'A unit price' }));
+  const deliveryProblem = checkRupees(delivery, { min: 0, max: 2_000, what: 'A delivery charge' });
+  const etaProblem = (() => {
+    const n = Number(eta);
+    if (!eta.trim()) return null;
+    if (!Number.isFinite(n) || n < 5) return { message: 'Give yourself at least 5 minutes.' };
+    // Three days. Past that it is not a delivery slot, it is an order the customer should be told to
+    // wait for in words.
+    if (n > 4320) return { message: 'More than three days is too long to hold a quote - say so in a message instead.' };
+    return null;
+  })();
+  const quoteProblem = priceProblems.find((p) => p) ?? deliveryProblem ?? etaProblem;
   const [error, setError] = useState<string | null>(null);
 
   const subtotal = useMemo(() => {
@@ -234,7 +255,13 @@ function QuoteSheet({ request, onClose }: { request: VendorRequestView | null; o
           </Text>
         )}
 
-        <Button title="Send price" fullWidth loading={send.isPending} onPress={submit} />
+        {quoteProblem ? (
+          <Text variant="caption" style={{ color: palette.danger }}>
+            {quoteProblem.message}
+          </Text>
+        ) : null}
+
+        <Button title="Send price" fullWidth loading={send.isPending} disabled={!!quoteProblem} onPress={submit} />
         <Pressable onPress={onClose} accessibilityRole="button" style={styles.cancel}>
           <Text variant="caption" weight="semibold" tone="muted">
             Not now

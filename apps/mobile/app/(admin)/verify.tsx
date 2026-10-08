@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Linking, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import type { KycReviewItem } from '@hyperlocal/core';
+import { checkReason, type KycReviewItem } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useKycQueue, useMfaStatus, useOpenKycDocument, useReviewKyc } from '@/api/admin';
 import { MfaGate } from '@/features/admin/MfaGate';
@@ -54,6 +54,7 @@ function KycCard({ item }: { item: KycReviewItem }) {
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
+  const reasonProblem = reason.trim() ? checkReason(reason) : null;
   const [error, setError] = useState<string | null>(null);
 
   async function run(fn: () => Promise<unknown>) {
@@ -125,9 +126,16 @@ function KycCard({ item }: { item: KycReviewItem }) {
             placeholder="What should they fix? They will see this."
             placeholderTextColor="#A9B8B1"
             multiline
-            style={[styles.input, styles.multiline]}
+            style={[styles.input, styles.multiline, reasonProblem && styles.inputBad]}
             accessibilityLabel="Rejection reason"
           />
+          {/* This is the whole of what an applicant is told about why their documents came back, so
+              a one-word reason leaves them resubmitting the same thing. */}
+          {reasonProblem ? (
+            <Text variant="micro" style={{ color: palette.danger }}>
+              {reasonProblem.message}
+            </Text>
+          ) : null}
           <View style={styles.actions}>
             <Button title="Cancel" size="sm" variant="ghost" style={styles.action} onPress={() => setRejecting(false)} />
             <Button
@@ -135,6 +143,7 @@ function KycCard({ item }: { item: KycReviewItem }) {
               size="sm"
               style={styles.action}
               loading={review.isPending}
+              disabled={!reason.trim() || !!reasonProblem}
               onPress={() => void run(() => review.mutateAsync({ id: item.id, decision: 'REJECT', reason }))}
             />
           </View>
@@ -205,5 +214,6 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.regular,
     color: palette.text,
   },
+  inputBad: { borderWidth: 1, borderColor: palette.danger },
   multiline: { minHeight: 76, textAlignVertical: 'top' },
 });

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { formatInr } from '@hyperlocal/core';
+import { checkRupees, formatInr } from '@hyperlocal/core';
 import {
   useAuditLog,
   useOpsOverview,
@@ -303,7 +303,14 @@ function Promos() {
     }
   }
 
-  const ready = code.trim().length >= 3 && Number(amount) > 0;
+  /**
+   * A promo code is the platform's own money, so the ceiling here is the thing that matters.
+   *
+   * Five thousand rupees off is already far more than any job in the pilot costs; a code created with
+   * an extra zero would be live and claimable before anybody noticed.
+   */
+  const amountProblem = checkRupees(amount, { max: 5_000, what: 'A discount' });
+  const ready = code.trim().length >= 3 && Number(amount) > 0 && !amountProblem;
 
   return (
     <>
@@ -312,7 +319,14 @@ function Promos() {
           New flat-amount code
         </Text>
         <TextField value={code} onChangeText={(v) => setCode(v.toUpperCase())} placeholder="SAVE100" label="Code" autoCapitalize="characters" />
-        <TextField value={amount} onChangeText={(v) => setAmount(v.replace(/\D/g, ''))} placeholder="100" label="Rupees off" keyboardType="number-pad" />
+        <TextField
+          value={amount}
+          onChangeText={(v) => setAmount(v.replace(/\D/g, ''))}
+          placeholder="100"
+          label="Rupees off"
+          keyboardType="number-pad"
+          error={amountProblem?.message}
+        />
         {error ? (
           <Text variant="micro" style={{ color: palette.danger }}>
             {error}

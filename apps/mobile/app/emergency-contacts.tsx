@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
-import { EMERGENCY_CONTACT_LIMIT } from '@hyperlocal/core';
+import { EMERGENCY_CONTACT_LIMIT, checkMobileField, checkPersonName } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useAddEmergencyContact, useEmergencyContacts, useRemoveEmergencyContact } from '@/api/hooks';
 import { useStrings } from '@/i18n';
@@ -121,7 +121,7 @@ export default function EmergencyContactsScreen() {
         <Animated.View entering={reduced ? undefined : FadeInDown.duration(300)}>
           <Spacer h={spacing.lg} />
           <Card style={styles.form}>
-            <TextField label={t('emergency.name')} value={name} onChangeText={setName} icon="person-outline" autoCapitalize="words" maxLength={60} />
+            <TextField label={t('emergency.name')} value={name} onChangeText={setName} icon="person-outline" autoCapitalize="words" maxLength={60} validate={checkPersonName} />
             <TextField
               label={t('emergency.phone')}
               value={phone}
@@ -130,6 +130,9 @@ export default function EmergencyContactsScreen() {
               prefix="+91"
               keyboardType="phone-pad"
               maxLength={13}
+              // The one field on this screen where a typo has a cost nobody finds out about until
+              // it matters: a wrong digit here is a contact who is simply never reached.
+              validate={checkMobileField}
             />
             <TextField
               label={t('emergency.relationship')}

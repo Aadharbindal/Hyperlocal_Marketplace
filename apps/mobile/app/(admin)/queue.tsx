@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { TWO_PERSON_REFUND_THRESHOLD_PAISE, formatInr, type DisputeView } from '@hyperlocal/core';
+import { TWO_PERSON_REFUND_THRESHOLD_PAISE, checkReason, checkRupees, formatInr, type DisputeView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useDisputeQueue, useMfaStatus, useMoveDispute, useResolveDispute } from '@/api/admin';
 import { MfaGate } from '@/features/admin/MfaGate';
@@ -64,6 +64,17 @@ function DisputeCard({ dispute }: { dispute: DisputeView }) {
   const [amount, setAmount] = useState('');
   const [approver, setApprover] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Both sides read this decision, and it is the record if either of them escalates.
+   *
+   * The refund figure gets the same treatment as a price: the ceiling is an order of magnitude above
+   * any single job in the pilot, which is exactly where a number stops being a refund and starts
+   * being a slip of a finger on a keypad.
+   */
+  const reasonProblem = reason.trim() ? checkReason(reason) : null;
+  const amountProblem = resolution === 'PARTIAL_REFUND' ? checkRupees(amount, { max: 200_000, what: 'A refund' }) : null;
+  const decisionProblem = reasonProblem ?? amountProblem;
 
   const overdue = new Date(dispute.slaDueAt) < new Date();
   const refundPaise = Math.round(Number(amount || 0) * 100);
@@ -177,6 +188,11 @@ function DisputeCard({ dispute }: { dispute: DisputeView }) {
             </>
           )}
 
+          {decisionProblem ? (
+            <Text variant="caption" style={{ color: palette.danger }}>
+              {decisionProblem.message}
+            </Text>
+          ) : null}
           {error && (
             <Text variant="caption" style={{ color: palette.danger }}>
               {error}
@@ -185,7 +201,14 @@ function DisputeCard({ dispute }: { dispute: DisputeView }) {
 
           <View style={styles.actions}>
             <Button title="Cancel" size="sm" variant="ghost" style={styles.action} onPress={() => setOpen(false)} />
-            <Button title="Save decision" size="sm" style={styles.action} loading={resolve.isPending} onPress={submit} />
+            <Button
+              title="Save decision"
+              size="sm"
+              style={styles.action}
+              disabled={!reason.trim() || !!decisionProblem}
+              loading={resolve.isPending}
+              onPress={submit}
+            />
           </View>
         </View>
       )}

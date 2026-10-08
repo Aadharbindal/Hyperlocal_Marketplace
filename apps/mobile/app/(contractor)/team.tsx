@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { checkMobileField, checkPersonName } from '@hyperlocal/core';
 import type { TechnicianView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useAddTechnician, useRemoveTechnician, useSubmitTechnicianKyc, useTeam } from '@/api/contractor';
@@ -208,11 +209,19 @@ function AddTechnicianSheet({
         value={phone}
         onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
         placeholder="98765 43210"
+        validate={checkMobileField}
         keyboardType="number-pad"
         prefix="+91"
         maxLength={10}
       />
-      <TextField label="Their name" value={name} onChangeText={setName} placeholder="As the customer should see it" autoCapitalize="words" />
+      <TextField
+        label="Their name"
+        value={name}
+        onChangeText={setName}
+        placeholder="As the customer should see it"
+        autoCapitalize="words"
+        validate={checkPersonName}
+      />
       {error ? (
         <Text variant="micro" style={{ color: palette.danger }}>
           {error}

@@ -15,6 +15,7 @@ import { adminRoutes } from './modules/admin/routes';
 import { adminService, type AdminService } from './modules/admin/service';
 import { addressRoutes } from './modules/addresses/routes';
 import { authRoutes } from './modules/auth/routes';
+import { geoRoutes } from './modules/geo/routes';
 import { authService, type AuthService } from './modules/auth/service';
 import { tokenService } from './modules/auth/tokens';
 import { auditService, type AuditService } from './modules/audit/service';
@@ -443,6 +444,7 @@ export async function buildApp(opts: BuildOptions = {}) {
     await authRoutes(scope, ctx);
     await userRoutes(scope, ctx);
     await addressRoutes(scope, ctx);
+    await geoRoutes(scope, ctx);
     await categoryRoutes(scope, ctx);
     await jobRoutes(scope, ctx);
     await servicePlanRoutes(scope, ctx);

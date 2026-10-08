@@ -79,6 +79,53 @@ const report = (jobId: string, ph: Record<string, string>, body = AWAY) =>
 const arrival = (jobId: string, h: Record<string, string>) =>
   app.inject({ method: 'GET', url: `/jobs/${jobId}/arrival`, headers: h });
 
+describe('who the live point is, and is not, shown to', () => {
+  it('is withheld from the forwardable tracking link', async () => {
+    const { ch, ph, jobId } = await enRouteJob('+919444000021', '+919444000022');
+    await setOff(jobId, ph);
+    await report(jobId, ph);
+
+    const job = await app.inject({ method: 'GET', url: `/jobs/${jobId}`, headers: ch });
+    const token = job.json().trackingUrlToken as string;
+    expect(token).toBeTruthy();
+    const page = await app.inject({ method: 'GET', url: `/track/${token}` });
+    // Asserted, so that a 404 cannot make the two refusals below pass by having no body at all.
+    expect(page.statusCode).toBe(200);
+    const body = JSON.stringify(page.json());
+    // That URL exists to be forwarded - to a neighbour, a parent, a building guard - and a
+    // forwarded link carrying a live position is a way to follow a worker around a city.
+    expect(body).not.toContain('28.64');
+    expect(body).not.toContain('77.24');
+  });
+
+  it('is withheld from the professional being located', async () => {
+    const { ph, jobId } = await enRouteJob('+919444000023', '+919444000024');
+    await setOff(jobId, ph);
+    await report(jobId, ph);
+    const view = await arrival(jobId, ph);
+    // Their phone sends position and is told nothing back. The asymmetry is the design.
+    expect(view.json()).toEqual({ kind: 'NOT_TRACKING' });
+  });
+});
+
+describe('where the job is, for the person going to it', () => {
+  it('reaches the assigned professional with the gate instructions', async () => {
+    const { ph, jobId } = await enRouteJob('+919444000025', '+919444000026');
+    const panel = await app.inject({ method: 'GET', url: `/jobs/${jobId}/execution`, headers: ph });
+    expect(panel.statusCode).toBe(200);
+    // Before this existed the provider's running-job screen said nothing at all about where the
+    // job was, so somebody who had won the work had to go back out to the feed to find the street.
+    expect(panel.json().destination).toMatchObject({ formatted: expect.stringContaining('Lodhi Colony') });
+    expect(typeof panel.json().destination.lat).toBe('number');
+  });
+
+  it('is absent for the customer, who is standing in it', async () => {
+    const { ch, jobId } = await enRouteJob('+919444000027', '+919444000028');
+    const panel = await app.inject({ method: 'GET', url: `/jobs/${jobId}/execution`, headers: ch });
+    expect(panel.json().destination).toBeNull();
+  });
+});
+
 describe('while the professional is on their way', () => {
   it('turns a position into a distance and a time for the customer', async () => {
     const { ch, ph, jobId } = await enRouteJob('+919444000001', '+919444000002');
@@ -90,10 +137,11 @@ describe('while the professional is on their way', () => {
     expect(view.json().kind).toBe('ON_THE_WAY');
     expect(view.json().distanceKm).toBeGreaterThan(0);
     expect(view.json().etaMinutes).toBeGreaterThanOrEqual(1);
-    // Never coordinates. A distance answers the question; a point on a map is something you can
-    // follow, and a screenshot of this screen should disclose nothing about where somebody is.
-    expect(view.json().lat).toBeUndefined();
-    expect(view.json().lng).toBeUndefined();
+    // And the point the customer's map draws. This payload carried no coordinates at all until the
+    // map went in; what makes it acceptable is the next test - the position was already rounded to
+    // ~110 m on the way into the database, so the sharpest thing that exists to hand out is a
+    // street. The three decimals asserted here are that rounding showing through.
+    expect(view.json().point).toMatchObject({ lat: 28.64, lng: 77.24 });
   });
 
   it('stores nothing more precise than a street', async () => {

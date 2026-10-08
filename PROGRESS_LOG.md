@@ -4,6 +4,151 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## A map to point at, and inputs that have to be real
+
+**Milestone:** post-M9 - maps and input validation
+**Date:** 2026-10-01
+**Status:** Complete, except the one part that needs a credential
+
+**Why this exists:** two asks in one. Use a real map wherever a map belongs, the way the apps
+people already use do it; and make every field that matters actually check what is typed into it,
+not just count characters.
+
+The second half turned out to be the larger problem. Every input in the app enforced a length and
+a shape and nothing else, which meant `aaaaaaaaaa` was a job description a professional would drive
+across a city for, `9999999999` was a phone number an account could be created on, `HDFCO001234`
+was an IFSC that a payout would be sent to and rejected days later, and `asdasdasdasd` was the
+reason a customer read for why their booking had been cancelled.
+
+The first half meant revisiting a decision rather than quietly breaking it. D-021 had settled that
+the customer sees a distance and never a map, on the argument that a dot is something you can
+follow. The argument turned out to be answerable: the position had been blunted to ~110 m **before
+storage** since that feature shipped, so no doorway-level fix exists in the system to hand out. The
+sharpest thing a map can draw is a street. D-023 records the reconsideration and keeps every one of
+D-021's narrowings.
+
+**What was built:**
+
+*An address picker.* `app/address-picker.tsx`, in two stages the way the big delivery apps settled
+on: drag the map until the pin is on your gate and find out *before typing anything* whether we work
+in that locality, then type the flat number. This is the piece that mattered most and has nothing to
+do with tracking. Every address in this app was typed, so the coordinates a professional navigated to
+were the geocoder's guess at what somebody had written - fine for "12, Lodhi Colony", a coin toss for
+a plot in an unnumbered lane or one of four identical society gates, and the cost of losing that toss
+is a worker ringing the wrong bell while somebody waits inside with a leaking tap. A saved pin now
+carries the customer's own coordinates and the server does not geocode over them.
+
+It deliberately does not fill in the address from the point. No reverse geocoder knows a flat number,
+so the pin gives the area, the city and the PIN, and the person gives the part only they know. When
+the match is not street-level the prefilled PIN is shown as a field to check rather than a fact, and
+the server's `coarse` flag decides that rather than the client guessing.
+
+*A live map while EN_ROUTE.* `ON_THE_WAY` and `ARRIVING_NOW` now carry the stored point and the
+arrival card draws it, with the dot gliding between the fifteen-second updates instead of
+teleporting. `STALE` carries no point at all, which is the whole reason that state exists - a
+three-minute-old dot on a map is indistinguishable from a live one. The provider's disclosure was
+rewritten in the same commit, because "the customer can see how far away you are" stopped being the
+whole truth the moment a dot appeared; it now says a map, and says a hundred metres.
+
+*A destination map for the person going there.* `DestinationCard` in the execution panel, with the
+gate instructions in their own box and a Directions button that hands navigation to whichever maps
+app they already use. This closed a hole rather than adding a nicety: the provider's "Working now"
+screen had every control for running a job and not one word about where the job was, so somebody who
+had won the work had to go back out to the feed to find the street.
+
+*One validation module, shared.* `packages/core/src/validation`, used by the zod contracts **and** by
+the app's fields, so the sentence under a field is the sentence the server would have sent back -
+when those disagree the app looks broken even though both are working. Fourteen checks now: phone,
+email, PIN, person name, business name, address line, city, free text, IFSC, bank account number,
+UPI id, referral code, rupee amounts, and a typed date and time.
+
+The line is not "be strict", and D-024 explains where it sits. A false rejection costs a customer who
+never says why they left; a false acceptance costs a support ticket. So `9876543210` is accepted
+because somebody holds it, an address line needs no house number, names are not script-restricted,
+and the repeated-chunk detector needs three repeats rather than two because "dhire dhire" and
+"chhota chhota" are how people write.
+
+*Except the payout fields*, which lean the other way, because a false acceptance there sends
+somebody's earnings to a valid account belonging to a stranger and nothing unwinds it. The IFSC check
+insists on the zero the RBI reserves in position five - the transposition a bare `length(11)` waved
+through. A UPI field given `name@gmail.com` says "that looks like your email address" rather than
+"invalid", because it is a real address the person really has.
+
+*Where it is wired.* The sign-in phone screen, profile setup, edit profile, emergency contacts, the
+address picker, the booking description, the payout account, the contractor's crew, the provider's
+business name, bid amounts and notes, material item names, vendor quote prices and delivery times,
+warranty claim answers, the referral code, the reschedule date and reason, the provider's
+cancellation reason, customer reviews, provider notes about customers, disputes, and the admin
+moderation, KYC rejection, dispute decision and promo screens.
+
+**Changed files:** `packages/core/src/contracts/geo.ts` (new), `packages/core/src/validation/*`,
+`packages/core/src/execution/arrival.ts`, `packages/core/src/contracts/{execution,jobs,finance,provider,addresses,auth,safety}.ts`,
+`apps/api/src/modules/geo/routes.ts` (new), `apps/api/src/adapters/{types,mocks}.ts`,
+`apps/api/src/adapters/live/google-maps.ts`, `apps/api/src/modules/{execution,jobs}/service.ts`,
+`apps/api/src/app.ts`, `apps/mobile/app.config.ts` (new, replaces `app.json`),
+`apps/mobile/src/features/geo/{MapCanvas,DestinationCard}.tsx` (new),
+`apps/mobile/src/api/geo.ts` (new), `apps/mobile/app/address-picker.tsx` (new),
+`apps/mobile/app/addresses.tsx` (the form moved to the picker), and the form screens listed above.
+
+**Database changes:** none. The coordinates the picker saves go into columns `addresses` has had
+since 0001; `jobs.address_snapshot` is JSON and gained two keys, read with `nullish()` so bookings
+snapshotted before this still open.
+
+**API changes:** `GET /geo/service-area` (public - it is what lets the app say "not your city yet"
+before asking anybody to sign in) and `POST /geo/resolve-point` (authenticated, 60/min). POST rather
+than GET with query parameters because coordinates in a URL end up in access logs, proxy logs and
+referrers. `ArrivalView` gained a point on two of its four variants; `ExecutionView` gained
+`destination`, null for the customer who is standing in it.
+
+**Tests added:**
+- Core (24 new, 276 total): the payout formats including the IFSC reserved zero and the email-in-the-UPI-box message; `checkMobileField` across the ways people write their own number; the repeated-chunk detector **and** the companion test that reduplication still passes; the typed date and time, one failure at a time, including 31 February which `new Date` silently rolls forward to 3 March, and the ordinal in that message; the referral code naming the misread character; rupee ceilings. Plus four in `arrival.test.ts`: the point comes back live, comes back at the door, and is withheld once stale.
+- API (7 new, 377 total): the two geo endpoints, including that `mapsLive` reads false in the suite and that the mock's PIN is one the address contract would actually accept; that an address saved from a confirmed pin stays at exactly that pin; that the live point is withheld from the forwardable tracking link and from the professional being located; that the execution panel's destination reaches the provider with the gate instructions and is null for the customer; that an account held in a firm name is still payable; that the IFSC typo a length check waves through is refused.
+
+**Tests passed:** core 276/276, API 377/377, mobile jest 29/29. Typecheck 3/3 workspaces clean,
+lint clean, wiring audit reports the two new endpoints wired.
+
+**A real regression, caught by the suite:** tightening the payout fields, the account-holder name was
+briefly checked as a *person's* name - which refuses digits, and therefore silently stopped every
+proprietorship in the country from being paid. "A1 Electricals" and "Services 1001" are not edge
+cases on an Indian bank account, they are most of the provider base. Two settlement tests went red,
+it is a business-name check now, and there is a regression test that names the mistake. This is
+exactly the failure mode D-024 is written around, and it happened within an hour of writing it.
+
+**Manual verification completed:** core and API suites in memory mode; typecheck and lint across all
+three workspaces; the wiring audit. **Not verified against real map tiles** - see below.
+
+**Known limitations:** the map area **renders without tiles** until
+`EXPO_PUBLIC_MAPS_ANDROID_KEY` is set, and `GET /geo/service-area` returns `mapsLive: false` so the
+screen says so rather than showing a blank grey rectangle that looks like our bug. Without
+`MAPS_API_KEY` on the server, reverse geocoding is the mock: a deterministic PIN that agrees with the
+mock forward geocoder's zone logic, reporting `coarse: true` on every answer. **Neither is a working
+map integration and neither is presented as one.** The pin-to-PIN flow has therefore not been walked
+against real imagery. On web and in any build without the native module the picker skips the map
+stage and saves a typed address, because a Confirm button over an empty box would store the pilot
+centre as somebody's home. The reschedule date is still typed rather than picked - it now explains
+each mistake specifically, which is an improvement and not a picker.
+
+**Security considerations:** `app.json` became `app.config.ts` so the Android Maps key arrives from
+the environment - a key checked into the repository is a credential in the repository, and this one
+is compiled into an APK, so it needs a different Google Cloud restriction (package name + signing
+SHA-1) from the server key's IP restriction. `/geo/resolve-point` is authenticated and rate-limited
+because its body is somebody's precise location and each call costs money upstream. The customer's
+live map is a widening of disclosure and is recorded as such in D-023 and PRIVACY_DATA_MAP: it is the
+already-coarse stored point, only while EN_ROUTE, only to the customer on that booking, never on the
+forwardable tracking link, never to the provider about themselves, and nothing at all once stale.
+The provider's own disclosure text was changed in the same commit rather than left describing the
+older behaviour.
+
+**External integrations mocked or live:** unchanged - all mocked. Maps are now *used* in three
+places and still mocked in both halves (server geocoding and app tiles), which the app states on
+screen.
+
+**Next milestone:** owner-only credentials (SMS, payments, maps - both keys - push, Sentry,
+production storage) and the legal/payments review. Still open in code: five endpoints with nothing
+calling them and nine unused hooks, both listed by `npm run wiring`.
+
+---
+
 ## The account had no person attached to it
 
 **Milestone:** post-M9 - identity and account

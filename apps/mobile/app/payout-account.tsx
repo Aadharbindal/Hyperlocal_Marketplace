@@ -2,7 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { checkPayoutAccount, type PayoutAccountBody } from '@hyperlocal/core';
+import {
+  checkBankAccountNumber,
+  checkIfsc,
+  checkBusinessName,
+  checkPayoutAccount,
+  checkUpiVpa,
+  type PayoutAccountBody,
+} from '@hyperlocal/core';
 import { usePayoutAccount, useSetPayoutAccount } from '@/api/finance';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, Screen, Spacer, Text, TextField } from '@/ui';
@@ -127,6 +134,7 @@ export default function PayoutAccountScreen() {
         placeholder="As printed in your bank records"
         autoCapitalize="words"
         icon="person-outline"
+        validate={checkBusinessName}
       />
 
       {method === 'UPI' ? (
@@ -139,6 +147,7 @@ export default function PayoutAccountScreen() {
           autoCorrect={false}
           keyboardType="email-address"
           icon="at-outline"
+          validate={checkUpiVpa}
         />
       ) : (
         <>
@@ -149,6 +158,7 @@ export default function PayoutAccountScreen() {
             placeholder="9 to 18 digits"
             keyboardType="number-pad"
             icon="card-outline"
+            validate={checkBankAccountNumber}
           />
           <TextField
             label="IFSC"
@@ -159,6 +169,7 @@ export default function PayoutAccountScreen() {
             autoCorrect={false}
             maxLength={11}
             icon="business-outline"
+            validate={checkIfsc}
           />
         </>
       )}

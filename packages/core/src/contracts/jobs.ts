@@ -87,6 +87,16 @@ const AddressSnapshot = z.object({
   gateInstructions: z.string().nullable(),
   city: z.string(),
   pincode: z.string(),
+  /**
+   * Where the pin actually is, for the map and for handing to a navigation app.
+   *
+   * Nullish rather than required because snapshots taken before this field existed do not have it,
+   * and a view that threw on an old booking would break the one screen somebody is most likely to
+   * open. No new disclosure: this travels with `line1` and `gateInstructions` and reaches exactly
+   * the same people - the customer, and the professional who has been assigned and is coming.
+   */
+  lat: z.number().nullish(),
+  lng: z.number().nullish(),
 });
 
 export const JobView = z.object({

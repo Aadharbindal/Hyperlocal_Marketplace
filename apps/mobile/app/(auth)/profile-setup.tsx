@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
-import { CURRENT_TERMS_VERSION } from '@hyperlocal/core';
+import { CURRENT_TERMS_VERSION, checkEmail, checkPersonName } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useCompleteProfile } from '@/api/hooks';
 import { useStrings } from '@/i18n';
@@ -99,6 +99,7 @@ export default function ProfileSetupScreen() {
           textContentType="name"
           returnKeyType="next"
           maxLength={60}
+          validate={checkPersonName}
         />
         <TextField
           label={t('setup.email')}
@@ -114,6 +115,8 @@ export default function ProfileSetupScreen() {
           autoComplete="email"
           textContentType="emailAddress"
           maxLength={254}
+          validate={checkEmail}
+          onAcceptSuggestion={setEmail}
         />
       </Animated.View>
 

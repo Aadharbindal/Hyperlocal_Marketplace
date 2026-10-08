@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CONSENT_TYPES, LANGUAGES, SELF_SERVICE_ROLES, USER_ROLES, USER_STATUSES, ROLE_STATUSES } from './enums';
 import { normaliseIndianPhone } from '../otp/otp';
+import { checkEmail, checkIndianMobile, checkPersonName, refineWith } from '../validation/validation';
 
 export const PhoneSchema = z
   .string()
@@ -10,6 +11,12 @@ export const PhoneSchema = z
     const n = normaliseIndianPhone(v);
     if (!n) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Enter a valid Indian mobile number' });
+      return z.NEVER;
+    }
+    // Shape is not enough: 9999999999 is shaped like a mobile and is not one.
+    const junk = checkIndianMobile(n.slice(3));
+    if (junk) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: junk.message });
       return z.NEVER;
     }
     return n;
@@ -57,7 +64,7 @@ export const EmailSchema = z
   // Deliberately the same shape the `users_email_shape` check constraint enforces in 0016. A
   // stricter regex here than in the database would reject rows the database is happy to hold;
   // a looser one would turn a typo into a 500.
-  .regex(/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/, 'Enter a valid email address');
+  .superRefine(refineWith(checkEmail));
 
 export const UserView = z.object({
   id: z.string().uuid(),
@@ -92,7 +99,7 @@ export const LogoutBody = z.object({ refreshToken: z.string().min(20).optional()
 
 export const UpdateMeBody = z
   .object({
-    displayName: z.string().trim().min(2).max(60).optional(),
+    displayName: z.string().trim().min(2).max(60).superRefine(refineWith(checkPersonName)).optional(),
     preferredLanguage: z.enum(LANGUAGES).optional(),
     /** `null` clears the address. Changing it always drops the verified flag - see the route. */
     email: EmailSchema.nullable().optional(),
@@ -125,7 +132,7 @@ export const CURRENT_TERMS_VERSION = '1.0';
 
 export const CompleteProfileBody = z
   .object({
-    displayName: z.string().trim().min(2).max(60),
+    displayName: z.string().trim().min(2).max(60).superRefine(refineWith(checkPersonName)),
     email: EmailSchema.optional(),
     preferredLanguage: z.enum(LANGUAGES).optional(),
     acceptedTermsVersion: z.string().min(1).max(20),

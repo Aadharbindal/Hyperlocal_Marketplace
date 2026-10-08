@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { checkEmail, checkPersonName } from '@hyperlocal/core';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -129,6 +130,7 @@ export default function EditProfileScreen() {
           icon="person-outline"
           autoCapitalize="words"
           maxLength={60}
+          validate={checkPersonName}
         />
         <TextField
           label={t('setup.email')}
@@ -142,6 +144,8 @@ export default function EditProfileScreen() {
           autoCorrect={false}
           keyboardType="email-address"
           maxLength={254}
+          validate={checkEmail}
+          onAcceptSuggestion={setEmail}
         />
         {/* Shown only when there is an address to be unconfirmed about. A tick nobody can earn
             yet would be a promise the app does not keep: confirmation is not built. */}

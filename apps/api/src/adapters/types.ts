@@ -22,7 +22,12 @@ export interface GeocodeResult extends LatLng {
 
 export interface MapsAdapter extends AdapterMeta {
   geocode(address: { line1: string; line2?: string; city: string; pincode: string }): Promise<GeocodeResult>;
-  reverseGeocode(point: LatLng): Promise<{ formatted: string; pincode?: string }>;
+  /**
+   * A point to a place. `coarse` says the match was not street-level, which the address picker
+   * surfaces rather than hides: a prefilled PIN code that came from a neighbourhood centroid is a
+   * suggestion to check, not a fact, and the mock's answer is always coarse.
+   */
+  reverseGeocode(point: LatLng): Promise<{ formatted: string; pincode?: string; city?: string; coarse: boolean }>;
 }
 
 export interface PushAdapter extends AdapterMeta {

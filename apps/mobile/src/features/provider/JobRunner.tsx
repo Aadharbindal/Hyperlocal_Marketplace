@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { formatInr, type JobStatus } from '@hyperlocal/core';
+import { checkReason, formatInr, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { askForPhoto } from '@/features/capture/media';
 import { useAddEvidence, useCompleteJob, useExecution, useProgress, useRequestRevision, useStartJob } from '@/api/execution';
@@ -10,6 +10,7 @@ import { useShareArrivalPosition } from '@/api/arrival';
 import { useCancelAsProvider } from '@/api/jobs';
 import { ChatSheet } from '@/features/shared/ChatSheet';
 import { RescheduleCard } from '@/features/shared/RescheduleCard';
+import { DestinationCard } from '@/features/geo/DestinationCard';
 import { MaterialRequestForm } from '@/features/provider/MaterialRequestForm';
 import { palette, radius, spacing, typography } from '@/theme';
 import { Badge, Button, Card, Text } from '@/ui';
@@ -34,6 +35,9 @@ export function JobRunner({ jobId, status, categoryName }: { jobId: string; stat
   const cancel = useCancelAsProvider();
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  // The customer reads this, and it is attached to a strike against the provider. Ten characters of
+  // junk met the old length rule and told nobody anything.
+  const cancelProblem = cancelReason.trim() ? checkReason(cancelReason) : null;
 
   /**
    * Backing out of a confirmed booking.
@@ -90,13 +94,20 @@ export function JobRunner({ jobId, status, categoryName }: { jobId: string; stat
         </Animated.View>
       )}
 
+      {/* Before the controls, because knowing where you are going comes before saying you have set
+          off. Null for the customer and until an assignment is live, so this is simply absent
+          wherever it would be meaningless. */}
+      {panel.data?.destination ? <DestinationCard destination={panel.data.destination} /> : null}
+
       {status === 'PROVIDER_ASSIGNED' && (
         <Button title="I'm on my way" icon="navigate" fullWidth loading={progress.isPending} onPress={() => move('EN_ROUTE')} />
       )}
       {status === 'EN_ROUTE' && (
         <>
           {/* Said plainly, because being located by the platform you work for is not something
-              to discover later. It names what is shared, who sees it and when it stops. */}
+              to discover later. It names what is shared, who sees it, how precisely and when it
+              stops - and it had to be rewritten when the customer's side gained a map, because
+              "how far away you are" stopped being the whole truth the moment a dot appeared. */}
           <View style={styles.waiting}>
             <Ionicons
               name={sharing === 'sharing' ? 'navigate-circle' : 'navigate-circle-outline'}
@@ -105,9 +116,9 @@ export function JobRunner({ jobId, status, categoryName }: { jobId: string; stat
             />
             <Text variant="micro" tone="muted" style={{ flex: 1 }}>
               {sharing === 'sharing'
-                ? 'The customer can see how far away you are. This stops when you arrive.'
+                ? 'The customer can see roughly where you are on a map - to about a hundred metres, never your exact spot. It stops the moment you arrive.'
                 : sharing === 'denied'
-                  ? 'Location is off, so the customer cannot see how far away you are.'
+                  ? 'Location is off, so the customer cannot see where you are. The job works normally without it.'
                   : sharing === 'unavailable'
                     ? 'This phone cannot share location. The job works normally without it.'
                     : 'Checking location permission...'}
@@ -168,7 +179,7 @@ export function JobRunner({ jobId, status, categoryName }: { jobId: string; stat
                 variant="danger"
                 style={styles.action}
                 // Ten characters is what the server asks for; saying so up front beats a rejection.
-                disabled={cancelReason.trim().length < 10}
+                disabled={!!cancelProblem || !cancelReason.trim()}
                 loading={cancel.isPending}
                 onPress={() => void backOut()}
               />

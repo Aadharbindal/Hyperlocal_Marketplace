@@ -102,3 +102,35 @@ describe('privacy', () => {
     expect(maySeeLiveLocation('SUPPORT')).toBe(true);
   });
 });
+
+describe('the point the map draws', () => {
+  it('comes back for a live position, exactly as stored', () => {
+    const point = { lat: 28.6, lng: 77.22 };
+    const s = arrivalState({ jobStatus: 'EN_ROUTE', ping: ping({ point }), destination: HOME });
+    expect(s.kind).toBe('ON_THE_WAY');
+    // Passed through untouched: `blunt` already ran on the way into the database, so there is no
+    // sharper reading in existence for this to be a rounding of.
+    expect(s).toMatchObject({ point });
+  });
+
+  it('comes back at the door too, so the dot does not vanish on arrival', () => {
+    const almost = { lat: HOME.lat + 0.001, lng: HOME.lng };
+    const s = arrivalState({ jobStatus: 'EN_ROUTE', ping: ping({ point: almost }), destination: HOME });
+    expect(s.kind).toBe('ARRIVING_NOW');
+    expect(s).toMatchObject({ point: almost });
+  });
+
+  it('is withheld once the position is stale', () => {
+    // The whole reason STALE exists. A three-minute-old dot drawn on a map is indistinguishable
+    // from a live one, and the customer plans their afternoon around it.
+    const old = new Date(Date.now() - (PING_STALE_AFTER_SECONDS + 30) * 1000);
+    const s = arrivalState({ jobStatus: 'EN_ROUTE', ping: ping({ at: old }), destination: HOME });
+    expect(s.kind).toBe('STALE');
+    expect(s).not.toHaveProperty('point');
+  });
+
+  it('is withheld entirely when there is nothing worth showing', () => {
+    expect(arrivalState({ jobStatus: 'ARRIVED', ping: ping(), destination: HOME })).toEqual({ kind: 'NOT_TRACKING' });
+    expect(arrivalState({ jobStatus: 'EN_ROUTE', ping: null, destination: HOME })).toEqual({ kind: 'NOT_TRACKING' });
+  });
+});

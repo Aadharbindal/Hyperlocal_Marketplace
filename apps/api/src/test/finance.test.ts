@@ -162,6 +162,44 @@ describe('where the money goes', () => {
     expect(added.json().payoutAccount.readyForPayouts).toBe(true);
   });
 
+  it('still pays an account held in a firm name, digits and all', async () => {
+    // The regression guard for a real one. Tightening these fields, the account-holder name was
+    // briefly checked as a *person's* name, which refuses digits - and that silently stopped every
+    // proprietorship in the country from being paid. "A1 Electricals" is not an edge case here, it
+    // is most of the provider base.
+    const p = await makeProvider('+919555001009', { payoutAccount: false });
+    for (const name of ['A1 Electricals', 'Services 1001', 'Sharma & Sons 24x7']) {
+      const added = await app.inject({
+        method: 'POST', url: '/me/payout-account', headers: p.headers,
+        payload: { method: 'BANK_ACCOUNT', accountHolderName: name, accountNumber: '918273645500', ifsc: 'HDFC0001234' },
+      });
+      expect(added.statusCode, name).toBe(201);
+    }
+  });
+
+  it('catches the IFSC typo a length check waves through', async () => {
+    // Four letters, then a *letter* where the RBI reserves a zero. Eleven characters, so the old
+    // length(11) rule accepted it and the bank rejected it days after a payout was promised.
+    const p = await makeProvider('+919555001010', { payoutAccount: false });
+    const res = await app.inject({
+      method: 'POST', url: '/me/payout-account', headers: p.headers,
+      payload: { method: 'BANK_ACCOUNT', accountHolderName: 'Ramesh Kumar', accountNumber: '918273645500', ifsc: 'HDFCO001234' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('tells somebody who typed their email into the UPI box what they did', async () => {
+    const p = await makeProvider('+919555001011', { payoutAccount: false });
+    const res = await app.inject({
+      method: 'POST', url: '/me/payout-account', headers: p.headers,
+      payload: { method: 'UPI', accountHolderName: 'Ramesh Kumar', vpa: 'ramesh@gmail.com' },
+    });
+    expect(res.statusCode).toBe(400);
+    // The message matters as much as the refusal: it is a real address they really have, and
+    // "invalid" would read as our form being broken.
+    expect(JSON.stringify(res.json())).toContain('email address');
+  });
+
   it('refuses details the payout rail would reject anyway', async () => {
     const p = await makeProvider('+919555001002', { payoutAccount: false });
     const badIfsc = await app.inject({

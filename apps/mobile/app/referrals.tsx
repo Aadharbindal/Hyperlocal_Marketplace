@@ -3,7 +3,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
-import { formatInr } from '@hyperlocal/core';
+import { checkReferralCode, formatInr } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useClaimReferral, useReferrals } from '@/api/growth';
 import { palette, radius, spacing } from '@/theme';
@@ -166,8 +166,15 @@ export default function ReferralsScreen() {
                     maxLength={12}
                     icon="gift-outline"
                     error={claimError}
+                    validate={checkReferralCode}
                   />
-                  <Button title="Use this code" size="sm" loading={claim.isPending} disabled={code.trim().length < 4} onPress={() => void onClaim()} />
+                  <Button
+                    title="Use this code"
+                    size="sm"
+                    loading={claim.isPending}
+                    disabled={!!checkReferralCode(code) || !code.trim()}
+                    onPress={() => void onClaim()}
+                  />
                 </Card>
               )}
             </>

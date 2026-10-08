@@ -54,6 +54,8 @@ Errors: `OTP_RATE_LIMITED`, `OTP_EXPIRED`, `OTP_INVALID`, `OTP_LOCKED`, `AUTH_SU
 | POST | `/me/addresses` | bearer | body: `AddressCreate`; geocodes via maps adapter; returns `inPilotZone` |
 | PATCH | `/me/addresses/:id` | bearer (owner) | |
 | DELETE | `/me/addresses/:id` | bearer (owner) | soft delete |
+| GET | `/geo/service-area` | none | the pilot circle, plus `mapsLive: false` whenever the maps adapter is the mock |
+| POST | `/geo/resolve-point` | bearer | body `{lat,lng}`; returns `formatted`, `pincode`, `city`, `inServiceArea`, `distanceFromCentreKm`, `coarse`. POST rather than GET so coordinates stay out of access logs; rate-limited to 60/min because a dragged pin fires it on every settle and each call costs money upstream |
 
 ### Categories
 | Method | Path | Auth | Notes |

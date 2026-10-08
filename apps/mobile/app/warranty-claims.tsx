@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import type { WarrantyClaimView } from '@hyperlocal/core';
+import { checkMeaningfulText, type WarrantyClaimView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useBookRevisit, useRespondToClaim, useWarrantyClaims } from '@/api/warranty';
 import { palette, radius, spacing } from '@/theme';
@@ -203,6 +203,8 @@ function ClaimCard({ claim, onDecline }: { claim: WarrantyClaimView; onDecline: 
 function DeclineSheet({ claim, onClose }: { claim: WarrantyClaimView | null; onClose: () => void }) {
   const respond = useRespondToClaim();
   const [reason, setReason] = useState('');
+  // Only once there is enough text to judge; a half-typed answer is not a bad one.
+  const answerProblem = reason.trim().length >= 20 ? checkMeaningfulText(reason, 20, 'Your answer') : null;
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
@@ -240,8 +242,13 @@ function DeclineSheet({ claim, onClose }: { claim: WarrantyClaimView | null; onC
           numberOfLines={4}
           style={styles.input}
         />
-        <Text variant="micro" tone="muted">
-          {reason.trim().length < 20 ? `${20 - reason.trim().length} more characters` : ' '}
+        {/* A countdown while it is short, and the junk complaint once it is long enough. Twenty
+            characters of "asdasdasdasdasdasdasd" is the exact shape of an answer written to get past
+            a counter, and this is read by the customer and by our team if they disagree. */}
+        <Text variant="micro" tone={answerProblem ? 'danger' : 'muted'}>
+          {reason.trim().length < 20
+            ? `${20 - reason.trim().length} more characters`
+            : (answerProblem?.message ?? ' ')}
         </Text>
         {error ? (
           <Text variant="micro" style={{ color: palette.danger }}>
@@ -253,7 +260,7 @@ function DeclineSheet({ claim, onClose }: { claim: WarrantyClaimView | null; onC
           title="Send this answer"
           fullWidth
           loading={respond.isPending}
-          disabled={reason.trim().length < 20}
+          disabled={reason.trim().length < 20 || !!answerProblem}
           onPress={() => void submit()}
         />
         <Spacer h={Platform.OS === 'ios' ? spacing.lg : spacing.sm} />

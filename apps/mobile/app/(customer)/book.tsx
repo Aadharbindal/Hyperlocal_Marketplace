@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import type { JobView } from '@hyperlocal/core';
+import { checkMeaningfulText, type FieldProblem, type JobView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useCategories } from '@/api/hooks';
 import { useAddresses, useAttachMedia, useCreateDraft, useRemoveMedia, useSubmitJob, useUpdateDraft, type LocalMedia } from '@/api/jobs';
@@ -41,6 +41,7 @@ export default function BookScreen() {
   const [job, setJob] = useState<JobView | null>(null);
   const [categoryId, setCategoryId] = useState(params.categoryId ?? '');
   const [description, setDescription] = useState('');
+  const [descriptionProblem, setDescriptionProblem] = useState<FieldProblem | null>(null);
   const [urgent, setUrgent] = useState(false);
   const [withMaterial, setWithMaterial] = useState(false);
   const [addressId, setAddressId] = useState<string | null>(null);
@@ -66,7 +67,8 @@ export default function BookScreen() {
 
   const selectedAddress = addresses.data?.items.find((a) => a.id === addressId) ?? null;
   const outOfZone = selectedAddress ? !selectedAddress.inPilotZone : false;
-  const canContinue = !!categoryId && !!addressId && !outOfZone && (description.trim().length >= 12 || (job?.media.length ?? 0) > 0);
+  const describedWell = description.trim().length >= 12 && !checkMeaningfulText(description, 1, 'The description');
+  const canContinue = !!categoryId && !!addressId && !outOfZone && (describedWell || (job?.media.length ?? 0) > 0);
 
   /** The draft is created lazily: the first photo or the submit tap, whichever comes first. */
   async function ensureDraft(): Promise<JobView> {
@@ -186,10 +188,18 @@ export default function BookScreen() {
           <Text weight="semibold" style={styles.label}>
             Describe the problem
           </Text>
-          <View style={styles.textareaWrap}>
+          <View style={[styles.textareaWrap, descriptionProblem && styles.textareaBad]}>
             <TextInput
               value={description}
               onChangeText={setDescription}
+              onFocus={() => setDescriptionProblem(null)}
+              /* On blur, not while typing: complaining about a half-written sentence is pedantry,
+                 and an error that flickers as somebody types is noise they learn to ignore. */
+              onBlur={() =>
+                setDescriptionProblem(
+                  description.trim() ? checkMeaningfulText(description, 1, 'The description') : null,
+                )
+              }
               placeholder="e.g. Kitchen tap has been leaking since morning"
               placeholderTextColor="#A9B8B1"
               multiline
@@ -199,9 +209,15 @@ export default function BookScreen() {
               style={styles.textarea}
             />
           </View>
-          <Text variant="caption" tone="muted" style={styles.hint}>
-            A few words or a photo is enough - providers need something to quote on.
-          </Text>
+          {descriptionProblem ? (
+            <Text variant="caption" tone="danger" style={styles.hint}>
+              {descriptionProblem.message}
+            </Text>
+          ) : (
+            <Text variant="caption" tone="muted" style={styles.hint}>
+              A few words or a photo is enough - providers need something to quote on.
+            </Text>
+          )}
         </Animated.View>
 
         {/* hazard warning */}
@@ -388,6 +404,8 @@ function blockerMessage(code: string): string {
       return 'Choose where the work is needed.';
     case 'CATEGORY_DISABLED':
       return 'That service is not available in your area yet.';
+    case 'DESCRIPTION_NOT_MEANINGFUL':
+      return 'Describe the problem in a few real words - the professional reads this before coming.';
     case 'PROHIBITED_CONTENT':
       return "We can't help with this request.";
     case 'SCHEDULE_IN_PAST':
@@ -411,6 +429,7 @@ const styles = StyleSheet.create({
   catActive: { borderColor: palette.primary, backgroundColor: '#F4FCF8' },
   catTextActive: { color: palette.primaryDeep },
 
+  textareaBad: { borderColor: palette.danger },
   textareaWrap: { backgroundColor: palette.surface, borderRadius: radius.md, borderWidth: 1.5, borderColor: '#E4EDE9', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   textarea: { minHeight: 92, fontSize: 15, color: palette.text, textAlignVertical: 'top' },
 

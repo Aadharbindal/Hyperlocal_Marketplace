@@ -134,6 +134,30 @@ export const ExecutionView = z.object({
   revisions: z.array(PriceRevisionView),
   completion: CompletionView.nullable(),
   chatUnread: z.number().int(),
+  /**
+   * Where the job is, for the person who has to get there.
+   *
+   * Populated for the assigned professional and the technician, and null for the customer, who is
+   * already standing in it. It had no business existing until the booking was confirmed and an
+   * assignment was live, which is exactly when this panel starts being served - so the gate is the
+   * panel's own.
+   *
+   * This closed a real hole rather than adding a nicety. The provider's "Working now" screen showed
+   * the controls for a job and not one word about where it was: a professional who had won the work
+   * had to go back out to the feed to find the street, and the technician's card was the only place
+   * in the app with a directions link.
+   */
+  destination: z
+    .object({
+      lat: z.number(),
+      lng: z.number(),
+      /** One line, as typed by the customer - the part a navigation app cannot infer. */
+      formatted: z.string(),
+      landmark: z.string().nullable(),
+      /** "Tell the guard flat B-14." The single most useful sentence on this screen. */
+      gateInstructions: z.string().nullable(),
+    })
+    .nullable(),
 });
 export type ExecutionView = z.infer<typeof ExecutionView>;
 
@@ -190,16 +214,26 @@ export const ReportPositionBody = z
 export type ReportPositionBody = z.infer<typeof ReportPositionBody>;
 
 /**
- * What the customer is told. Deliberately not coordinates.
+ * What the customer is told.
  *
- * The app is given a distance and a time, never a point, because a point on a map is a thing you
- * can follow and a distance is an answer to the question actually being asked. It also means a
- * screenshot of this screen discloses nothing about where a worker is.
+ * This carried a distance and a time and no coordinates at all for most of this app's life, on the
+ * argument that a distance answers the question and a point is something you can follow. The point
+ * is here now because customers asked for the map every other app has trained them to expect, and
+ * the argument turned out to be answerable rather than absolute: the position in this payload is
+ * the one already rounded to ~110 m on the way *into* the database, so no doorway-level fix exists
+ * anywhere to be handed out. What the map can show is which street somebody is on.
+ *
+ * The narrower rules around it did not move. It is only ever the latest position and never a trail,
+ * only between setting off and arriving, only to the customer on that booking, never on the
+ * forwardable tracking link - and `STALE` deliberately has no point, because a three-minute-old dot
+ * drawn on a map is indistinguishable from a live one.
  */
+export const ArrivalPoint = z.object({ lat: z.number(), lng: z.number() });
+
 export const ArrivalView = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('NOT_TRACKING') }),
-  z.object({ kind: z.literal('ARRIVING_NOW') }),
-  z.object({ kind: z.literal('ON_THE_WAY'), distanceKm: z.number(), etaMinutes: z.number().int() }),
+  z.object({ kind: z.literal('ARRIVING_NOW'), point: ArrivalPoint }),
+  z.object({ kind: z.literal('ON_THE_WAY'), distanceKm: z.number(), etaMinutes: z.number().int(), point: ArrivalPoint }),
   z.object({ kind: z.literal('STALE'), lastSeenSecondsAgo: z.number().int() }),
 ]);
 export type ArrivalView = z.infer<typeof ArrivalView>;

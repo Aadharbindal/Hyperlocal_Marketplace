@@ -1,15 +1,16 @@
+import { checkAddressLine, checkCity, checkPincode, refineWith } from '../validation/validation';
 import { z } from 'zod';
 
 export const AddressCreate = z
   .object({
     label: z.string().trim().min(1).max(30).default('Home'),
-    line1: z.string().trim().min(3).max(120),
+    line1: z.string().trim().min(3).max(120).superRefine(refineWith(checkAddressLine)),
     line2: z.string().trim().max(120).optional(),
     landmark: z.string().trim().max(120).optional(),
     societyName: z.string().trim().max(80).optional(),
     gateInstructions: z.string().trim().max(240).optional(),
-    city: z.string().trim().min(2).max(60),
-    pincode: z.string().regex(/^\d{6}$/, 'Enter a 6-digit PIN code'),
+    city: z.string().trim().min(2).max(60).superRefine(refineWith(checkCity)),
+    pincode: z.string().trim().superRefine(refineWith(checkPincode)),
     lat: z.number().min(-90).max(90).optional(),
     lng: z.number().min(-180).max(180).optional(),
     isDefault: z.boolean().optional(),

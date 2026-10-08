@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PhoneSchema } from './auth';
+import { checkPersonName, refineWith } from '../validation/validation';
 
 /**
  * The people a customer can tell about a job that is happening in their home.
@@ -12,7 +13,7 @@ import { PhoneSchema } from './auth';
  */
 export const EmergencyContactBody = z
   .object({
-    name: z.string().trim().min(2).max(60),
+    name: z.string().trim().min(2).max(60).superRefine(refineWith(checkPersonName)),
     phone: PhoneSchema,
     /** Free text, not an enum: "landlord" and "didi" are both real answers and neither is on a list. */
     relationship: z.string().trim().min(1).max(40).optional(),

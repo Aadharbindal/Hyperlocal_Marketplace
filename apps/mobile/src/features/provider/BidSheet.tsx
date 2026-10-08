@@ -2,7 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { DEFAULT_FEE_POLICY, computeQuote, formatInr, type NearbyJobItem } from '@hyperlocal/core';
+import {
+  DEFAULT_FEE_POLICY,
+  checkMeaningfulText,
+  checkRupees,
+  computeQuote,
+  formatInr,
+  type NearbyJobItem,
+} from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { usePlaceBid, useReviseBid, type BidTerms } from '@/api/provider';
 import { palette, radius, spacing } from '@/theme';
@@ -38,7 +45,19 @@ export function BidSheet({ job, onClose }: Props) {
   const labourPaise = Math.round((Number(labour) || 0) * 100);
   const visitFeePaise = Math.round((Number(visitFee) || 0) * 100);
   const quote = computeQuote({ labourPaise, visitFeePaise }, DEFAULT_FEE_POLICY);
-  const valid = labourPaise > 0 || visitFeePaise > 0;
+
+  /**
+   * The two amounts, checked beyond "greater than zero".
+   *
+   * The error that actually happens on this sheet is the extra zero - 6000 typed where 600 was
+   * meant - and a bare positive check sends that to the customer as a real offer. The ceilings are
+   * deliberately generous rather than tight: a full rewire genuinely is tens of thousands of rupees,
+   * so these are set where a number stops being a price and starts being a slip.
+   */
+  const labourProblem = checkRupees(labour, { min: 0, max: 500_000, what: 'A labour charge' });
+  const visitFeeProblem = checkRupees(visitFee, { min: 0, max: 20_000, what: 'A visit fee' });
+  const notesProblem = notes.trim() ? checkMeaningfulText(notes, 5, 'The note') : null;
+  const valid = (labourPaise > 0 || visitFeePaise > 0) && !labourProblem && !visitFeeProblem && !notesProblem;
 
   function reset() {
     setLabour('');
@@ -181,6 +200,11 @@ export function BidSheet({ job, onClose }: Props) {
             accessibilityLabel="Note to the customer"
             style={styles.notes}
           />
+          {[labourProblem, visitFeeProblem, notesProblem].filter(Boolean).map((p) => (
+            <Text key={p!.message} variant="micro" style={{ color: palette.danger }}>
+              {p!.message}
+            </Text>
+          ))}
 
           {/* transparent breakdown - the provider sees exactly what the customer pays */}
           <View style={styles.breakdown}>

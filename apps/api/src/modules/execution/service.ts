@@ -625,6 +625,27 @@ export function executionService(d: ExecutionDeps) {
       const urlsFor = (ids: string[]) => media.filter((m) => ids.includes(m.id)).map((m) => m.storage_key);
       const quote = await store.negotiation.getActiveQuote(job.id);
 
+      /**
+       * Read from the snapshot on the job rather than the live address row.
+       *
+       * The customer may edit or delete the address afterwards, and the professional has to be sent
+       * to the place the booking was actually made for. The snapshot is also where the coordinates
+       * the customer confirmed on the map live.
+       */
+      const snap = job.address_snapshot as
+        | { line1?: string; city?: string; pincode?: string; landmark?: string | null; gateInstructions?: string | null; lat?: number | null; lng?: number | null }
+        | null;
+      const destination: ExecutionView['destination'] =
+        !isCustomer && snap && typeof snap.lat === 'number' && typeof snap.lng === 'number'
+          ? {
+              lat: snap.lat,
+              lng: snap.lng,
+              formatted: [snap.line1, snap.city, snap.pincode].filter(Boolean).join(', '),
+              landmark: snap.landmark ?? null,
+              gateInstructions: snap.gateInstructions ?? null,
+            }
+          : null;
+
       return {
         jobId: job.id,
         status: job.status,
@@ -639,6 +660,7 @@ export function executionService(d: ExecutionDeps) {
         revisions: revisions.map((r) => toRevisionView(r, urlsFor(r.media_ids))),
         completion: completion ? toCompletionView(completion, urlsFor(completion.media_ids)) : null,
         chatUnread: thread ? await store.execution.unreadCount(thread.id, viewerId) : 0,
+        destination,
       };
     },
 

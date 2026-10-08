@@ -13,8 +13,9 @@ import { approximate, haversineKm, type LatLng } from '../geo/geo';
  *
  *   - only between setting off and arriving, never before and never after
  *   - only the latest position, never a trail
- *   - rounded to roughly a hundred metres, which answers "how far" without following anyone
+ *   - rounded to roughly a hundred metres before it is stored, so a doorway never exists to leak
  *   - only to the customer on that booking, never on the shareable tracking link
+ *   - and nothing at all once it has gone stale
  *   - and it goes stale honestly rather than showing an old dot as though it were live
  */
 
@@ -50,8 +51,15 @@ export interface LocationPing {
 /** What the customer's screen is allowed to say. */
 export type ArrivalState =
   | { kind: 'NOT_TRACKING' }
-  | { kind: 'ARRIVING_NOW' }
-  | { kind: 'ON_THE_WAY'; distanceKm: number; etaMinutes: number }
+  | { kind: 'ARRIVING_NOW'; point: LatLng }
+  | { kind: 'ON_THE_WAY'; distanceKm: number; etaMinutes: number; point: LatLng }
+  /**
+   * Deliberately without a point.
+   *
+   * This is the state where we have not heard from the phone in three minutes, and the last thing
+   * to do with a position that old is draw it on a map, where a dot looks exactly as live as a live
+   * one. The card says we have lost the signal and shows nothing.
+   */
   | { kind: 'STALE'; lastSeenSecondsAgo: number };
 
 /** Coordinates are blunted before they are stored, not on the way out. */
@@ -99,10 +107,14 @@ export function arrivalState(input: {
   if (ageSeconds > PING_STALE_AFTER_SECONDS) return { kind: 'STALE', lastSeenSecondsAgo: ageSeconds };
 
   const distanceKm = haversineKm(input.ping.point, input.destination);
-  if (distanceKm * 1000 <= ARRIVING_NOW_METRES) return { kind: 'ARRIVING_NOW' };
+  if (distanceKm * 1000 <= ARRIVING_NOW_METRES) return { kind: 'ARRIVING_NOW', point: input.ping.point };
 
   return {
     kind: 'ON_THE_WAY',
+    // The already-blunted stored position, passed straight through. `blunt` ran before this was
+    // written to the database, so there is no second rounding to do here and nothing sharper than
+    // ~110 m exists to leak.
+    point: input.ping.point,
     // One decimal. The stored position is only accurate to ~110 m, so more digits would be a
     // precision the number does not have.
     distanceKm: Math.round(distanceKm * 10) / 10,

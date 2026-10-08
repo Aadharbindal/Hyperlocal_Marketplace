@@ -65,6 +65,52 @@ const addr = await call('POST', '/me/addresses', {
 });
 ok('address created', addr.status === 201 || addr.status === 200, `status ${addr.status}`);
 
+console.log('\n--- the map behind the address ---');
+// The honest check first: the app must be able to find out that the tiles are not connected, because
+// the alternative is a blank grey rectangle that looks like our bug.
+const area = await call('GET', '/geo/service-area');
+ok('service area is readable without signing in', area.status === 200, `status ${area.status}`);
+ok('service area says whether maps are live', typeof area.json?.mapsLive === 'boolean', JSON.stringify(area.json));
+if (area.json?.mapsLive === false) console.log('     (maps adapter is the mock - the app will say so on screen)');
+
+const pin = await call('POST', '/geo/resolve-point', {
+  token: cust.token, body: { lat: area.json.centre.lat, lng: area.json.centre.lng },
+});
+ok('a dragged pin resolves', pin.status === 200, `status ${pin.status} ${pin.text.slice(0, 120)}`);
+ok('resolved pin knows whether we work there', pin.json?.inServiceArea === true, JSON.stringify(pin.json));
+ok('a coarse match is admitted as coarse', typeof pin.json?.coarse === 'boolean');
+// A prefilled PIN the save endpoint then rejects is a dead end nobody can get out of by guessing.
+ok('prefilled PIN is one the address contract accepts', !pin.json?.pincode || /^[1-8]\d{5}$/.test(pin.json.pincode), String(pin.json?.pincode));
+
+const far = await call('POST', '/geo/resolve-point', { token: cust.token, body: { lat: 28.714, lng: 77.209 } });
+ok('an unserved locality is reported before anything is typed', far.json?.inServiceArea === false, JSON.stringify(far.json));
+
+const fromPin = await call('POST', '/me/addresses', {
+  token: cust.token,
+  body: { label: 'From map', line1: 'B-14, Hailey Road', city: 'Delhi', pincode: '110001', lat: 28.6201, lng: 77.2155 },
+});
+// The whole point of the picker: the customer's coordinates win and no geocoder gets a second opinion.
+ok('an address saved from a pin keeps exactly that pin',
+  Math.abs(fromPin.json?.lat - 28.6201) < 1e-6 && Math.abs(fromPin.json?.lng - 77.2155) < 1e-6,
+  `${fromPin.json?.lat}, ${fromPin.json?.lng}`);
+await call('DELETE', `/me/addresses/${fromPin.json.id}`, { token: cust.token });
+
+console.log('\n--- what the fields refuse ---');
+const junkPhone = await call('POST', '/auth/request-otp', { body: { phone: '9999999999' } });
+ok('a held-down key is not a phone number', junkPhone.status === 400, `status ${junkPhone.status}`);
+const realPhone = await call('POST', '/auth/request-otp', { body: { phone: '9876543210' } });
+// The test that matters more. It is a validly allocated number and somebody holds it.
+ok('a memorable number somebody really holds is accepted', realPhone.status === 200 || realPhone.status === 201, `status ${realPhone.status}`);
+const junkAddr = await call('POST', '/me/addresses', {
+  token: cust.token, body: { line1: 'asdasdasdasd', city: 'Delhi', pincode: '110003' },
+});
+ok('asdasd is not an address', junkAddr.status === 400, `status ${junkAddr.status}`);
+const noNumber = await call('POST', '/me/addresses', {
+  token: cust.token, body: { label: 'No number', line1: 'Green Park Extension', city: 'Delhi', pincode: '110016' },
+});
+ok('an address with no house number is still an address', noNumber.status === 201, `status ${noNumber.status} ${noNumber.text.slice(0, 120)}`);
+if (noNumber.json?.id) await call('DELETE', `/me/addresses/${noNumber.json.id}`, { token: cust.token });
+
 console.log('\n--- catalogue and price guidance ---');
 const cats = await call('GET', '/categories');
 const plumbing = cats.json.items.find((c) => c.slug === 'plumbing');

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import type { FlaggedMessageView, ModerationOutcome } from '@hyperlocal/core';
+import { checkReason, type FlaggedMessageView, type ModerationOutcome } from '@hyperlocal/core';
 import { useFlaggedMessages, useReviewMessage } from '@/api/admin-trust';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text, TextField } from '@/ui';
@@ -178,6 +178,9 @@ function ReviewSheet({ message, onClose }: { message: FlaggedMessageView | null;
               onChangeText={setReason}
               placeholder="Soliciting payment outside the platform"
               helper="Recorded against the decision, and read if they appeal."
+              // Read by the person it is about if they appeal, and by whoever reviews that appeal.
+              // "n/a" is the reason that reaches both of them saying nothing.
+              validate={checkReason}
             />
           </>
         ) : null}
@@ -192,7 +195,7 @@ function ReviewSheet({ message, onClose }: { message: FlaggedMessageView | null;
           title="Record this"
           fullWidth
           loading={review.isPending}
-          disabled={needsReason && reason.trim().length < 5}
+          disabled={needsReason && (!reason.trim() || !!checkReason(reason))}
           onPress={() => void submit()}
         />
         <Spacer h={Platform.OS === 'ios' ? spacing.lg : spacing.sm} />

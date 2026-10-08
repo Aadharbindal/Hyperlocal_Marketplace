@@ -43,6 +43,7 @@ Principles:
 | `auth` | OTP challenges, sessions, tokens, rate limits | `sms` adapter, `users` |
 | `users` | users, roles, profiles (customer/provider/contractor/technician/vendor), consents | `audit` |
 | `addresses` | saved addresses, service locations, pilot-zone check | `maps` adapter |
+| `geo` | the two things a map-backed picker needs that the client cannot know: the service area (and whether the tiles behind it are real) and what a geocoder makes of a dragged pin. Deliberately thin - the client owns the map, the pin and the gestures | `maps` adapter |
 | `categories` | service categories and skills, enabled flags | - |
 | `jobs` | job aggregate, media, status events, state machine execution | `core/jobs`, `storage` |
 | `bids` | bids, revisions, eligibility, bid windows | `jobs`, `users` |

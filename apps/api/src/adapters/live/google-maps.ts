@@ -72,9 +72,21 @@ export function googleMaps(env: Env): MapsAdapter {
       const url = `${BASE}?latlng=${point.lat},${point.lng}&region=in&key=${creds.MAPS_API_KEY}`;
       const res = await request<GeocodeResponse>('google-maps', url, { timeoutMs: 6000 });
       const best = res.results[0];
-      if (!best) return { formatted: `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}` };
+      // No match is not an error worth throwing over: the picker still has the point the person
+      // chose, which is the part that actually matters for getting somebody to the door.
+      if (!best) return { formatted: `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`, coarse: true };
       const pincode = best.address_components.find((c) => c.types.includes('postal_code'))?.long_name;
-      return { formatted: best.formatted_address, pincode };
+      const city = best.address_components.find(
+        (c) => c.types.includes('locality') || c.types.includes('administrative_area_level_2'),
+      )?.long_name;
+      return {
+        formatted: best.formatted_address,
+        pincode,
+        city,
+        // Anything short of a rooftop match is a centroid of something larger, so the PIN it came
+        // with is worth a glance from the person who lives there.
+        coarse: confidenceOf(best.geometry.location_type) !== 'HIGH',
+      };
     },
   };
 }
