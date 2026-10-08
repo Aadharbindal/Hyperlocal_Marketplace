@@ -80,8 +80,31 @@ function Row({ notification, onOpen }: { notification: NotificationView; onOpen:
   const unread = !notification.readAt;
   const jobId = (notification.data as { jobId?: string }).jobId;
   return (
-    <Pressable onPress={jobId ? onOpen : undefined} accessibilityRole={jobId ? 'button' : undefined}>
-      <Card style={[styles.row, unread && styles.rowUnread]}>
+    /**
+     * Deliberately not a `ListRow`, and deliberately one accessible element.
+     *
+     * Not a ListRow because the unread state here is carried by a tint and a weight that the kit
+     * row does not have, and bending a shared component to hold one screen's exception is how a kit
+     * stops being worth having.
+     *
+     * One element because it was four: a reader walked the title, the body and the timestamp as
+     * three unrelated strings, read "chevron forward" out as though it meant something, and never
+     * said which notifications were unread - the one thing the whole screen is organised around.
+     */
+    <Pressable
+      onPress={jobId ? onOpen : undefined}
+      accessibilityRole={jobId ? 'button' : undefined}
+      accessible
+      accessibilityLabel={[
+        unread ? 'Unread.' : null,
+        notification.title,
+        notification.body,
+        timeAgo(notification.createdAt),
+      ]
+        .filter(Boolean)
+        .join('. ')}
+    >
+      <Card style={[styles.row, unread && styles.rowUnread]} importantForAccessibility="no-hide-descendants">
         <View style={[styles.icon, unread && styles.iconUnread]}>
           <Ionicons
             name={ICON[notification.category] ?? 'notifications-outline'}
