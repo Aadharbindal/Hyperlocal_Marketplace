@@ -6,7 +6,7 @@ import { formatInr, type SettlementView } from '@hyperlocal/core';
 import { useEarnings } from '@/api/finance';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, StatTile, Text } from '@/ui';
 
 const STATUS: Record<string, { label: string; tone: 'primary' | 'success' | 'warning' | 'danger' | 'neutral' }> = {
   PENDING: { label: 'clearing', tone: 'warning' },
@@ -45,8 +45,8 @@ export default function EarningsScreen() {
               {formatInr(earnings.data.settledPaise)}
             </Text>
             <View style={styles.splitRow}>
-              <Stat label="Clearing" value={formatInr(earnings.data.pendingPaise)} hint="Released 24 h after the customer approves" />
-              {earnings.data.onHoldPaise > 0 && <Stat label="On hold" value={formatInr(earnings.data.onHoldPaise)} hint="Held while a dispute is open" danger />}
+              <StatTile label="Clearing" value={formatInr(earnings.data.pendingPaise)} hint="Released 24 h after the customer approves" />
+              {earnings.data.onHoldPaise > 0 && <StatTile label="On hold" value={formatInr(earnings.data.onHoldPaise)} hint="Held while a dispute is open" tone="danger" />}
             </View>
           </Card>
 
@@ -119,21 +119,6 @@ export default function EarningsScreen() {
   );
 }
 
-function Stat({ label, value, hint, danger }: { label: string; value: string; hint: string; danger?: boolean }) {
-  return (
-    <View style={styles.stat}>
-      <Text variant="micro" tone="muted">
-        {label}
-      </Text>
-      <Text variant="label" weight="bold" style={danger ? { color: palette.danger } : undefined}>
-        {value}
-      </Text>
-      <Text variant="micro" tone="muted">
-        {hint}
-      </Text>
-    </View>
-  );
-}
 
 function SettlementRow({ settlement }: { settlement: SettlementView }) {
   const meta = STATUS[settlement.status] ?? { label: settlement.status.toLowerCase(), tone: 'neutral' as const };
@@ -163,7 +148,6 @@ const styles = StyleSheet.create({
   hero: { gap: spacing.sm },
   big: { fontSize: 34, lineHeight: 42, color: palette.text, letterSpacing: -1 },
   splitRow: { flexDirection: 'row', gap: spacing.md, backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
-  stat: { flex: 1, gap: 2 },
   note: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   callout: { gap: spacing.sm, borderWidth: 1, borderColor: palette.primary },
   calloutRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

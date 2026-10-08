@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { checkMeaningfulText } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useMaterials, useRequestMaterials } from '@/api/materials';
-import { palette, radius, spacing, typography } from '@/theme';
-import { Badge, Button, Text } from '@/ui';
+import { palette, radius, spacing } from '@/theme';
+import { Badge, Button, Stepper, Text, TextField } from '@/ui';
 
 interface Row {
   name: string;
@@ -73,28 +73,43 @@ export function MaterialRequestForm({ jobId, onDone }: { jobId: string; onDone: 
         What do you need?
       </Text>
 
+      {/* One block per item rather than one cramped row.
+          The quantity used to be a 62pt numeric text box beside the name, which meant opening a
+          keyboard that covers half the screen to turn a 1 into a 2, and let somebody send a
+          supplier a request for 999 cartridges by holding a key down. */}
       {rows.map((row, idx) => (
-        <View key={idx} style={styles.row}>
-          <TextInput
+        <View key={idx} style={styles.item}>
+          <TextField
+            label={`Item ${idx + 1}`}
             value={row.name}
             onChangeText={(v) => setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, name: v } : r)))}
-            placeholder="e.g. brass tap cartridge"
-            placeholderTextColor="#A9B8B1"
-            style={[styles.input, { flex: 1 }, rowProblems[idx] && styles.inputBad]}
-            accessibilityLabel={`Item ${idx + 1}`}
+            placeholder="Brass tap cartridge"
+            icon="cube-outline"
+            maxLength={80}
+            error={rowProblems[idx]?.message ?? null}
           />
-          <TextInput
-            value={row.quantity}
-            onChangeText={(v) => setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, quantity: v.replace(/\D/g, '').slice(0, 3) } : r)))}
-            keyboardType="number-pad"
-            style={[styles.input, styles.qty]}
-            accessibilityLabel={`Quantity for item ${idx + 1}`}
-          />
-          {rows.length > 1 && (
-            <Pressable accessibilityRole="button" accessibilityLabel="Remove item" hitSlop={8} onPress={() => setRows((rs) => rs.filter((_, i) => i !== idx))}>
-              <Ionicons name="close-circle" size={20} color="#C2CEC9" />
-            </Pressable>
-          )}
+          <View style={styles.qtyRow}>
+            <Stepper
+              label={row.name.trim() ? `Quantity for ${row.name.trim()}` : `Quantity for item ${idx + 1}`}
+              value={Math.max(1, Number(row.quantity || 1))}
+              onChange={(n) => setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, quantity: String(n) } : r)))}
+              min={1}
+              max={99}
+              unit="pcs"
+            />
+            <View style={styles.spacer} />
+            {rows.length > 1 && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={row.name.trim() ? `Remove ${row.name.trim()}` : `Remove item ${idx + 1}`}
+                hitSlop={8}
+                onPress={() => setRows((rs) => rs.filter((_, i) => i !== idx))}
+                style={styles.removeBtn}
+              >
+                <Ionicons name="trash-outline" size={17} color={palette.danger} />
+              </Pressable>
+            )}
+          </View>
         </View>
       ))}
 
@@ -107,27 +122,21 @@ export function MaterialRequestForm({ jobId, onDone }: { jobId: string; onDone: 
         </Pressable>
       )}
 
-      <TextInput
+      <TextField
+        label="Note for the supplier (optional)"
         value={note}
         onChangeText={setNote}
-        placeholder="Anything the supplier should know"
-        placeholderTextColor="#A9B8B1"
-        style={[styles.input, noteProblem && styles.inputBad]}
-        accessibilityLabel="Note for the supplier"
+        placeholder="Needs to fit a 15mm pipe"
+        icon="chatbubble-ellipses-outline"
+        multiline
+        minLines={2}
+        maxLength={200}
+        counter
+        error={noteProblem?.message ?? null}
       />
-      {noteProblem ? (
-        <Text variant="micro" style={{ color: palette.danger }}>
-          {noteProblem.message}
-        </Text>
-      ) : null}
-      {rowProblems.find((p) => p) ? (
-        <Text variant="micro" style={{ color: palette.danger }}>
-          {rowProblems.find((p) => p)!.message}
-        </Text>
-      ) : null}
 
       {error && (
-        <Text variant="micro" style={{ color: palette.danger }}>
+        <Text variant="micro" tone="danger">
           {error}
         </Text>
       )}
@@ -169,21 +178,19 @@ function requestError(e: ApiError): string {
 }
 
 const styles = StyleSheet.create({
-  form: { gap: spacing.sm },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  input: {
-    minHeight: 44,
+  form: { gap: spacing.lg },
+  item: {
+    gap: spacing.sm,
+    padding: spacing.md,
     borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: '#E4EDE9',
-    paddingHorizontal: spacing.md,
-    fontSize: 15,
-    fontFamily: typography.family.regular,
-    color: palette.text,
+    backgroundColor: palette.surfaceSunken,
+    borderWidth: 1,
+    borderColor: palette.borderSoft,
   },
-  inputBad: { borderColor: palette.danger },
-  qty: { width: 62, textAlign: 'center' },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 34 },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  spacer: { flex: 1 },
+  removeBtn: { width: 40, height: 40, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44 },
   actions: { flexDirection: 'row', gap: spacing.sm },
   action: { flex: 1 },
   waiting: { flexDirection: 'row', alignItems: 'center', gap: 6 },

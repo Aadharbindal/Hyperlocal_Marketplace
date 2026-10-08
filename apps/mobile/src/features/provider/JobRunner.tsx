@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { checkReason, formatInr, type JobStatus } from '@hyperlocal/core';
+import { checkMeaningfulText, checkReason, checkRupees, formatInr, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { askForPhoto } from '@/features/capture/media';
 import { useAddEvidence, useCompleteJob, useExecution, useProgress, useRequestRevision, useStartJob } from '@/api/execution';
@@ -13,7 +13,7 @@ import { RescheduleCard } from '@/features/shared/RescheduleCard';
 import { DestinationCard } from '@/features/geo/DestinationCard';
 import { MaterialRequestForm } from '@/features/provider/MaterialRequestForm';
 import { palette, radius, spacing, typography } from '@/theme';
-import { Badge, Button, Card, Text } from '@/ui';
+import { Badge, Button, Card, Text, TextField } from '@/ui';
 
 /**
  * The provider's controls for a confirmed job: on the way, arrived, the start code, asking
@@ -158,14 +158,18 @@ export function JobRunner({ jobId, status, categoryName }: { jobId: string; stat
             <Text variant="caption" weight="semibold">
               Why can you not make it?
             </Text>
-            <TextInput
+            <TextField
+              label="Reason for cancelling"
+              helper="The customer sees this, so a real reason helps them"
               value={cancelReason}
               onChangeText={setCancelReason}
-              placeholder="The customer sees this, so a real reason helps them"
-              placeholderTextColor="#A9B8B1"
+              placeholder="Previous job has overrun by two hours"
               multiline
-              style={[styles.input, styles.multiline]}
-              accessibilityLabel="Reason for cancelling"
+              minLines={2}
+              maxLength={240}
+              counter
+              required
+              error={cancelProblem?.message ?? null}
             />
             <Text variant="micro" tone="muted">
               This counts against your reliability. The customer is not charged, and if nobody has
@@ -233,17 +237,18 @@ function StartCodeEntry({ jobId, attemptsLeft }: { jobId: string; attemptsLeft: 
         Ask the customer for their 4-digit start code.
       </Text>
       <View style={styles.codeRow}>
-        <TextInput
-          value={code}
-          onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 4))}
-          keyboardType="number-pad"
-          maxLength={4}
-          placeholder="0000"
-          placeholderTextColor="#A9B8B1"
-          style={styles.codeInput}
-          accessibilityLabel="Start code"
-        />
-        <Button title="Start work" style={{ flex: 1 }} loading={start.isPending} onPress={submit} />
+        <View style={styles.codeBox}>
+          <TextField
+            value={code}
+            onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 4))}
+            keyboardType="number-pad"
+            maxLength={4}
+            placeholder="0000"
+            accessibilityLabel="Start code"
+            style={styles.codeInput}
+          />
+        </View>
+        <Button title="Start work" style={styles.codeAction} loading={start.isPending} onPress={submit} />
       </View>
       {error ? (
         <Text variant="micro" style={{ color: palette.danger }}>
@@ -281,9 +286,21 @@ function InProgressActions({ jobId }: { jobId: string }) {
   const revision = useRequestRevision();
   const complete = useCompleteJob();
   const [mode, setMode] = useState<'none' | 'revision' | 'complete' | 'materials'>('none');
+  const isRevisionMode = mode === 'revision';
   const [amount, setAmount] = useState('');
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Both of these are read by the customer before they approve money.
+   *
+   * The extra-labour ceiling is generous because a rewire genuinely runs into tens of thousands; it
+   * is set where a number stops being a price and starts being a finger held on a keypad. The
+   * explanation has a floor because "extra work" is not an explanation of extra work, and the
+   * customer is being asked to agree to a charge on the strength of it.
+   */
+  const amountProblem = checkRupees(amount, { max: 500_000, what: 'The extra labour' });
+  const textProblem = text.trim() ? checkMeaningfulText(text, 15, isRevisionMode ? 'The explanation' : 'The summary') : null;
 
   /**
    * Both flows need at least one photo, and it has to be a real one. Extra work that costs the
@@ -324,31 +341,35 @@ function InProgressActions({ jobId }: { jobId: string }) {
 
   if (mode === 'materials') return <MaterialRequestForm jobId={jobId} onDone={() => setMode('none')} />;
 
-  const isRevision = mode === 'revision';
+  const isRevision = isRevisionMode;
   return (
     <Animated.View entering={FadeInDown.duration(260)} style={styles.form}>
       <Text variant="caption" weight="semibold">
         {isRevision ? 'Ask for approval of extra work' : 'Hand the job back for checking'}
       </Text>
       {isRevision && (
-        <TextInput
+        <TextField
+          label="Extra labour"
+          prefix="₹"
           value={amount}
           onChangeText={(v) => setAmount(v.replace(/\D/g, '').slice(0, 6))}
           keyboardType="number-pad"
-          placeholder="Extra labour in rupees"
-          placeholderTextColor="#A9B8B1"
-          style={styles.input}
-          accessibilityLabel="Extra labour in rupees"
+          placeholder="0"
+          error={amountProblem?.message ?? null}
         />
       )}
-      <TextInput
+      <TextField
+        label={isRevision ? 'What you found' : 'What you did'}
+        helper={isRevision ? 'The customer approves this before anything is charged' : 'The customer reads this when they check the work'}
         value={text}
         onChangeText={setText}
-        placeholder={isRevision ? 'Explain what you found and why it costs more' : 'What did you do?'}
-        placeholderTextColor="#A9B8B1"
+        placeholder={isRevision ? 'The inlet valve is cracked and has to be replaced' : 'Replaced the cartridge and tested for leaks'}
         multiline
-        style={[styles.input, styles.multiline]}
-        accessibilityLabel={isRevision ? 'Explanation' : 'Summary'}
+        minLines={3}
+        maxLength={400}
+        counter
+        required
+        error={textProblem?.message ?? null}
       />
       {error && (
         <Text variant="micro" style={{ color: palette.danger }}>
@@ -361,6 +382,9 @@ function InProgressActions({ jobId }: { jobId: string }) {
           title={isRevision ? 'Send for approval' : 'Submit'}
           size="sm"
           style={styles.action}
+          // The field already says what is wrong; this stops a submit the server would refuse and
+          // that would cost the provider a photo they have already taken.
+          disabled={!text.trim() || !!textProblem || (isRevision && (!!amountProblem || !Number(amount)))}
           loading={evidence.isPending || revision.isPending || complete.isPending}
           onPress={() =>
             withPhoto((mediaId) =>
@@ -411,32 +435,13 @@ const styles = StyleSheet.create({
 
   codeBlock: { gap: spacing.sm },
   codeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  codeInput: {
-    width: 104,
-    height: 48,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: '#E4EDE9',
-    textAlign: 'center',
-    fontSize: 22,
-    letterSpacing: 6,
-    fontFamily: typography.family.bold,
-    color: palette.text,
-  },
+  codeBox: { width: 116 },
+  codeAction: { flex: 1 },
+  /* The four digits of the start code, tracked wide so they read as separate characters while
+     somebody checks them against what the customer is holding up. */
+  codeInput: { textAlign: 'center', fontSize: 22, letterSpacing: 6, fontFamily: typography.family.bold },
 
-  form: { gap: spacing.sm },
-  input: {
-    minHeight: 46,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: '#E4EDE9',
-    paddingHorizontal: spacing.md,
-    paddingTop: 12,
-    fontSize: 15,
-    fontFamily: typography.family.regular,
-    color: palette.text,
-  },
-  multiline: { minHeight: 72, textAlignVertical: 'top' },
+  form: { gap: spacing.lg },
 
   stack: { gap: spacing.sm },
   actions: { flexDirection: 'row', gap: spacing.sm },

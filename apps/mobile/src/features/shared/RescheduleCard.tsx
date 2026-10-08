@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
-import { checkFutureDateTime, checkReason, type JobStatus } from '@hyperlocal/core';
+import { MAX_RESCHEDULE_DAYS_AHEAD, checkReason, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useProposeTime, useRescheduleBooking, useRespondToProposal, useTimeProposal, useWithdrawProposal } from '@/api/jobs';
-import { palette, radius, spacing, typography } from '@/theme';
-import { Button, Card, Text } from '@/ui';
+import { palette, spacing } from '@/theme';
+import { Button, Card, DateTimeField, Text, TextField } from '@/ui';
 
 /**
  * Moving a booking instead of losing it.
@@ -40,7 +40,7 @@ export function RescheduleCard({ jobId, status, side }: { jobId: string; status:
   const reduced = useReducedMotion();
 
   const [open, setOpen] = useState(false);
-  const [when, setWhen] = useState('');
+  const [when, setWhen] = useState<Date | null>(null);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -50,24 +50,15 @@ export function RescheduleCard({ jobId, status, side }: { jobId: string; status:
   const fail = (e: unknown) => setError(e instanceof ApiError ? e.message : 'That did not go through.');
 
   /**
-   * A date and a time typed as `YYYY-MM-DD HH:MM`, read as local time.
+   * The chosen moment, or null.
    *
-   * A picker would be better and is a bigger piece of work; this is deliberately the smallest
-   * thing that makes the feature reachable at all, and it is listed as such in KNOWN_LIMITATIONS
-   * rather than presented as finished.
-   *
-   * What the field *does* get is a specific complaint. It used to answer every mistake with one
-   * sentence covering four rules at once, so somebody who typed 31 February and somebody who typed
-   * yesterday both had to work out which half applied to them. `checkFutureDateTime` is shared with
-   * the rest of the app and names the actual problem.
+   * This used to be a string somebody typed as `YYYY-MM-DD HH:MM`, parsed with a regex here. It was
+   * shipped knowingly as the smallest thing that made rescheduling reachable at all, and recorded
+   * in KNOWN_LIMITATIONS as such - but it asked a person to know the format, the year, the
+   * 24-hour conversion and which days exist in which month, which is four pieces of homework to
+   * move a booking by two hours. The calendar does all of that now.
    */
-  const whenProblem = checkFutureDateTime(when);
-  const parsed = (() => {
-    if (!when.trim() || whenProblem) return null;
-    const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/.exec(when.trim());
-    if (!m) return null;
-    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
-  })();
+  const parsed = when;
   /** The provider must say why; for the customer the field is optional, so empty is not a problem. */
   const reasonProblem = reason.trim() ? checkReason(reason) : null;
 
@@ -91,7 +82,7 @@ export function RescheduleCard({ jobId, status, side }: { jobId: string; status:
         await propose.mutateAsync({ jobId, newStart: parsed.toISOString(), reason: reason.trim() });
       }
       setOpen(false);
-      setWhen('');
+      setWhen(null);
       setReason('');
     } catch (e) {
       fail(e);
@@ -186,33 +177,30 @@ export function RescheduleCard({ jobId, status, side }: { jobId: string; status:
         <Text variant="caption" weight="semibold">
           {side === 'CUSTOMER' ? 'Move this booking' : 'Suggest another time'}
         </Text>
-        <TextInput
+        <DateTimeField
+          label="New time"
           value={when}
-          onChangeText={setWhen}
-          placeholder="2026-10-04 15:30"
-          placeholderTextColor="#A9B8B1"
-          style={styles.input}
-          accessibilityLabel="New date and time, as year-month-day hours:minutes"
+          onChange={setWhen}
+          // Ninety days matches the ceiling the shared validator enforces, so the dial cannot reach
+          // a date the form would then refuse. A picker that offers an unpickable day is worse than
+          // a text box, because the refusal makes no sense.
+          maximumDate={new Date(Date.now() + MAX_RESCHEDULE_DAYS_AHEAD * 86_400_000)}
+          helper={side === 'CUSTOMER' ? 'Any time from now on' : 'Suggest a slot that suits you'}
         />
-        <TextInput
+        <TextField
+          label={side === 'CUSTOMER' ? 'Why (optional)' : 'Why you need to move it'}
+          helper={side === 'CUSTOMER' ? 'The professional sees this' : 'The customer sees this'}
           value={reason}
           onChangeText={setReason}
-          placeholder={side === 'CUSTOMER' ? 'Why (optional) — the professional sees this' : 'Why you need to move it — the customer sees this'}
-          placeholderTextColor="#A9B8B1"
+          placeholder={side === 'CUSTOMER' ? 'Running late from work' : 'Previous job has overrun'}
+          icon="chatbubble-ellipses-outline"
           multiline
-          style={[styles.input, styles.multiline]}
-          accessibilityLabel="Reason"
+          minLines={2}
+          maxLength={240}
+          counter
+          required={side === 'PROVIDER'}
+          error={reasonProblem?.message ?? null}
         />
-        {whenProblem ? (
-          <Text variant="micro" tone="danger">
-            {whenProblem.message}
-          </Text>
-        ) : null}
-        {reasonProblem ? (
-          <Text variant="micro" tone="danger">
-            {reasonProblem.message}
-          </Text>
-        ) : null}
         {error ? (
           <Text variant="micro" tone="danger">
             {error}
@@ -248,16 +236,4 @@ const styles = StyleSheet.create({
   icon: { width: 40, height: 40, borderRadius: 13, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
   actions: { flexDirection: 'row', gap: spacing.sm },
   action: { flex: 1 },
-  input: {
-    minHeight: 46,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: '#E4EDE9',
-    paddingHorizontal: spacing.md,
-    paddingTop: 12,
-    fontSize: 15,
-    fontFamily: typography.family.regular,
-    color: palette.text,
-  },
-  multiline: { minHeight: 68, textAlignVertical: 'top' },
 });

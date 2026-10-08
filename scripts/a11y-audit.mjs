@@ -243,13 +243,33 @@ function auditHardcodedText() {
   for (const file of walk(join(MOBILE, 'app')).concat(walk(join(MOBILE, 'src')))) {
     const src = readFileSync(file, 'utf8');
     const rel = relative(ROOT, file).replace(/\\/g, '/');
-    for (const m of src.matchAll(/color:\s*'(#[0-9A-Fa-f]{6})'/g)) {
-      const hex = m[1].toUpperCase();
-      if (known.has(hex)) continue;
-      // The worst surface it could land on. Anything that clears that clears all of them.
-      const worst = Math.min(...surfaces.map((bg) => contrast(hex, bg)));
-      if (worst >= 4.5) continue;
-      findings.push({ file: rel, line: src.slice(0, m.index).split('\n').length, hex, ratio: worst });
+    /**
+     * Three spellings, not one.
+     *
+     * `color:` inside a StyleSheet was the only form this looked for, and that is how twenty-nine
+     * uses of a **2.06:1** placeholder survived an audit reporting zero findings: they arrived as
+     * `placeholderTextColor="#A9B8B1"`, a JSX prop, which the old pattern could not see. A
+     * placeholder is often the only example of what a field wants, so it is content, and it is held
+     * to the same bar as any other text.
+     *
+     * `color="#..."` on an element is counted at 3:1 rather than 4.5:1, because most of those are
+     * icon glyphs rather than words - but an icon that carries meaning still owes 3:1, and with the
+     * tokens in place nothing in this app should be painted with a literal at all.
+     */
+    const patterns = [
+      [/color:\s*'(#[0-9A-Fa-f]{6})'/g, 4.5, 'text colour'],
+      [/placeholderTextColor=(?:"|\{')(#[0-9A-Fa-f]{6})(?:"|'\})/g, 4.5, 'placeholder'],
+      [/\bcolor=(?:"|\{')(#[0-9A-Fa-f]{6})(?:"|'\})/g, 3, 'icon or element colour'],
+    ];
+    for (const [re, need, kind] of patterns) {
+      for (const m of src.matchAll(re)) {
+        const hex = m[1].toUpperCase();
+        if (known.has(hex)) continue;
+        // The worst surface it could land on. Anything that clears that clears all of them.
+        const worst = Math.min(...surfaces.map((bg) => contrast(hex, bg)));
+        if (worst >= need) continue;
+        findings.push({ file: rel, line: src.slice(0, m.index).split('\n').length, hex, ratio: worst, need, kind });
+      }
     }
   }
   return findings;
@@ -270,8 +290,10 @@ console.log(`\nUnlabelled icon-only controls: ${labels.length}`);
 for (const f of labels) console.log(`  ${f.file}:${f.line}  <${f.icon}>`);
 
 const hard = auditHardcodedText();
-console.log(`\nText colours off the palette that miss AA: ${hard.length}`);
-for (const f of hard) console.log(`  ${f.file}:${f.line}  ${f.hex} at ${f.ratio.toFixed(2)}:1`);
+console.log(`\nLiteral colours off the palette that miss their bar: ${hard.length}`);
+for (const f of hard) {
+  console.log(`  ${f.file}:${f.line}  ${f.hex} at ${f.ratio.toFixed(2)}:1 (needs ${f.need}) - ${f.kind}`);
+}
 
 const total = failing.length + labels.length + hard.length;
 console.log(`\n${total} finding(s).`);

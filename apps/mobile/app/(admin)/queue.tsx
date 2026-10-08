@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { TWO_PERSON_REFUND_THRESHOLD_PAISE, checkReason, checkRupees, formatInr, type DisputeView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useDisputeQueue, useMfaStatus, useMoveDispute, useResolveDispute } from '@/api/admin';
 import { MfaGate } from '@/features/admin/MfaGate';
-import { palette, radius, spacing, typography } from '@/theme';
-import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { palette, spacing } from '@/theme';
+import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text, TextField, SegmentedControl } from '@/ui';
 
 const RESOLUTIONS = [
   { key: 'NO_ACTION', label: 'No action' },
@@ -136,63 +136,65 @@ function DisputeCard({ dispute }: { dispute: DisputeView }) {
         </View>
       ) : (
         <View style={styles.form}>
-          <View style={styles.chips}>
-            {RESOLUTIONS.map((r) => (
-              <Pressable key={r.key} accessibilityRole="button" onPress={() => setResolution(r.key)} style={[styles.chip, resolution === r.key && styles.chipOn]}>
-                <Text variant="micro" weight="semibold" style={{ color: resolution === r.key ? '#FFFFFF' : palette.textSecondary }}>
-                  {r.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          {/* Stacked, because these are mutually exclusive outcomes with real money behind them -
+              a horizontal strip of five chips on a phone truncates every label into a guess. */}
+          <SegmentedControl
+            label="What is the outcome"
+            stacked
+            options={RESOLUTIONS.map((r) => ({ value: r.key, label: r.label }))}
+            value={resolution}
+            onChange={setResolution}
+          />
 
           {resolution === 'PARTIAL_REFUND' && (
-            <TextInput
+            <TextField
+              label="Refund amount"
+              prefix="₹"
               value={amount}
               onChangeText={(v) => setAmount(v.replace(/\D/g, '').slice(0, 7))}
               keyboardType="number-pad"
-              placeholder="Refund in rupees"
-              placeholderTextColor="#A9B8B1"
-              style={styles.input}
+              placeholder="0"
               accessibilityLabel="Refund amount in rupees"
+              error={amountProblem?.message ?? null}
             />
           )}
 
-          <TextInput
+          <TextField
+            label="Why this decision"
+            helper="Both sides see it, and it is the record if either escalates"
             value={reason}
             onChangeText={setReason}
-            placeholder="Why this decision? Both sides will see it."
-            placeholderTextColor="#A9B8B1"
+            placeholder="The photos show the work was finished as agreed"
             multiline
-            style={[styles.input, styles.multiline]}
+            minLines={3}
+            maxLength={400}
+            counter
+            required
             accessibilityLabel="Reason"
+            error={reasonProblem?.message ?? null}
           />
 
           {needsTwo && (
             <>
               <View style={styles.note}>
-                <Ionicons name="people-outline" size={14} color="#B26A00" />
+                <Ionicons name="people-outline" size={14} color={palette.warningIcon} />
                 <Text variant="micro" style={{ color: '#7A5200', flex: 1 }}>
                   Over {formatInr(TWO_PERSON_REFUND_THRESHOLD_PAISE)} needs a second approver, and it cannot be you.
                 </Text>
               </View>
-              <TextInput
+              <TextField
+                label="Second approver"
                 value={approver}
                 onChangeText={setApprover}
-                placeholder="Second approver's user id"
-                placeholderTextColor="#A9B8B1"
+                placeholder="Their user id"
+                icon="person-outline"
                 autoCapitalize="none"
-                style={styles.input}
+                autoCorrect={false}
                 accessibilityLabel="Second approver user id"
               />
             </>
           )}
 
-          {decisionProblem ? (
-            <Text variant="caption" style={{ color: palette.danger }}>
-              {decisionProblem.message}
-            </Text>
-          ) : null}
           {error && (
             <Text variant="caption" style={{ color: palette.danger }}>
               {error}
@@ -241,19 +243,4 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: spacing.sm },
   action: { flex: 1 },
   form: { gap: spacing.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: '#F1F6F4' },
-  chipOn: { backgroundColor: palette.primary },
-  input: {
-    minHeight: 46,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: '#E4EDE9',
-    paddingHorizontal: spacing.md,
-    paddingTop: 12,
-    fontSize: 15,
-    fontFamily: typography.family.regular,
-    color: palette.text,
-  },
-  multiline: { minHeight: 80, textAlignVertical: 'top' },
 });

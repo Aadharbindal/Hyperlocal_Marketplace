@@ -1,22 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import {
-  checkAddressLine,
-  checkCity,
-  checkPincode,
-  type FieldProblem,
-  type LatLng,
-  type ResolvedPointView,
-} from '@hyperlocal/core';
+import { checkAddressLine, checkCity, checkPincode, type LatLng, type ResolvedPointView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useMyLocation, useResolvePoint, useServiceArea } from '@/api/geo';
 import { useAddresses, useCreateAddress, useUpdateAddress } from '@/api/jobs';
 import { MapCanvas, mapsAvailable, type MapCanvasHandle } from '@/features/geo/MapCanvas';
-import { palette, radius, spacing, typography } from '@/theme';
-import { Badge, Button, Card, Screen, Spacer, Text } from '@/ui';
+import { palette, radius, spacing } from '@/theme';
+import { Badge, Button, Card, Screen, SegmentedControl, Spacer, Text, TextField } from '@/ui';
 
 /**
  * Picking where you live by pointing at it.
@@ -238,27 +231,60 @@ export default function AddressPickerScreen() {
 
         <Card padding="lg" style={styles.form}>
           {/* Asked, never guessed. This is the half of an address no map can know. */}
-          <Field
+          <TextField
             label="Flat / house number, building"
             value={line1}
-            onChange={setLine1}
+            onChangeText={setLine1}
             placeholder="B-14, Sunrise Apartments"
+            icon="home-outline"
             autoCapitalize="words"
+            maxLength={120}
+            required
             validate={checkAddressLine}
           />
-          <Field label="Landmark (optional)" value={landmark} onChange={setLandmark} placeholder="Opposite the park gate" />
-          <Field
+          <TextField
+            label="Landmark (optional)"
+            value={landmark}
+            onChangeText={setLandmark}
+            placeholder="Opposite the park gate"
+            icon="navigate-outline"
+            maxLength={120}
+          />
+          <TextField
             label="How to get in (optional)"
+            helper="The professional reads this on their way"
             value={gate}
-            onChange={setGate}
+            onChangeText={setGate}
             placeholder="Tell the guard flat B-14; lift is on the left"
+            icon="key-outline"
+            multiline
+            minLines={2}
+            maxLength={240}
           />
           <View style={styles.pair}>
             <View style={styles.flex}>
-              <Field label="City" value={city} onChange={setCity} placeholder="Delhi" autoCapitalize="words" validate={checkCity} />
+              <TextField
+                label="City"
+                value={city}
+                onChangeText={setCity}
+                placeholder="Delhi"
+                autoCapitalize="words"
+                maxLength={60}
+                required
+                validate={checkCity}
+              />
             </View>
             <View style={styles.pin}>
-              <Field label="PIN code" value={pincode} onChange={setPincode} placeholder="110003" keyboardType="number-pad" maxLength={6} validate={checkPincode} />
+              <TextField
+                label="PIN code"
+                value={pincode}
+                onChangeText={setPincode}
+                placeholder="110003"
+                keyboardType="number-pad"
+                maxLength={6}
+                required
+                validate={checkPincode}
+              />
             </View>
           </View>
 
@@ -278,21 +304,16 @@ export default function AddressPickerScreen() {
             <Text variant="caption" tone="secondary">
               Name it
             </Text>
-            <View style={styles.labelRow}>
-              {(['Home', 'Work', 'Other'] as const).map((l) => (
-                <Pressable
-                  key={l}
-                  onPress={() => setLabel(l)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: label === l }}
-                  style={[styles.labelChip, label === l && styles.labelChipOn]}
-                >
-                  <Text variant="caption" weight="semibold" style={label === l ? styles.labelChipOnText : undefined}>
-                    {l}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <SegmentedControl
+              label="Name this address"
+              options={[
+                { value: 'Home', label: 'Home', icon: 'home' },
+                { value: 'Work', label: 'Work', icon: 'briefcase' },
+                { value: 'Other', label: 'Other', icon: 'bookmark' },
+              ]}
+              value={label}
+              onChange={setLabel}
+            />
           </View>
 
           {error ? (
@@ -444,59 +465,6 @@ export default function AddressPickerScreen() {
   );
 }
 
-/**
- * The same blur-validated field `addresses.tsx` uses.
- *
- * Duplicated rather than shared for now because the two screens are about to become one: this one
- * replaces the typing form, and when the old screen's form goes this copy is the only one left.
- */
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  keyboardType,
-  maxLength,
-  autoCapitalize,
-  validate,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  keyboardType?: 'number-pad';
-  maxLength?: number;
-  autoCapitalize?: 'words';
-  validate?: (v: string) => FieldProblem | null;
-}) {
-  const [problem, setProblem] = useState<FieldProblem | null>(null);
-  return (
-    <View style={styles.field}>
-      <Text variant="caption" tone="secondary">
-        {label}
-      </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        onFocus={() => setProblem(null)}
-        onBlur={() => setProblem(validate && value.trim() ? validate(value) : null)}
-        placeholder={placeholder}
-        placeholderTextColor={palette.textMuted}
-        keyboardType={keyboardType}
-        maxLength={maxLength}
-        autoCapitalize={autoCapitalize}
-        style={[styles.input, problem && styles.inputBad]}
-        accessibilityLabel={label}
-      />
-      {problem ? (
-        <Text variant="micro" tone="danger">
-          {problem.message}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.screen, paddingTop: spacing.md },
@@ -544,34 +512,8 @@ const styles = StyleSheet.create({
   outsideText: { flex: 1, color: palette.warning },
   checkNote: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: palette.warningSoft, borderRadius: radius.sm, padding: spacing.md },
   checkNoteText: { flex: 1, color: palette.warning },
-  form: { gap: spacing.md },
+  form: { gap: spacing.lg },
   pair: { flexDirection: 'row', gap: spacing.md },
-  pin: { width: 130 },
-  field: { gap: spacing.xs },
+  pin: { width: 132 },
   labels: { gap: spacing.sm },
-  labelRow: { flexDirection: 'row', gap: spacing.sm },
-  labelChip: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surfaceMuted,
-    minHeight: 40,
-    justifyContent: 'center',
-  },
-  labelChipOn: { backgroundColor: palette.primary, borderColor: palette.primary },
-  labelChipOnText: { color: palette.textOnPrimary },
-  inputBad: { borderColor: palette.danger },
-  input: {
-    height: 52,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
-    paddingHorizontal: spacing.md,
-    fontFamily: typography.family.medium,
-    fontSize: typography.size.body,
-    color: palette.text,
-  },
 });

@@ -6,7 +6,7 @@ import { formatInr, type AcceptOfferResponse, type OfferView } from '@hyperlocal
 import { ApiError } from '@/api/client';
 import { useAcceptOffer, useCompleteMockPayment } from '@/api/negotiation';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Text } from '@/ui';
+import { Badge, Button, DataRow, Text } from '@/ui';
 
 type Stage = 'review' | 'paying' | 'done';
 
@@ -101,14 +101,13 @@ export function ConfirmSheet({ jobId, offer, onClose }: { jobId: string; offer: 
               </View>
 
               <View style={styles.breakdown}>
-                <Row label="Labour" value={formatInr(q?.labourPaise ?? offer?.labourPaise ?? 0)} />
+                <DataRow label="Labour" value={formatInr(q?.labourPaise ?? offer?.labourPaise ?? 0)} />
                 {(q?.visitFeePaise ?? offer?.visitFeePaise ?? 0) > 0 && (
-                  <Row label="Visit fee" value={formatInr(q?.visitFeePaise ?? offer?.visitFeePaise ?? 0)} />
+                  <DataRow label="Visit fee" value={formatInr(q?.visitFeePaise ?? offer?.visitFeePaise ?? 0)} />
                 )}
-                <Row label="Platform fee" value={formatInr(q?.platformFeePaise ?? offer?.platformFeePaise ?? 0)} muted />
-                <Row label="Tax on fee" value={formatInr(q?.taxPaise ?? offer?.taxPaise ?? 0)} muted />
-                <View style={styles.divider} />
-                <Row label="Total" value={formatInr(q?.totalPaise ?? offer?.totalPaise ?? 0)} bold />
+                <DataRow label="Platform fee" value={formatInr(q?.platformFeePaise ?? offer?.platformFeePaise ?? 0)} tone="muted" />
+                <DataRow label="Tax on fee" value={formatInr(q?.taxPaise ?? offer?.taxPaise ?? 0)} tone="muted" />
+                      <DataRow label="Total" value={formatInr(q?.totalPaise ?? offer?.totalPaise ?? 0)} total />
               </View>
 
               <View style={styles.tags}>
@@ -159,18 +158,6 @@ export function ConfirmSheet({ jobId, offer, onClose }: { jobId: string; offer: 
   );
 }
 
-function Row({ label, value, muted, bold }: { label: string; value: string; muted?: boolean; bold?: boolean }) {
-  return (
-    <View style={styles.row}>
-      <Text variant="caption" tone={muted ? 'muted' : 'secondary'}>
-        {label}
-      </Text>
-      <Text variant={bold ? 'subheading' : 'caption'} weight={bold ? 'bold' : 'medium'} tone={muted ? 'muted' : 'default'}>
-        {value}
-      </Text>
-    </View>
-  );
-}
 
 function acceptError(e: ApiError): string {
   const first = (e.details as { acceptance?: string[] } | undefined)?.acceptance?.[0];
@@ -210,7 +197,6 @@ const styles = StyleSheet.create({
   providerText: { flex: 1, gap: 2 },
 
   breakdown: { marginTop: spacing.lg, backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.lg, gap: spacing.sm },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   divider: { height: 1, backgroundColor: palette.border, marginVertical: spacing.xs },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
   assurance: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.md },

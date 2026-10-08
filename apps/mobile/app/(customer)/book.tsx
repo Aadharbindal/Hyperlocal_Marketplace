@@ -3,9 +3,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { checkMeaningfulText, type FieldProblem, type JobView } from '@hyperlocal/core';
+import { checkMeaningfulText, type JobView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useCategories } from '@/api/hooks';
 import { useAddresses, useAttachMedia, useCreateDraft, useRemoveMedia, useSubmitJob, useUpdateDraft, type LocalMedia } from '@/api/jobs';
@@ -14,7 +14,7 @@ import { VoiceNoteRecorder } from '@/features/capture/VoiceNoteRecorder';
 import { PriceGuideNote } from '@/features/customer/PriceGuideLine';
 import { useStrings } from '@/i18n';
 import { layout, palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, IconButton, Screen, Text } from '@/ui';
+import { Badge, Button, Card, IconButton, Screen, Text, TextField } from '@/ui';
 import { RealisticIcon } from '@/ui/RealisticIcon';
 
 const SLOTS = [
@@ -41,7 +41,6 @@ export default function BookScreen() {
   const [job, setJob] = useState<JobView | null>(null);
   const [categoryId, setCategoryId] = useState(params.categoryId ?? '');
   const [description, setDescription] = useState('');
-  const [descriptionProblem, setDescriptionProblem] = useState<FieldProblem | null>(null);
   const [urgent, setUrgent] = useState(false);
   const [withMaterial, setWithMaterial] = useState(false);
   const [addressId, setAddressId] = useState<string | null>(null);
@@ -185,45 +184,27 @@ export default function BookScreen() {
 
         {/* description */}
         <Animated.View entering={FadeInDown.delay(80).duration(380)}>
-          <Text weight="semibold" style={styles.label}>
-            Describe the problem
-          </Text>
-          <View style={[styles.textareaWrap, descriptionProblem && styles.textareaBad]}>
-            <TextInput
-              value={description}
-              onChangeText={setDescription}
-              onFocus={() => setDescriptionProblem(null)}
-              /* On blur, not while typing: complaining about a half-written sentence is pedantry,
-                 and an error that flickers as somebody types is noise they learn to ignore. */
-              onBlur={() =>
-                setDescriptionProblem(
-                  description.trim() ? checkMeaningfulText(description, 1, 'The description') : null,
-                )
-              }
-              placeholder="e.g. Kitchen tap has been leaking since morning"
-              placeholderTextColor="#A9B8B1"
-              multiline
-              numberOfLines={4}
-              maxLength={1500}
-              accessibilityLabel="Describe the problem"
-              style={styles.textarea}
-            />
-          </View>
-          {descriptionProblem ? (
-            <Text variant="caption" tone="danger" style={styles.hint}>
-              {descriptionProblem.message}
-            </Text>
-          ) : (
-            <Text variant="caption" tone="muted" style={styles.hint}>
-              A few words or a photo is enough - providers need something to quote on.
-            </Text>
-          )}
+          <TextField
+            label="Describe the problem"
+            helper="A few words or a photo is enough - providers need something to quote on."
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Kitchen tap has been leaking since morning"
+            multiline
+            minLines={4}
+            maxLength={1500}
+            counter
+            accessibilityLabel="Describe the problem"
+            // Blur-validated by the field itself, with the same check the server runs. The hand-rolled
+            // focus/blur pair this replaces did the same thing in twelve more lines.
+            validate={(v) => checkMeaningfulText(v, 1, 'The description')}
+          />
         </Animated.View>
 
         {/* hazard warning */}
         {job?.hazards.map((h) => (
           <Animated.View key={h} entering={FadeIn.duration(280)} style={styles.hazard}>
-            <Ionicons name="warning" size={20} color="#B42318" />
+            <Ionicons name="warning" size={20} color={palette.danger} />
             <Text variant="caption" weight="medium" style={styles.hazardText}>
               {HAZARD_COPY[h] ?? 'This looks like an emergency. Please make sure everyone is safe first.'}
             </Text>
@@ -245,7 +226,7 @@ export default function BookScreen() {
                   onPress={() => job && removeMedia.mutate({ jobId: job.id, mediaId: m.id })}
                   style={styles.photoRemove}
                 >
-                  <Ionicons name="close" size={13} color="#FFFFFF" />
+                  <Ionicons name="close" size={13} color={palette.textOnPrimary} />
                 </Pressable>
               </View>
             ))}
@@ -429,9 +410,6 @@ const styles = StyleSheet.create({
   catActive: { borderColor: palette.primary, backgroundColor: '#F4FCF8' },
   catTextActive: { color: palette.primaryDeep },
 
-  textareaBad: { borderColor: palette.danger },
-  textareaWrap: { backgroundColor: palette.surface, borderRadius: radius.md, borderWidth: 1.5, borderColor: '#E4EDE9', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  textarea: { minHeight: 92, fontSize: 15, color: palette.text, textAlignVertical: 'top' },
 
   hazard: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: '#FEF3F2', borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: '#FDA29B' },
   hazardText: { color: '#B42318', flex: 1 },

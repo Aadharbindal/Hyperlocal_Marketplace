@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { checkRupees, formatInr, type VendorRequestView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useSendMaterialQuote, useVendorRequests } from '@/api/materials';
-import { palette, radius, spacing, typography } from '@/theme';
-import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { palette, radius, spacing } from '@/theme';
+import { Badge, Button, Card, DataRow, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text, TextField } from '@/ui';
 
 const BLOCKER_COPY: Record<string, { title: string; body: string }> = {
   no_vendor_profile: { title: 'Finish your shop profile', body: 'Add your shop so nearby jobs can reach you.' },
@@ -199,52 +199,47 @@ function QuoteSheet({ request, onClose }: { request: VendorRequestView | null; o
                 {stock[idx] === false ? 'Out of stock' : 'In stock'}
               </Text>
             </Pressable>
-            <TextInput
-              value={prices[idx] ?? ''}
-              onChangeText={(v) => setPrices((p) => ({ ...p, [idx]: v.replace(/\D/g, '').slice(0, 6) }))}
-              editable={stock[idx] !== false}
-              keyboardType="number-pad"
-              placeholder="₹ / unit"
-              placeholderTextColor="#A9B8B1"
-              style={styles.priceInput}
-              accessibilityLabel={`Price for ${item.name}`}
-            />
+            <View style={styles.priceBox}>
+              <TextField
+                value={prices[idx] ?? ''}
+                onChangeText={(v) => setPrices((p) => ({ ...p, [idx]: v.replace(/\D/g, '').slice(0, 6) }))}
+                editable={stock[idx] !== false}
+                keyboardType="number-pad"
+                prefix="₹"
+                suffix="/ unit"
+                placeholder="0"
+                accessibilityLabel={`Price for ${item.name}`}
+              />
+            </View>
           </View>
         ))}
 
-        <View style={styles.priceRow}>
-          <Text variant="caption" style={{ flex: 1 }}>
-            Delivery charge
-          </Text>
-          <TextInput
-            value={delivery}
-            onChangeText={(v) => setDelivery(v.replace(/\D/g, '').slice(0, 5))}
-            keyboardType="number-pad"
-            placeholder="₹ 0"
-            placeholderTextColor="#A9B8B1"
-            style={styles.priceInput}
-            accessibilityLabel="Delivery charge"
-          />
-        </View>
-        <View style={styles.priceRow}>
-          <Text variant="caption" style={{ flex: 1 }}>
-            Can deliver in (minutes)
-          </Text>
-          <TextInput
-            value={eta}
-            onChangeText={(v) => setEta(v.replace(/\D/g, '').slice(0, 4))}
-            keyboardType="number-pad"
-            style={styles.priceInput}
-            accessibilityLabel="Delivery time in minutes"
-          />
+        <View style={styles.pair}>
+          <View style={styles.flex}>
+            <TextField
+              label="Delivery charge"
+              prefix="₹"
+              value={delivery}
+              onChangeText={(v) => setDelivery(v.replace(/\D/g, '').slice(0, 5))}
+              keyboardType="number-pad"
+              placeholder="0"
+              accessibilityLabel="Delivery charge"
+            />
+          </View>
+          <View style={styles.flex}>
+            <TextField
+              label="Can deliver in"
+              suffix="min"
+              value={eta}
+              onChangeText={(v) => setEta(v.replace(/\D/g, '').slice(0, 4))}
+              keyboardType="number-pad"
+              placeholder="45"
+              accessibilityLabel="Delivery time in minutes"
+            />
+          </View>
         </View>
 
-        <View style={styles.totalRow}>
-          <Text weight="semibold">Customer pays</Text>
-          <Text weight="bold" style={{ fontSize: 18 }}>
-            {formatInr(total)}
-          </Text>
-        </View>
+        <DataRow label="Customer pays" value={formatInr(total)} total />
         <Text variant="micro" tone="muted">
           You receive the full amount — the platform takes no cut on materials.
         </Text>
@@ -310,20 +305,16 @@ const styles = StyleSheet.create({
   grabber: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: palette.border, marginBottom: spacing.sm },
   sheetTitle: { fontSize: 18, color: palette.text },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  stockChip: { paddingHorizontal: spacing.sm, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: palette.primarySoft },
-  stockOff: { backgroundColor: '#FDE7E7' },
-  priceInput: {
-    width: 86,
-    height: 42,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: '#E4EDE9',
-    paddingHorizontal: spacing.sm,
-    textAlign: 'center',
-    fontSize: 15,
-    fontFamily: typography.family.medium,
-    color: palette.text,
+  stockChip: {
+    paddingHorizontal: spacing.md,
+    minHeight: 36,
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: palette.primarySoft,
   },
-  totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
-  cancel: { alignItems: 'center', minHeight: 40, justifyContent: 'center' },
+  stockOff: { backgroundColor: palette.dangerSoft },
+  priceBox: { width: 124 },
+  pair: { flexDirection: 'row', gap: spacing.md },
+  flex: { flex: 1 },
+  cancel: { alignItems: 'center', minHeight: 44, justifyContent: 'center' },
 });

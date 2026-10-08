@@ -169,7 +169,7 @@ export default function PhoneScreen() {
           <Animated.View entering={FadeInDown.duration(500)} style={styles.brand}>
             <LinearGradient colors={['#1BA87E', '#0A6A51']} start={{ x: 0.2, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.logo}>
               <LinearGradient colors={['rgba(255,255,255,0.45)', 'rgba(255,255,255,0)']} style={styles.logoGloss} />
-              <Ionicons name="home" size={30} color="#FFFFFF" />
+              <Ionicons name="home" size={30} color={palette.textOnPrimary} />
             </LinearGradient>
             <View>
               <Text weight="extrabold" style={styles.brandName}>
@@ -275,7 +275,7 @@ export default function PhoneScreen() {
                 }}
                 onSubmitEditing={submit}
                 placeholder="98765 43210"
-                placeholderTextColor="#A9B8B1"
+                placeholderTextColor={palette.inputPlaceholder}
                 keyboardType="phone-pad"
                 textContentType="telephoneNumber"
                 autoComplete="tel"
@@ -290,7 +290,7 @@ export default function PhoneScreen() {
                 </Animated.View>
               ) : digits.length > 0 ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Clear number" hitSlop={10} onPress={() => setPhone('')}>
-                  <Ionicons name="close-circle" size={20} color="#C2CEC9" />
+                  <Ionicons name="close-circle" size={20} color={palette.iconFaint} />
                 </Pressable>
               ) : null}
             </View>
@@ -303,7 +303,7 @@ export default function PhoneScreen() {
               </Animated.View>
             ) : (
               <View style={styles.noteRow}>
-                <Ionicons name="lock-closed" size={14} color="#93A69E" />
+                <Ionicons name="lock-closed" size={14} color={palette.textMuted} />
                 <Text style={styles.note}>We&apos;ll send a one-time code by SMS</Text>
               </View>
             )}
@@ -326,7 +326,7 @@ export default function PhoneScreen() {
                 <Text weight="bold" style={styles.ctaText}>
                   {request.isPending ? 'Sending code…' : 'Continue'}
                 </Text>
-                {!request.isPending && <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />}
+                {!request.isPending && <Ionicons name="arrow-forward" size={20} color={palette.textOnPrimary} />}
               </LinearGradient>
             </AnimatedPressable>
           </Animated.View>

@@ -134,7 +134,7 @@ export default function OtpScreen() {
             <Animated.View style={[styles.ring, ringStyle]} pointerEvents="none" />
             <LinearGradient colors={['#1BA87E', '#0A6A51']} start={{ x: 0.2, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.badge}>
               <LinearGradient colors={['rgba(255,255,255,0.45)', 'rgba(255,255,255,0)']} style={styles.badgeGloss} />
-              <Ionicons name="chatbubble-ellipses" size={34} color="#FFFFFF" />
+              <Ionicons name="chatbubble-ellipses" size={34} color={palette.textOnPrimary} />
             </LinearGradient>
           </Animated.View>
 
@@ -190,14 +190,14 @@ export default function OtpScreen() {
               </Animated.View>
             ) : demoCode ? (
               <View style={styles.demo}>
-                <Ionicons name="flask-outline" size={14} color="#8A6400" />
+                <Ionicons name="flask-outline" size={14} color={palette.warning} />
                 <Text weight="semibold" style={styles.demoText}>
                   Demo mode: your code is {demoCode}
                 </Text>
               </View>
             ) : (
               <View style={styles.noteRow}>
-                <Ionicons name="time-outline" size={15} color="#93A69E" />
+                <Ionicons name="time-outline" size={15} color={palette.textMuted} />
                 <Text style={styles.note}>The code expires in 5 minutes</Text>
               </View>
             )}
@@ -216,7 +216,7 @@ export default function OtpScreen() {
                 <Text weight="bold" style={styles.ctaText}>
                   {verify.isPending ? 'Verifying…' : 'Verify & Continue'}
                 </Text>
-                {!verify.isPending && <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />}
+                {!verify.isPending && <Ionicons name="arrow-forward" size={20} color={palette.textOnPrimary} />}
               </LinearGradient>
             </AnimatedPressable>
 

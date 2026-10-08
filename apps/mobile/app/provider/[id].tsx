@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFavouriteFromProfile, usePublicProvider } from '@/api/warranty';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Card, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { Badge, Card, ErrorState, Screen, Skeleton, Spacer, StatTile, Text } from '@/ui';
 
 /**
  * The professional, before you book them.
@@ -90,9 +90,9 @@ export default function ProviderProfileScreen() {
             </View>
 
             <View style={styles.stats}>
-              <Stat value={provider.data.ratingCount > 0 ? provider.data.ratingAvg.toFixed(1) : '—'} label="rating" />
-              <Stat value={String(provider.data.completedJobs)} label="jobs done" />
-              <Stat
+              <StatTile value={provider.data.ratingCount > 0 ? provider.data.ratingAvg.toFixed(1) : '—'} label="rating" />
+              <StatTile value={String(provider.data.completedJobs)} label="jobs done" />
+              <StatTile
                 value={provider.data.experienceYears ? `${provider.data.experienceYears}y` : '—'}
                 label="experience"
               />
@@ -145,7 +145,7 @@ export default function ProviderProfileScreen() {
                   <Text variant="micro" tone="muted" style={{ width: 14 }}>
                     {b.stars}
                   </Text>
-                  <Ionicons name="star" size={11} color="#E8B93B" />
+                  <Ionicons name="star" size={11} color={palette.gold} />
                   <View style={styles.barTrack}>
                     <View style={[styles.barFill, { width: `${Math.round((b.count / maxBar) * 100)}%` }]} />
                   </View>
@@ -169,7 +169,7 @@ export default function ProviderProfileScreen() {
                       <View style={styles.reviewHead}>
                         <View style={styles.starRow}>
                           {[1, 2, 3, 4, 5].map((n) => (
-                            <Ionicons key={n} name={n <= r.rating ? 'star' : 'star-outline'} size={12} color="#E8B93B" />
+                            <Ionicons key={n} name={n <= r.rating ? 'star' : 'star-outline'} size={12} color={palette.gold} />
                           ))}
                         </View>
                         <Text variant="micro" tone="muted" style={{ flex: 1 }}>
@@ -202,18 +202,6 @@ export default function ProviderProfileScreen() {
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <View style={styles.stat}>
-      <Text variant="label" weight="bold">
-        {value}
-      </Text>
-      <Text variant="micro" tone="muted">
-        {label}
-      </Text>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -222,7 +210,6 @@ const styles = StyleSheet.create({
   avatar: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F6F1' },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
   stats: { flexDirection: 'row', gap: spacing.md, backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
-  stat: { flex: 1, alignItems: 'center', gap: 2 },
   section: { fontSize: 14, marginTop: spacing.lg, marginBottom: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: '#E8F6F1' },

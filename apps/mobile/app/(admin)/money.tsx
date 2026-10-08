@@ -8,8 +8,8 @@ import { useAdminSettlements, useMfaStatus, useOpsReport, useRetrySettlement, us
 import { useLogout } from '@/api/hooks';
 import { JobLedgerPanel } from '@/features/admin/JobLedgerPanel';
 import { MfaGate } from '@/features/admin/MfaGate';
-import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { palette, spacing } from '@/theme';
+import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, StatTile, Text } from '@/ui';
 
 export default function MoneyScreen() {
   const mfa = useMfaStatus();
@@ -54,17 +54,35 @@ export default function MoneyScreen() {
             <Card style={styles.card}>
               <Text weight="semibold">Today</Text>
               <View style={styles.grid}>
-                <Stat label="Live jobs" value={String(report.data.liveJobs)} />
-                <Stat label="Completed" value={String(report.data.completedJobs)} />
-                <Stat label="Charged" value={formatInr(report.data.capturedPaise)} />
-                <Stat label="Refunded" value={formatInr(report.data.refundedPaise)} />
-                <Stat label="Platform fee" value={formatInr(report.data.platformRevenuePaise)} />
-                <Stat label="To pay out" value={formatInr(report.data.payoutsPendingPaise)} />
+                <View style={styles.statCell}>
+                  <StatTile label="Live jobs" value={String(report.data.liveJobs)} />
+                </View>
+                <View style={styles.statCell}>
+                  <StatTile label="Completed" value={String(report.data.completedJobs)} />
+                </View>
+                <View style={styles.statCell}>
+                  <StatTile label="Charged" value={formatInr(report.data.capturedPaise)} />
+                </View>
+                <View style={styles.statCell}>
+                  <StatTile label="Refunded" value={formatInr(report.data.refundedPaise)} />
+                </View>
+                <View style={styles.statCell}>
+                  <StatTile label="Platform fee" value={formatInr(report.data.platformRevenuePaise)} />
+                </View>
+                <View style={styles.statCell}>
+                  <StatTile label="To pay out" value={formatInr(report.data.payoutsPendingPaise)} />
+                </View>
               </View>
               <View style={styles.grid}>
-                <Stat label="Disputes open" value={String(report.data.disputesOpen)} danger={report.data.disputesOpen > 0} />
-                <Stat label="Past SLA" value={String(report.data.disputesBreachingSla)} danger={report.data.disputesBreachingSla > 0} />
-                <Stat label="KYC waiting" value={String(report.data.kycPending)} />
+                <View style={styles.statCell}>
+                  <StatTile label="Disputes open" value={String(report.data.disputesOpen)} tone={report.data.disputesOpen > 0 ? 'danger' : 'default'} />
+                </View>
+                <View style={styles.statCell}>
+                  <StatTile label="Past SLA" value={String(report.data.disputesBreachingSla)} tone={report.data.disputesBreachingSla > 0 ? 'danger' : 'default'} />
+                </View>
+                <View style={styles.statCell}>
+                  <StatTile label="KYC waiting" value={String(report.data.kycPending)} />
+                </View>
               </View>
             </Card>
 
@@ -146,24 +164,14 @@ export default function MoneyScreen() {
   );
 }
 
-function Stat({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
-  return (
-    <View style={styles.stat}>
-      <Text variant="micro" tone="muted">
-        {label}
-      </Text>
-      <Text variant="label" weight="bold" style={danger ? { color: palette.danger } : undefined}>
-        {value}
-      </Text>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   card: { gap: spacing.md },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
-  stat: { width: '33.3%', gap: 2, paddingVertical: 4 },
+  /* The tiles carry their own sunken fill now, so the grid is only a layout - a second background
+     behind them read as a box inside a box. */
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  statCell: { width: '31%' },
   note: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   section: { fontSize: 14, marginTop: spacing.lg, marginBottom: spacing.md },
   list: { gap: spacing.sm },

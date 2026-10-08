@@ -4,7 +4,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { formatInr } from '@hyperlocal/core';
 import { useBooking, useCompleteMockPayment } from '@/api/negotiation';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, Text } from '@/ui';
+import { Badge, Button, Card, DataRow, Text } from '@/ui';
 
 /**
  * The confirmed booking: who is coming, the locked price and what is still owed. Shown once a
@@ -46,11 +46,10 @@ export function BookingCard({ jobId, enabled }: { jobId: string; enabled: boolea
 
         {/* the locked price - this cannot move without an approved revision */}
         <View style={styles.breakdown}>
-          <Row label="Labour" value={formatInr(quote.labourPaise)} />
-          {quote.visitFeePaise > 0 && <Row label="Visit fee" value={formatInr(quote.visitFeePaise)} />}
-          <Row label="Platform fee + tax" value={formatInr(quote.platformFeePaise + quote.taxPaise)} muted />
-          <View style={styles.divider} />
-          <Row label={authorized ? 'Authorized' : 'To authorize'} value={formatInr(quote.totalPaise)} bold />
+          <DataRow label="Labour" value={formatInr(quote.labourPaise)} />
+          {quote.visitFeePaise > 0 && <DataRow label="Visit fee" value={formatInr(quote.visitFeePaise)} />}
+          <DataRow label="Platform fee + tax" value={formatInr(quote.platformFeePaise + quote.taxPaise)} tone="muted" />
+          <DataRow label={authorized ? 'Authorized' : 'To authorize'} value={formatInr(quote.totalPaise)} total />
         </View>
 
         <View style={styles.tags}>
@@ -86,18 +85,6 @@ export function BookingCard({ jobId, enabled }: { jobId: string; enabled: boolea
   );
 }
 
-function Row({ label, value, muted, bold }: { label: string; value: string; muted?: boolean; bold?: boolean }) {
-  return (
-    <View style={styles.row}>
-      <Text variant="caption" tone={muted ? 'muted' : 'secondary'}>
-        {label}
-      </Text>
-      <Text variant={bold ? 'label' : 'caption'} weight={bold ? 'bold' : 'medium'} tone={muted ? 'muted' : 'default'}>
-        {value}
-      </Text>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   card: { marginTop: spacing.lg, gap: spacing.md },
@@ -106,7 +93,6 @@ const styles = StyleSheet.create({
   headText: { flex: 1, gap: 2 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   breakdown: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: spacing.sm },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   divider: { height: 1, backgroundColor: palette.border, marginVertical: 2 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   assurance: { flexDirection: 'row', alignItems: 'center', gap: 6 },

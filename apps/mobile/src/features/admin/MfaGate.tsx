@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { ApiError } from '@/api/client';
 import { useEnableMfa, useMfaStatus, useStartMfa, useUseRecoveryCode, useVerifyMfa } from '@/api/admin';
 import { palette, radius, spacing, typography } from '@/theme';
-import { Button, Card, Skeleton, Text } from '@/ui';
+import { Button, Card, Skeleton, Text, TextField } from '@/ui';
 
 /**
  * Wraps every console screen. Staff can see identity documents and move money, so a stolen
@@ -95,14 +95,15 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
 
       {(enrolled || secret) && (
         <>
-          <TextInput
+          <TextField
+            label="Six-digit code"
             value={code}
             onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
             keyboardType="number-pad"
+            maxLength={6}
             placeholder="000000"
-            placeholderTextColor="#A9B8B1"
-            style={styles.input}
             accessibilityLabel="Six digit code"
+            style={styles.codeInput}
           />
           <Button
             title={enrolled ? 'Verify' : 'Turn it on'}
@@ -124,15 +125,17 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
               Enter one of the recovery codes you saved when you turned this on. Using it spends
               it, and you will be asked to set the authenticator up again afterwards.
             </Text>
-            <TextInput
+            <TextField
+              label="Recovery code"
+              helper="One of the codes you saved when you turned this on"
               value={recoveryCode}
               onChangeText={(v) => setRecoveryCode(v.toUpperCase().slice(0, 20))}
               autoCapitalize="characters"
               autoCorrect={false}
+              maxLength={20}
               placeholder="XXXX-XXXX"
-              placeholderTextColor="#A9B8B1"
-              style={styles.input}
               accessibilityLabel="Recovery code"
+              style={styles.codeInput}
             />
             <Button
               title="Use this code"
@@ -202,20 +205,20 @@ const styles = StyleSheet.create({
   card: { gap: spacing.md },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   icon: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  secretBox: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: 4 },
+  secretBox: { backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md, gap: 4 },
   secret: { fontSize: 17, letterSpacing: 1.5, color: palette.text },
-  input: {
-    height: 52,
+  /* Tracked wide and centred, so six digits read as six characters while somebody copies them off
+     an authenticator app. */
+  codeInput: { textAlign: 'center', fontSize: 24, letterSpacing: 8, fontFamily: typography.family.bold },
+  warn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: palette.warningSoft,
     borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: '#E4EDE9',
-    textAlign: 'center',
-    fontSize: 24,
-    letterSpacing: 8,
-    fontFamily: typography.family.bold,
-    color: palette.text,
+    padding: spacing.md,
+    marginBottom: spacing.md,
   },
-  warn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF6E0', borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
   recovery: { gap: spacing.sm },
   refresh: { alignItems: 'center', minHeight: 32, justifyContent: 'center' },
 });

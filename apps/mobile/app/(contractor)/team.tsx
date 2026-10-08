@@ -8,7 +8,7 @@ import { ApiError } from '@/api/client';
 import { useAddTechnician, useRemoveTechnician, useSubmitTechnicianKyc, useTeam } from '@/api/contractor';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text, TextField } from '@/ui';
+import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, SegmentedControl, Spacer, Text, TextField } from '@/ui';
 
 /**
  * The crew.
@@ -277,21 +277,12 @@ function KycSheet({
         Our team reviews these, not you. Until they do, this person cannot be sent to a customer.
       </Text>
       <Spacer h={spacing.md} />
-      <View style={styles.chips}>
-        {DOC_TYPES.map((d) => (
-          <Pressable
-            key={d.value}
-            onPress={() => setType(d.value)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: type === d.value }}
-            style={[styles.chip, type === d.value && styles.chipOn]}
-          >
-            <Text variant="micro" weight="semibold" style={{ color: type === d.value ? palette.textOnPrimary : palette.primaryDeep }}>
-              {d.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <SegmentedControl
+        label="Which document"
+        options={DOC_TYPES.map((d) => ({ value: d.value, label: d.label }))}
+        value={type}
+        onChange={(v) => setType(v as typeof type)}
+      />
       <Spacer h={spacing.md} />
       <TextField
         label="Document number"

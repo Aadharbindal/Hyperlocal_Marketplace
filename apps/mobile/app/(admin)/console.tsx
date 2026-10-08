@@ -14,7 +14,7 @@ import {
 } from '@/api/admin-console';
 import { useCreatePromo, useDeactivatePromo, usePromos, useGenerateRecoveryCodes, useRecoveryCodeCount } from '@/api/admin-trust';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, ErrorState, Screen, Skeleton, Spacer, Text, TextField } from '@/ui';
+import { Badge, Button, Card, DataRow, ErrorState, Screen, SegmentedControl, Skeleton, Spacer, Text, TextField } from '@/ui';
 
 /**
  * The parts of the console that had an API and no screen.
@@ -90,27 +90,27 @@ function Overview() {
         <>
           <Card style={styles.alert}>
             {d.disputesBreachingSla > 0 ? (
-              <Row label="Disputes past their SLA" value={String(d.disputesBreachingSla)} urgent />
+              <DataRow label="Disputes past their SLA" value={String(d.disputesBreachingSla)} tone="danger" />
             ) : null}
-            {d.kycPending > 0 ? <Row label="Verifications waiting" value={String(d.kycPending)} /> : null}
+            {d.kycPending > 0 ? <DataRow label="Verifications waiting" value={String(d.kycPending)} /> : null}
           </Card>
           <Spacer h={spacing.md} />
         </>
       ) : null}
 
       <Card style={styles.group}>
-        <Row label="Live jobs" value={String(d.liveJobs)} />
-        <Row label="Completed" value={String(d.completedJobs)} />
-        <Row label="Open disputes" value={String(d.disputesOpen)} />
+        <DataRow label="Live jobs" value={String(d.liveJobs)} />
+        <DataRow label="Completed" value={String(d.completedJobs)} />
+        <DataRow label="Open disputes" value={String(d.disputesOpen)} />
       </Card>
 
       <Spacer h={spacing.md} />
       <Card style={styles.group}>
-        <Row label="Captured" value={formatInr(d.capturedPaise)} />
-        <Row label="Refunded" value={formatInr(d.refundedPaise)} />
-        <Row label="Platform revenue" value={formatInr(d.platformRevenuePaise)} />
-        <Row label="Payouts waiting" value={formatInr(d.payoutsPendingPaise)} />
-        <Row label="Payouts sent" value={formatInr(d.payoutsPaidPaise)} />
+        <DataRow label="Captured" value={formatInr(d.capturedPaise)} />
+        <DataRow label="Refunded" value={formatInr(d.refundedPaise)} />
+        <DataRow label="Platform revenue" value={formatInr(d.platformRevenuePaise)} />
+        <DataRow label="Payouts waiting" value={formatInr(d.payoutsPendingPaise)} />
+        <DataRow label="Payouts sent" value={formatInr(d.payoutsPaidPaise)} />
       </Card>
 
       <Spacer h={spacing.sm} />
@@ -229,15 +229,16 @@ function Payouts() {
 
   return (
     <>
-      <View style={styles.chips}>
-        {['ON_HOLD', 'FAILED', 'PENDING', 'PAID'].map((s) => (
-          <Pressable key={s} onPress={() => setStatus(s)} accessibilityRole="button" style={[styles.chip, status === s && styles.chipOn]}>
-            <Text variant="micro" weight="semibold" style={{ color: status === s ? palette.textOnPrimary : palette.primaryDeep }}>
-              {s.toLowerCase().replace('_', ' ')}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <SegmentedControl
+        label="Settlement status"
+        scroll
+        options={['ON_HOLD', 'FAILED', 'PENDING', 'PAID'].map((s) => ({
+          value: s,
+          label: s.toLowerCase().replace('_', ' '),
+        }))}
+        value={status}
+        onChange={setStatus}
+      />
       <Spacer h={spacing.md} />
 
       {settlements.isPending ? (
@@ -476,18 +477,6 @@ function Security() {
   );
 }
 
-function Row({ label, value, urgent }: { label: string; value: string; urgent?: boolean }) {
-  return (
-    <View style={styles.statRow}>
-      <Text variant="caption" tone="secondary" style={{ flex: 1 }}>
-        {label}
-      </Text>
-      <Text variant="label" weight="bold" style={urgent ? { color: palette.danger } : undefined}>
-        {value}
-      </Text>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -495,7 +484,6 @@ const styles = StyleSheet.create({
   tabOn: { backgroundColor: palette.primary },
   group: { gap: spacing.sm },
   alert: { gap: spacing.sm, borderWidth: 1, borderColor: palette.danger },
-  statRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   list: { gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },

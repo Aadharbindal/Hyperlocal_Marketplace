@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { checkMeaningfulText, checkReviewComment, formatInr, type DisputeView, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useDisputes, useJobMoney, useLeaveReview, useRaiseDispute } from '@/api/finance';
-import { palette, radius, spacing, typography } from '@/theme';
-import { Badge, Button, Card, Text } from '@/ui';
+import { palette, radius, spacing } from '@/theme';
+import { Badge, Button, Card, DataRow, SegmentedControl, Text, TextField } from '@/ui';
 
 const AFTER: JobStatus[] = ['COMPLETED', 'SETTLED', 'DISPUTED', 'REFUNDED'];
 
@@ -45,14 +45,15 @@ export function AfterJobCard({ jobId, status }: { jobId: string; status: JobStat
         </View>
 
         <View style={styles.breakdown}>
-          <Row label="Charged for the work" value={formatInr(money.data.capturedPaise)} />
-          {money.data.materialPaise > 0 && <Row label="Materials" value={formatInr(money.data.materialPaise)} />}
-          {money.data.refundedPaise > 0 && <Row label="Refunded to you" value={`- ${formatInr(money.data.refundedPaise)}`} refund />}
-          <View style={styles.divider} />
-          <Row
+          <DataRow label="Charged for the work" value={formatInr(money.data.capturedPaise)} />
+          {money.data.materialPaise > 0 && <DataRow label="Materials" value={formatInr(money.data.materialPaise)} />}
+          {money.data.refundedPaise > 0 && (
+            <DataRow label="Refunded to you" value={`- ${formatInr(money.data.refundedPaise)}`} tone="primary" />
+          )}
+          <DataRow
             label="Net"
             value={formatInr(money.data.capturedPaise + money.data.materialPaise - money.data.refundedPaise)}
-            bold
+            total
           />
         </View>
 
@@ -140,27 +141,22 @@ function ReviewSheet({ jobId, visible, onClose }: { jobId: string; visible: bool
           </Pressable>
         ))}
       </View>
-      <TextInput
+      <TextField
+        label="Anything worth telling the next customer? (optional)"
         value={comment}
         onChangeText={setComment}
-        placeholder="Anything worth telling the next customer?"
-        placeholderTextColor="#A9B8B1"
+        placeholder="Arrived on time and cleaned up afterwards"
         multiline
-        style={[styles.input, styles.multiline]}
-        accessibilityLabel="Comment"
+        minLines={2}
+        maxLength={400}
+        counter
+        error={commentProblem?.message ?? null}
       />
       {error && (
         <Text variant="caption" style={{ color: palette.danger }}>
           {error}
         </Text>
       )}
-      {/* A review is optional - the stars alone are a complete answer - so this only appears once
-          somebody has started writing. */}
-      {commentProblem ? (
-        <Text variant="caption" style={{ color: palette.danger }}>
-          {commentProblem.message}
-        </Text>
-      ) : null}
       <Button title="Post rating" fullWidth loading={review.isPending} disabled={!!commentProblem} onPress={submit} />
     </Sheet>
   );
@@ -189,41 +185,30 @@ function DisputeSheet({ jobId, visible, onClose }: { jobId: string; visible: boo
       <Text variant="caption" tone="secondary">
         Your payment is held while we look into it. The provider is not paid until it is settled.
       </Text>
-      <View style={styles.chips}>
-        {CATEGORIES.map((c) => (
-          <Pressable
-            key={c.key}
-            accessibilityRole="button"
-            onPress={() => setCategory(c.key)}
-            style={[styles.chip, category === c.key && styles.chipOn]}
-          >
-            <Text variant="micro" weight="semibold" style={{ color: category === c.key ? '#FFFFFF' : palette.textSecondary }}>
-              {c.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      <TextInput
+      <SegmentedControl
+        label="What kind of problem"
+        options={CATEGORIES.map((c) => ({ value: c.key, label: c.label }))}
+        value={category}
+        onChange={setCategory}
+      />
+      <TextField
+        label="What happened"
+        helper="The more detail, the faster support can decide"
         value={description}
         onChangeText={setDescription}
-        placeholder="What happened? The more detail, the faster support can decide."
-        placeholderTextColor="#A9B8B1"
+        placeholder="The tap still drips and the professional left before testing it"
         multiline
-        style={[styles.input, styles.multiline]}
-        accessibilityLabel="What happened"
+        minLines={3}
+        maxLength={600}
+        counter
+        required
+        error={descriptionProblem?.message ?? null}
       />
       {error && (
         <Text variant="caption" style={{ color: palette.danger }}>
           {error}
         </Text>
       )}
-      {/* Not optional. A dispute holds the provider's money while somebody reads it, so it has to
-          say something a person can act on. */}
-      {descriptionProblem ? (
-        <Text variant="caption" style={{ color: palette.danger }}>
-          {descriptionProblem.message}
-        </Text>
-      ) : null}
       <Button
         title="Send report"
         fullWidth
@@ -269,19 +254,6 @@ function Sheet({ visible, onClose, title, children }: { visible: boolean; onClos
   );
 }
 
-function Row({ label, value, bold, refund }: { label: string; value: string; bold?: boolean; refund?: boolean }) {
-  return (
-    <View style={styles.row}>
-      <Text variant="caption" tone={bold ? 'default' : 'muted'}>
-        {label}
-      </Text>
-      <Text variant="caption" weight={bold ? 'bold' : 'medium'} style={refund ? { color: palette.primaryDeep } : undefined}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   wrap: { marginTop: spacing.lg, gap: spacing.md },
   card: { gap: spacing.md },
@@ -310,20 +282,5 @@ const styles = StyleSheet.create({
   grabber: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: palette.border },
   sheetTitle: { fontSize: 18, color: palette.text },
   stars: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: '#F1F6F4' },
-  chipOn: { backgroundColor: palette.primary },
-  input: {
-    minHeight: 46,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: '#E4EDE9',
-    paddingHorizontal: spacing.md,
-    paddingTop: 12,
-    fontSize: 15,
-    fontFamily: typography.family.regular,
-    color: palette.text,
-  },
-  multiline: { minHeight: 88, textAlignVertical: 'top' },
-  cancel: { alignItems: 'center', minHeight: 40, justifyContent: 'center' },
+  cancel: { alignItems: 'center', minHeight: 44, justifyContent: 'center' },
 });

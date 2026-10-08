@@ -80,6 +80,45 @@ export const palette = {
   // Special
   gold: '#F2C14E',
   overlay: 'rgba(16, 35, 28, 0.45)',
+
+  // ---------------------------------------------------------------------------
+  // Values the screens had invented for themselves
+  // ---------------------------------------------------------------------------
+  /**
+   * Thirty-odd screens were painting with literal hexes that were never in this file - thirty uses
+   * of `#F6FBF9`, twenty-nine of `#A9B8B1`, eleven of `#8A6400`. None of it was visible to the
+   * contrast audit, because that only reads `color:` inside a StyleSheet and these arrived as JSX
+   * props. Two of them were straightforwardly broken:
+   *
+   * - `#A9B8B1`, the placeholder colour on every hand-rolled input, sits at **2.06:1** on white.
+   *   A placeholder is usually the only example of what a field wants, so it is content, and 2:1
+   *   is not readable content. `inputPlaceholder` below is the same grey-green darkened until it
+   *   clears AA, which is a visible change and the right one.
+   * - `#B26A00`, the amber on warning rows, sits at **4.24:1** - just under. `warningIcon` is for
+   *   the glyph beside the text, where 3:1 is the bar; the words use `warning`.
+   *
+   * The rest are named rather than changed: they looked right, they simply had nowhere to live, so
+   * every screen re-typed them slightly differently and the system drifted one commit at a time.
+   */
+  /** The faintest fill in the system - inset rows, read-only blocks, table stripes. */
+  surfaceSunken: '#F6FBF9',
+  /** A hairline between rows inside a card, lighter than `border` around one. */
+  borderSoft: '#E4EDE9',
+  /** Placeholder text. Darkened from the `#A9B8B1` the screens used: 2.06:1 -> AA. */
+  inputPlaceholder: '#5F6F68',
+  /**
+   * A disabled glyph, or the unfilled half of a rating.
+   *
+   * Never text, so AA does not apply - but it is not decoration either. An empty star is what tells
+   * somebody the control has five of them, so it has to clear the 3:1 WCAG asks of a meaningful
+   * non-text element. The `#C2CEC9` the screens used for this sat at 1.44:1, which on a phone in
+   * daylight is an invisible control.
+   */
+  iconFaint: '#7D8F88',
+  /** The amber glyph beside warning text. Non-text, so 3:1 is the bar it has to clear. */
+  warningIcon: '#9A7000',
+  /** Warning text on `warningSoft` rather than on white, where it needs to go darker still. */
+  warningDeep: '#6B4700',
 } as const;
 
 export const spacing = {

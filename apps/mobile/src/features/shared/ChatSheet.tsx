@@ -87,7 +87,7 @@ export function ChatSheet({ jobId, visible, onClose }: { jobId: string; visible:
               onChangeText={setDraft}
               editable={thread.data?.open !== false}
               placeholder="Type a message"
-              placeholderTextColor="#A9B8B1"
+              placeholderTextColor={palette.inputPlaceholder}
               maxLength={CHAT_MESSAGE_MAX}
               multiline
               style={styles.input}

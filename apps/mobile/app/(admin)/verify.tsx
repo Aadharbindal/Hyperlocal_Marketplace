@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Linking, StyleSheet, TextInput, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { checkReason, type KycReviewItem } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useKycQueue, useMfaStatus, useOpenKycDocument, useReviewKyc } from '@/api/admin';
 import { MfaGate } from '@/features/admin/MfaGate';
-import { palette, radius, spacing, typography } from '@/theme';
-import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { palette, radius, spacing } from '@/theme';
+import { Badge, Button, Card, DataRow, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text, TextField } from '@/ui';
 
 export default function VerifyScreen() {
   const mfa = useMfaStatus();
@@ -86,8 +86,8 @@ function KycCard({ item }: { item: KycReviewItem }) {
       </View>
 
       <View style={styles.detail}>
-        <Row label="Document" value={item.documentType} />
-        <Row label="Ends with" value={item.documentLast4 ?? 'not recorded'} />
+        <DataRow label="Document" value={item.documentType} />
+        <DataRow label="Ends with" value={item.documentLast4 ?? 'not recorded'} />
       </View>
 
       <View style={styles.note}>
@@ -120,22 +120,22 @@ function KycCard({ item }: { item: KycReviewItem }) {
 
       {rejecting ? (
         <View style={styles.form}>
-          <TextInput
-            value={reason}
-            onChangeText={setReason}
-            placeholder="What should they fix? They will see this."
-            placeholderTextColor="#A9B8B1"
-            multiline
-            style={[styles.input, styles.multiline, reasonProblem && styles.inputBad]}
-            accessibilityLabel="Rejection reason"
-          />
           {/* This is the whole of what an applicant is told about why their documents came back, so
               a one-word reason leaves them resubmitting the same thing. */}
-          {reasonProblem ? (
-            <Text variant="micro" style={{ color: palette.danger }}>
-              {reasonProblem.message}
-            </Text>
-          ) : null}
+          <TextField
+            label="What should they fix"
+            helper="They see exactly this, and nothing else"
+            value={reason}
+            onChangeText={setReason}
+            placeholder="The address on the bill does not match the one on your profile"
+            multiline
+            minLines={3}
+            maxLength={300}
+            counter
+            required
+            accessibilityLabel="Rejection reason"
+            error={reasonProblem?.message ?? null}
+          />
           <View style={styles.actions}>
             <Button title="Cancel" size="sm" variant="ghost" style={styles.action} onPress={() => setRejecting(false)} />
             <Button
@@ -179,18 +179,6 @@ function reviewError(e: ApiError): string {
   }
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text variant="micro" tone="muted">
-        {label}
-      </Text>
-      <Text variant="micro" weight="medium">
-        {value}
-      </Text>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   list: { gap: spacing.md },
@@ -198,22 +186,8 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
   detail: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: 5 },
-  row: { flexDirection: 'row', justifyContent: 'space-between' },
   note: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   actions: { flexDirection: 'row', gap: spacing.sm },
   action: { flex: 1 },
-  form: { gap: spacing.sm },
-  input: {
-    minHeight: 46,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: '#E4EDE9',
-    paddingHorizontal: spacing.md,
-    paddingTop: 12,
-    fontSize: 15,
-    fontFamily: typography.family.regular,
-    color: palette.text,
-  },
-  inputBad: { borderWidth: 1, borderColor: palette.danger },
-  multiline: { minHeight: 76, textAlignVertical: 'top' },
+  form: { gap: spacing.lg },
 });

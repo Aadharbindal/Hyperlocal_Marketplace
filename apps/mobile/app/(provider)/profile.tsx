@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { checkBusinessName, type VerificationStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
@@ -10,7 +10,7 @@ import { useProviderProfile, useSubmitKyc, useUpdateProviderProfile } from '@/ap
 import { useStrings } from '@/i18n';
 import { useSession } from '@/store/session';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { Badge, Button, Card, ErrorState, Screen, Skeleton, ChipMultiSelect, SegmentedControl, Spacer, StatTile, Text, TextField } from '@/ui';
 import { RealisticIcon } from '@/ui/RealisticIcon';
 
 const RADIUS_OPTIONS = [2, 3, 5, 8, 12];
@@ -142,9 +142,9 @@ export default function ProviderProfileScreen() {
             <Badge tone={status.tone} icon="shield-checkmark" label={status.label} />
           </View>
           <View style={styles.stats}>
-            <Stat label="Jobs done" value={String(p.completedJobs)} />
-            <Stat label="Rating" value={p.ratingAvg ? `${p.ratingAvg.toFixed(1)} ★` : '—'} />
-            <Stat label="Reliability" value={p.reliabilityScore.toFixed(1)} />
+            <StatTile label="Jobs done" value={String(p.completedJobs)} />
+            <StatTile label="Rating" value={p.ratingAvg ? `${p.ratingAvg.toFixed(1)} ★` : '—'} />
+            <StatTile label="Reliability" value={p.reliabilityScore.toFixed(1)} />
           </View>
         </Card>
       </Animated.View>
@@ -176,26 +176,22 @@ export default function ProviderProfileScreen() {
 
           {canSubmitKyc && (
             <>
-              <View style={styles.chips}>
-                {DOCS.map((d) => {
-                  const active = d.key === docType;
-                  return (
-                    <Pressable key={d.key} onPress={() => setDocType(d.key)} accessibilityRole="button" accessibilityState={{ selected: active }} style={[styles.chip, active && styles.chipActive]}>
-                      <Text variant="caption" weight="semibold" style={active ? styles.chipTextActive : undefined}>
-                        {d.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <TextInput
+              <SegmentedControl
+                label="Which document"
+                options={DOCS.map((d) => ({ value: d.key, label: d.label }))}
+                value={docType}
+                onChange={(v) => setDocType(v as typeof docType)}
+              />
+              <TextField
+                label="Document number"
                 value={docNumber}
                 onChangeText={setDocNumber}
-                placeholder="Document number"
-                placeholderTextColor="#A9B8B1"
+                placeholder="As printed on the document"
+                icon="card-outline"
                 autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={30}
                 accessibilityLabel="Document number"
-                style={styles.input}
               />
               <View style={styles.privacyNote}>
                 <Ionicons name="lock-closed" size={13} color={palette.textMuted} />
@@ -215,37 +211,30 @@ export default function ProviderProfileScreen() {
           <Text weight="semibold" style={styles.cardTitle}>
             Business details
           </Text>
-          <TextInput
-            value={businessName}
-            onChangeText={setBusinessName}
-            placeholder="Business name"
-            placeholderTextColor="#A9B8B1"
-            accessibilityLabel="Business name"
-            style={[styles.input, nameProblem && styles.inputBad]}
-          />
           {/* This is the name customers see on an offer, so a held-down key here costs the provider
               the work rather than costing us a support ticket. */}
-          {nameProblem ? (
-            <Text variant="micro" style={{ color: palette.danger }}>
-              {nameProblem.message}
-            </Text>
-          ) : null}
+          <TextField
+            label="Business name"
+            helper="Customers see this on your offers"
+            value={businessName}
+            onChangeText={setBusinessName}
+            placeholder="A1 Electricals"
+            icon="storefront-outline"
+            autoCapitalize="words"
+            maxLength={80}
+            accessibilityLabel="Business name"
+            error={nameProblem?.message ?? null}
+          />
 
           <Text variant="caption" tone="secondary" style={styles.subLabel}>
             How far will you travel?
           </Text>
-          <View style={styles.chips}>
-            {RADIUS_OPTIONS.map((r) => {
-              const active = r === radiusKm;
-              return (
-                <Pressable key={r} onPress={() => setRadiusKm(r)} accessibilityRole="button" accessibilityState={{ selected: active }} style={[styles.chip, active && styles.chipActive]}>
-                  <Text variant="caption" weight="semibold" style={active ? styles.chipTextActive : undefined}>
-                    {r} km
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <SegmentedControl
+            label="How far will you travel"
+            options={RADIUS_OPTIONS.map((r) => ({ value: String(r), label: `${r} km` }))}
+            value={String(radiusKm)}
+            onChange={(v) => setRadiusKm(Number(v))}
+          />
 
           <Text variant="caption" tone="secondary" style={styles.subLabel}>
             What do you work on?
@@ -258,25 +247,14 @@ export default function ProviderProfileScreen() {
                   {c.name}
                 </Text>
               </View>
-              <View style={styles.chips}>
-                {c.skills.map((s) => {
-                  const active = skillIds.includes(s.id);
-                  return (
-                    <Pressable
-                      key={s.id}
-                      onPress={() => setSkillIds((v2) => (active ? v2.filter((x) => x !== s.id) : [...v2, s.id]))}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                      style={[styles.chip, active && styles.chipActive]}
-                    >
-                      {active && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
-                      <Text variant="caption" weight="semibold" style={active ? styles.chipTextActive : undefined}>
-                        {s.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              {/* Checkboxes, not buttons. A provider working down fourteen skill chips with a
+                  screen reader had no way to hear which ones were already on. */}
+              <ChipMultiSelect
+                label={`Skills in ${c.name}`}
+                options={c.skills.map((sk) => ({ value: sk.id, label: sk.name }))}
+                value={skillIds}
+                onToggle={(id) => setSkillIds((v2) => (v2.includes(id) ? v2.filter((x) => x !== id) : [...v2, id]))}
+              />
             </View>
           ))}
 
@@ -310,37 +288,19 @@ export default function ProviderProfileScreen() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.stat}>
-      <Text variant="label" weight="bold">
-        {value}
-      </Text>
-      <Text variant="micro" tone="muted">
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   identity: { gap: spacing.lg },
   identityHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   identityText: { flex: 1, gap: 2 },
   stats: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
-  stat: { alignItems: 'center', gap: 2 },
+
 
   card: { marginTop: spacing.lg, gap: spacing.md },
   cardTitle: { fontSize: 15 },
   cardCta: { marginTop: spacing.sm },
   subLabel: { marginTop: spacing.sm },
 
-  input: { height: 52, borderRadius: radius.md, backgroundColor: palette.surfaceMuted, paddingHorizontal: spacing.lg, fontSize: 15, color: palette.text },
-  inputBad: { borderWidth: 1, borderColor: palette.danger },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.md, minHeight: 38, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: palette.surfaceMuted },
-  chipActive: { backgroundColor: palette.primary },
-  chipTextActive: { color: '#FFFFFF' },
+
 
   catBlock: { gap: spacing.sm },
   catHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

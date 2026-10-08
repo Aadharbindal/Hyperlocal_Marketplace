@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { formatInr } from '@hyperlocal/core';
+import { checkReason, checkRupees, formatInr } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useAdminRefund, useJobLedger } from '@/api/admin';
-import { palette, radius, spacing, typography } from '@/theme';
-import { Button, Card, Skeleton, Text } from '@/ui';
+import { palette, spacing } from '@/theme';
+import { Button, Card, Skeleton, Text, TextField } from '@/ui';
 
 /**
  * "Where did my money go?" - answered without running SQL against production.
@@ -28,10 +28,18 @@ export function JobLedgerPanel({ unlocked }: { unlocked: boolean }) {
   const refund = useAdminRefund();
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
+  /**
+   * A refund is the platform's money leaving, against a reason somebody will be asked to defend.
+   *
+   * Two lakh is an order of magnitude above any single job in the pilot, which is where a figure
+   * stops being a refund and becomes a slip on a keypad.
+   */
+  const amountProblem = checkRupees(amount, { max: 200_000, what: 'A refund' });
+  const reasonProblem = reason.trim() ? checkReason(reason) : null;
   const [error, setError] = useState<string | null>(null);
 
   const paise = Math.round(Number(amount || 0) * 100);
-  const canRefund = paise > 0 && reason.trim().length >= 10;
+  const canRefund = paise > 0 && !amountProblem && !!reason.trim() && !reasonProblem;
 
   function askThenRefund() {
     Alert.alert(
@@ -63,16 +71,17 @@ export function JobLedgerPanel({ unlocked }: { unlocked: boolean }) {
         One booking&apos;s money
       </Text>
       <View style={styles.lookup}>
-        <TextInput
-          value={jobId}
-          onChangeText={setJobId}
-          placeholder="Booking id"
-          placeholderTextColor="#A9B8B1"
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={[styles.input, { flex: 1 }]}
-          accessibilityLabel="Booking id"
-        />
+        <View style={styles.grow}>
+          <TextField
+            value={jobId}
+            onChangeText={setJobId}
+            placeholder="Booking id"
+            icon="search-outline"
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel="Booking id"
+          />
+        </View>
         <Button title="Look up" size="sm" disabled={jobId.trim().length < 8} onPress={() => setLookingAt(jobId.trim())} />
       </View>
 
@@ -123,23 +132,29 @@ export function JobLedgerPanel({ unlocked }: { unlocked: boolean }) {
             <Text variant="caption" weight="semibold">
               Refund on this booking
             </Text>
-            <TextInput
+            <TextField
+              label="Refund amount"
+              prefix="₹"
               value={amount}
               onChangeText={(v) => setAmount(v.replace(/[^\d.]/g, '').slice(0, 9))}
               keyboardType="decimal-pad"
-              placeholder="Amount in rupees"
-              placeholderTextColor="#A9B8B1"
-              style={styles.input}
+              placeholder="0"
               accessibilityLabel="Refund amount in rupees"
+              error={amountProblem?.message ?? null}
             />
-            <TextInput
+            <TextField
+              label="Why"
+              helper="Somebody reads this when asked to justify it"
               value={reason}
               onChangeText={setReason}
-              placeholder="Why — somebody reads this when asked to justify it"
-              placeholderTextColor="#A9B8B1"
+              placeholder="Provider never arrived and the customer waited two hours"
               multiline
-              style={[styles.input, styles.multiline]}
+              minLines={2}
+              maxLength={300}
+              counter
+              required
               accessibilityLabel="Reason for the refund"
+              error={reasonProblem?.message ?? null}
             />
             {error ? (
               <Animated.View entering={FadeIn.duration(160)}>
@@ -177,19 +192,16 @@ const styles = StyleSheet.create({
   lookup: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   card: { gap: spacing.xs },
   line: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 4 },
-  net: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderTopWidth: 1, borderTopColor: '#EEF4F2', paddingTop: spacing.sm, marginTop: spacing.xs },
-  refund: { gap: spacing.sm, marginTop: spacing.lg },
-  note: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-  input: {
-    minHeight: 44,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: '#E4EDE9',
-    paddingHorizontal: spacing.md,
-    paddingTop: 10,
-    fontSize: 15,
-    fontFamily: typography.family.regular,
-    color: palette.text,
+  net: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: palette.borderSoft,
+    paddingTop: spacing.sm,
+    marginTop: spacing.xs,
   },
-  multiline: { minHeight: 64, textAlignVertical: 'top' },
+  refund: { gap: spacing.lg, marginTop: spacing.lg },
+  note: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  grow: { flex: 1 },
 });

@@ -7,7 +7,7 @@ import { checkReferralCode, formatInr } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useClaimReferral, useReferrals } from '@/api/growth';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, Screen, Skeleton, Spacer, Text, TextField } from '@/ui';
+import { Badge, Button, Card, Screen, Skeleton, Spacer, StatTile, Text, TextField } from '@/ui';
 
 const STATUS: Record<string, { label: string; tone: 'success' | 'warning' | 'neutral' | 'danger' }> = {
   PENDING: { label: 'waiting on their first booking', tone: 'warning' },
@@ -110,9 +110,9 @@ export default function ReferralsScreen() {
 
           <Spacer h={spacing.md} />
           <View style={styles.stats}>
-            <Stat label="Invited" value={String(referrals.data.invited)} />
-            <Stat label="Qualified" value={String(referrals.data.qualified)} />
-            <Stat label="Earned" value={formatInr(referrals.data.earnedPaise)} />
+            <StatTile label="Invited" value={String(referrals.data.invited)} />
+            <StatTile label="Qualified" value={String(referrals.data.qualified)} />
+            <StatTile label="Earned" value={formatInr(referrals.data.earnedPaise)} />
           </View>
 
           {referrals.data.people.length > 0 ? (
@@ -185,18 +185,6 @@ export default function ReferralsScreen() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.stat}>
-      <Text variant="label" weight="bold">
-        {value}
-      </Text>
-      <Text variant="micro" tone="muted">
-        {label}
-      </Text>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -204,7 +192,6 @@ const styles = StyleSheet.create({
   codeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   code: { fontSize: 34, lineHeight: 42, letterSpacing: 6, color: palette.text },
   stats: { flexDirection: 'row', gap: spacing.md, backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
-  stat: { flex: 1, alignItems: 'center', gap: 2 },
   section: { fontSize: 14, marginTop: spacing.lg, marginBottom: spacing.md },
   list: { gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

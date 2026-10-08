@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import {
   DEFAULT_FEE_POLICY,
@@ -13,7 +13,7 @@ import {
 import { ApiError } from '@/api/client';
 import { usePlaceBid, useReviseBid, type BidTerms } from '@/api/provider';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Text } from '@/ui';
+import { Badge, Button, DataRow, SegmentedControl, Text, TextField } from '@/ui';
 
 const ETA_OPTIONS = [
   { label: '30 min', minutes: 30 },
@@ -118,103 +118,73 @@ export function BidSheet({ job, onClose }: Props) {
             </View>
           ) : null}
 
-          <Text weight="semibold" style={styles.label}>
-            Labour charge
-          </Text>
-          <View style={styles.amountRow}>
-            <Text weight="bold" style={styles.rupee}>
-              ₹
-            </Text>
-            <TextInput
-              value={labour}
-              onChangeText={setLabour}
-              placeholder="600"
-              placeholderTextColor="#A9B8B1"
-              keyboardType="number-pad"
-              accessibilityLabel="Labour charge in rupees"
-              style={styles.amountInput}
-              autoFocus
-            />
-          </View>
+          <TextField
+            label="Labour charge"
+            prefix="₹"
+            value={labour}
+            onChangeText={setLabour}
+            placeholder="600"
+            keyboardType="number-pad"
+            maxLength={7}
+            autoFocus
+            error={labourProblem?.message ?? null}
+          />
 
-          <Text weight="semibold" style={styles.label}>
-            Visit / inspection fee <Text variant="caption" tone="muted">(optional)</Text>
-          </Text>
-          <View style={styles.amountRow}>
-            <Text weight="bold" style={styles.rupee}>
-              ₹
-            </Text>
-            <TextInput
-              value={visitFee}
-              onChangeText={setVisitFee}
-              placeholder="0"
-              placeholderTextColor="#A9B8B1"
-              keyboardType="number-pad"
-              accessibilityLabel="Visit fee in rupees"
-              style={styles.amountInput}
-            />
-          </View>
+          <TextField
+            label="Visit / inspection fee"
+            helper="Leave empty if you do not charge for the visit"
+            prefix="₹"
+            value={visitFee}
+            onChangeText={setVisitFee}
+            placeholder="0"
+            keyboardType="number-pad"
+            maxLength={6}
+            error={visitFeeProblem?.message ?? null}
+          />
 
           <Text weight="semibold" style={styles.label}>
             You can reach in
           </Text>
-          <View style={styles.chips}>
-            {ETA_OPTIONS.map((o) => {
-              const active = o.minutes === etaMinutes;
-              return (
-                <Pressable key={o.minutes} onPress={() => setEtaMinutes(o.minutes)} accessibilityRole="button" accessibilityState={{ selected: active }} style={[styles.chip, active && styles.chipActive]}>
-                  <Text variant="caption" weight="semibold" style={active ? styles.chipTextActive : undefined}>
-                    {o.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <SegmentedControl
+            label="You can reach in"
+            options={ETA_OPTIONS.map((o) => ({ value: String(o.minutes), label: o.label }))}
+            value={String(etaMinutes)}
+            onChange={(v) => setEtaMinutes(Number(v))}
+          />
 
           <Text weight="semibold" style={styles.label}>
             Warranty
           </Text>
-          <View style={styles.chips}>
-            {WARRANTY_OPTIONS.map((d) => {
-              const active = d === warrantyDays;
-              return (
-                <Pressable key={d} onPress={() => setWarrantyDays(d)} accessibilityRole="button" accessibilityState={{ selected: active }} style={[styles.chip, active && styles.chipActive]}>
-                  <Text variant="caption" weight="semibold" style={active ? styles.chipTextActive : undefined}>
-                    {d === 0 ? 'None' : `${d} days`}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <SegmentedControl
+            label="Warranty"
+            options={WARRANTY_OPTIONS.map((d) => ({ value: String(d), label: d === 0 ? 'None' : `${d} days` }))}
+            value={String(warrantyDays)}
+            onChange={(v) => setWarrantyDays(Number(v))}
+          />
 
-          <Text weight="semibold" style={styles.label}>
-            Note to the customer <Text variant="caption" tone="muted">(optional)</Text>
-          </Text>
-          <TextInput
+          <TextField
+            label="Note to the customer (optional)"
             value={notes}
             onChangeText={setNotes}
-            placeholder="e.g. I will bring a replacement cartridge"
-            placeholderTextColor="#A9B8B1"
+            placeholder="I will bring a replacement cartridge"
+            icon="chatbubble-ellipses-outline"
             multiline
+            minLines={2}
             maxLength={500}
-            accessibilityLabel="Note to the customer"
-            style={styles.notes}
+            counter
+            error={notesProblem?.message ?? null}
           />
-          {[labourProblem, visitFeeProblem, notesProblem].filter(Boolean).map((p) => (
-            <Text key={p!.message} variant="micro" style={{ color: palette.danger }}>
-              {p!.message}
-            </Text>
-          ))}
 
-          {/* transparent breakdown - the provider sees exactly what the customer pays */}
+          {/* Transparent breakdown - the provider sees exactly what the customer pays, and what is
+              taken out of it. `total` draws the rule, so the two numbers that matter are not two
+              more line items in a list of six. */}
           <View style={styles.breakdown}>
-            <Row label="Labour" value={formatInr(labourPaise)} />
-            {visitFeePaise > 0 && <Row label="Visit fee" value={formatInr(visitFeePaise)} />}
-            <Row label="Platform fee" value={formatInr(quote.platformFeePaise)} muted />
-            <Row label="Tax on fee" value={formatInr(quote.taxPaise)} muted />
-            <View style={styles.divider} />
-            <Row label="Customer pays" value={formatInr(quote.totalPaise)} bold />
-            <Row label="You receive" value={formatInr(quote.providerPayablePaise)} bold tone="primary" />
+            <DataRow label="Labour" value={formatInr(labourPaise)} />
+            {visitFeePaise > 0 && <DataRow label="Visit fee" value={formatInr(visitFeePaise)} />}
+            <DataRow label="Platform fee" value={formatInr(quote.platformFeePaise)} tone="muted" />
+            <DataRow label="Tax on fee" value={formatInr(quote.taxPaise)} tone="muted" />
+            <DataRow label="Customer pays" value={formatInr(quote.totalPaise)} total />
+            <DataRow label="You receive" value={formatInr(quote.providerPayablePaise)} tone="primary" total />
           </View>
 
           {error && (
@@ -243,19 +213,6 @@ export function BidSheet({ job, onClose }: Props) {
         </ScrollView>
       </Animated.View>
     </Modal>
-  );
-}
-
-function Row({ label, value, muted, bold, tone }: { label: string; value: string; muted?: boolean; bold?: boolean; tone?: 'primary' }) {
-  return (
-    <View style={styles.row}>
-      <Text variant="caption" tone={muted ? 'muted' : 'secondary'}>
-        {label}
-      </Text>
-      <Text variant={bold ? 'label' : 'caption'} weight={bold ? 'bold' : 'medium'} tone={tone ?? (muted ? 'muted' : 'default')}>
-        {value}
-      </Text>
-    </View>
   );
 }
 
@@ -308,20 +265,16 @@ const styles = StyleSheet.create({
   reviseNote: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: palette.primarySoft, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.lg },
 
   label: { fontSize: 14, marginTop: spacing.lg, marginBottom: spacing.sm },
-  amountRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: palette.surfaceMuted, borderRadius: radius.md, paddingHorizontal: spacing.lg, height: 56 },
-  rupee: { fontSize: 20, color: palette.textSecondary },
-  amountInput: { flex: 1, fontSize: 20, fontWeight: '700', color: palette.text, height: '100%' },
 
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { paddingHorizontal: spacing.lg, minHeight: 40, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: palette.surfaceMuted },
-  chipActive: { backgroundColor: palette.primary },
-  chipTextActive: { color: '#FFFFFF' },
-
-  notes: { minHeight: 70, backgroundColor: palette.surfaceMuted, borderRadius: radius.md, padding: spacing.md, fontSize: 14.5, color: palette.text, textAlignVertical: 'top' },
-
-  breakdown: { marginTop: spacing.xl, backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.lg, gap: spacing.sm },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  divider: { height: 1, backgroundColor: palette.border, marginVertical: spacing.xs },
+  breakdown: {
+    marginTop: spacing.xl,
+    backgroundColor: palette.surfaceSunken,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: palette.borderSoft,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
 
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
   cta: { marginTop: spacing.xl },

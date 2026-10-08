@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { checkReviewComment, type JobStatus } from '@hyperlocal/core';
 import { useLeaveReview } from '@/api/finance';
 import { palette, radius, spacing, typography } from '@/theme';
-import { Button, Card, Text } from '@/ui';
+import { Button, Card, Text, TextField } from '@/ui';
 
 const FINISHED: readonly JobStatus[] = ['COMPLETED', 'SETTLED'];
 
@@ -78,21 +78,18 @@ export function RateCustomerCard({ jobId, status, customerName }: { jobId: strin
           </Pressable>
         ))}
       </View>
-      <TextInput
+      <TextField
+        label="Anything the next professional should know? (optional)"
         value={note}
         onChangeText={setNote}
-        placeholder="Anything the next professional should know? (optional)"
-        placeholderTextColor={palette.textMuted}
-        style={styles.input}
+        placeholder="Access was easy, parking right outside"
         multiline
+        minLines={2}
         maxLength={300}
+        counter
         accessibilityLabel="A note about this customer"
+        error={noteProblem?.message ?? null}
       />
-      {noteProblem ? (
-        <Text variant="micro" style={{ color: palette.danger }}>
-          {noteProblem.message}
-        </Text>
-      ) : null}
       {note.trim().length > 0 && rating > 0 ? (
         <Button
           title="Send"
