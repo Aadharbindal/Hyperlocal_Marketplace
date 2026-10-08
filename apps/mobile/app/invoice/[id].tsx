@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
   head: { gap: 2 },
   lines: { gap: spacing.sm },
   line: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  rule: { height: 1, backgroundColor: '#EEF4F2', marginVertical: 2 },
+  rule: { height: 1, backgroundColor: palette.surfaceMuted, marginVertical: 2 },
   note: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   card: { borderRadius: radius.md },
 });

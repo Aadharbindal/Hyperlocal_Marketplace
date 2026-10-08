@@ -62,7 +62,7 @@ export function ConfirmSheet({ jobId, offer, onClose }: { jobId: string; offer: 
           {stage === 'done' ? (
             <Animated.View entering={FadeIn.duration(300)} style={styles.done}>
               <View style={styles.doneBadge}>
-                <Ionicons name="checkmark" size={34} color="#FFFFFF" />
+                <Ionicons name="checkmark" size={34} color={palette.textOnPrimary} />
               </View>
               <Text weight="extrabold" style={styles.doneTitle}>
                 Booking confirmed
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
   providerText: { flex: 1, gap: 2 },
 
-  breakdown: { marginTop: spacing.lg, backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.lg, gap: spacing.sm },
+  breakdown: { marginTop: spacing.lg, backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.lg, gap: spacing.sm },
   divider: { height: 1, backgroundColor: palette.border, marginVertical: spacing.xs },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
   assurance: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.md },

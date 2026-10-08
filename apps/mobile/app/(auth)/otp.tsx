@@ -125,14 +125,14 @@ export default function OtpScreen() {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Animated.View entering={FadeInDown.duration(420)}>
             <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={() => router.back()} style={styles.back}>
-              <Ionicons name="arrow-back" size={22} color="#16241F" />
+              <Ionicons name="arrow-back" size={22} color={palette.text} />
             </Pressable>
           </Animated.View>
 
           {/* badge */}
           <Animated.View entering={FadeIn.delay(100).duration(600)} style={styles.badgeWrap}>
             <Animated.View style={[styles.ring, ringStyle]} pointerEvents="none" />
-            <LinearGradient colors={['#1BA87E', '#0A6A51']} start={{ x: 0.2, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.badge}>
+            <LinearGradient colors={['#1BA87E', palette.primaryDeep]} start={{ x: 0.2, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.badge}>
               <LinearGradient colors={['rgba(255,255,255,0.45)', 'rgba(255,255,255,0)']} style={styles.badgeGloss} />
               <Ionicons name="chatbubble-ellipses" size={34} color={palette.textOnPrimary} />
             </LinearGradient>
@@ -211,7 +211,7 @@ export default function OtpScreen() {
               onPress={() => submit()}
               style={[styles.ctaWrap, ctaStyle, code.length !== LENGTH && styles.ctaDisabled]}
             >
-              <LinearGradient colors={['#12886A', '#0A6A51']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cta}>
+              <LinearGradient colors={['#12886A', palette.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cta}>
                 <LinearGradient colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']} style={styles.ctaGloss} />
                 <Text weight="bold" style={styles.ctaText}>
                   {verify.isPending ? 'Verifying…' : 'Verify & Continue'}
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { flexGrow: 1, paddingHorizontal: spacing.screen, paddingTop: spacing.md, paddingBottom: spacing.xxl },
 
-  back: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#0B3F30', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  back: { width: 46, height: 46, borderRadius: 23, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center', shadowColor: '#0B3F30', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
 
   badgeWrap: { alignItems: 'center', marginTop: spacing.xxl },
   ring: { position: 'absolute', width: 84, height: 84, borderRadius: 42, backgroundColor: palette.primary },
@@ -269,12 +269,12 @@ const styles = StyleSheet.create({
 
   title: { fontSize: 27, lineHeight: 34, color: '#0B1512', letterSpacing: -0.7, textAlign: 'center', marginTop: spacing.xl },
   subtitle: { fontSize: 14, lineHeight: 21, color: palette.textSecondary, textAlign: 'center', marginTop: spacing.xs },
-  phone: { color: '#16241F' },
+  phone: { color: palette.text },
   changeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: spacing.sm, minHeight: 36 },
   change: { fontSize: 13.5, color: palette.primary },
 
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.surface,
     borderRadius: 26,
     padding: spacing.xl,
     marginTop: spacing.xl,
@@ -286,22 +286,22 @@ const styles = StyleSheet.create({
   },
   boxes: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
   box: { flex: 1, height: 58, borderRadius: 15, backgroundColor: '#F3F8F6', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'transparent' },
-  boxFilled: { backgroundColor: '#FFFFFF', borderColor: '#BFE5D6' },
-  boxActive: { borderColor: palette.primary, backgroundColor: '#FFFFFF' },
+  boxFilled: { backgroundColor: palette.surface, borderColor: '#BFE5D6' },
+  boxActive: { borderColor: palette.primary, backgroundColor: palette.surface },
   boxError: { borderColor: palette.danger },
-  boxText: { fontSize: 22, lineHeight: 28, color: '#0F1D18' },
+  boxText: { fontSize: 22, lineHeight: 28, color: palette.text },
   hidden: { position: 'absolute', opacity: 0, width: 1, height: 1 },
 
   noteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: spacing.lg },
   note: { fontSize: 12.5, color: palette.textMuted, textAlign: 'center' },
-  timer: { color: '#16241F' },
+  timer: { color: palette.text },
   demo: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 6, marginTop: spacing.lg, backgroundColor: '#FFF3D4', paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.pill },
-  demoText: { fontSize: 12.5, color: '#8A6400' },
+  demoText: { fontSize: 12.5, color: palette.warning },
 
-  ctaWrap: { marginTop: spacing.xl, borderRadius: radius.pill, shadowColor: '#0A6A51', shadowOpacity: 0.3, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
+  ctaWrap: { marginTop: spacing.xl, borderRadius: radius.pill, shadowColor: palette.primaryDeep, shadowOpacity: 0.3, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
   ctaDisabled: { opacity: 0.45, shadowOpacity: 0 },
   cta: { height: 58, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, overflow: 'hidden' },
   ctaGloss: { position: 'absolute', top: 0, left: 0, right: 0, height: 26 },
-  ctaText: { fontSize: 16, color: '#FFFFFF' },
+  ctaText: { fontSize: 16, color: palette.textOnPrimary },
   resendRow: { alignItems: 'center', marginTop: spacing.lg },
 });

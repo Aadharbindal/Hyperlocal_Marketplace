@@ -50,12 +50,12 @@ export default function TechnicianJobsScreen() {
       {profile.data && !verified ? (
         <>
           <Card style={styles.notice}>
-            <Ionicons name="shield-outline" size={20} color="#B26A00" />
+            <Ionicons name="shield-outline" size={20} color={palette.warningIcon} />
             <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="label" weight="semibold" style={{ color: '#7A5200' }}>
+              <Text variant="label" weight="semibold" style={{ color: palette.warningDeep }}>
                 Waiting on your verification
               </Text>
-              <Text variant="micro" style={{ color: '#7A5200' }}>
+              <Text variant="micro" style={{ color: palette.warningDeep }}>
                 Your team submits your documents and our staff review them. Until that is done you
                 cannot be sent to a customer.
               </Text>
@@ -162,7 +162,7 @@ function JobCard({ job, live }: { job: TechnicianJob; live: boolean }) {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: '#FFF6E5' },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: palette.warningSoft },
   list: { gap: spacing.sm },
   card: { gap: spacing.sm },
   cardLive: { borderWidth: 1, borderColor: palette.primary },
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: '#F6FBF9',
+    backgroundColor: palette.surfaceSunken,
     borderRadius: radius.md,
     padding: spacing.md,
   },

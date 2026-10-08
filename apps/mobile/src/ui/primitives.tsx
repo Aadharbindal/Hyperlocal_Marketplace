@@ -35,7 +35,7 @@ type BadgeTone = 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'neutra
 const BADGE: Record<BadgeTone, { bg: string; fg: string }> = {
   primary: { bg: palette.primarySoft, fg: palette.primaryDeep },
   success: { bg: palette.successSoft, fg: palette.success },
-  warning: { bg: palette.warningSoft, fg: '#8A6400' },
+  warning: { bg: palette.warningSoft, fg: palette.warning },
   danger: { bg: palette.dangerSoft, fg: palette.danger },
   info: { bg: palette.infoSoft, fg: palette.info },
   neutral: { bg: palette.surfaceMuted, fg: palette.textSecondary },

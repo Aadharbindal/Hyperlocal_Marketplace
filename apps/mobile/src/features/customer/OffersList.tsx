@@ -61,8 +61,8 @@ function OfferCard({ offer, best, onAccept, onCounter, countering }: { offer: Of
     <Card style={[styles.card, best && styles.cardBest]}>
       {best && (
         <View style={styles.bestPill}>
-          <Ionicons name="star" size={11} color="#8A6400" />
-          <Text variant="micro" weight="bold" style={{ color: '#8A6400' }}>
+          <Ionicons name="star" size={11} color={palette.warning} />
+          <Text variant="micro" weight="bold" style={{ color: palette.warning }}>
             BEST MATCH
           </Text>
         </View>
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 16 },
   card: { gap: spacing.md },
   cardBest: { borderWidth: 2, borderColor: palette.primary },
-  bestPill: { position: 'absolute', top: -1, right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FFE8B8', paddingHorizontal: spacing.sm, paddingVertical: 3, borderBottomLeftRadius: radius.sm, borderBottomRightRadius: radius.sm },
+  bestPill: { position: 'absolute', top: -1, right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: palette.warningSoft, paddingHorizontal: spacing.sm, paddingVertical: 3, borderBottomLeftRadius: radius.sm, borderBottomRightRadius: radius.sm },
 
   providerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   providerTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   price: { alignItems: 'flex-end' },
 
-  breakdown: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: 4 },
+  breakdown: { backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md, gap: 4 },
   splitRow: { flexDirection: 'row', justifyContent: 'space-between' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   actions: { flexDirection: 'row', gap: spacing.sm },

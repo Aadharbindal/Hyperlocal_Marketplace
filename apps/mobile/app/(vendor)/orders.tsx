@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   section: { fontSize: 14, marginTop: spacing.lg, marginBottom: spacing.md },
   card: { gap: spacing.md },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  items: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: 5 },
+  items: { backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md, gap: 5 },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
   note: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 });

@@ -153,7 +153,7 @@ function RevisionCard({ jobId, revision }: { jobId: string; revision: PriceRevis
       <Card style={styles.revision}>
         <View style={styles.rowHead}>
           <View style={styles.warnIcon}>
-            <Ionicons name="alert-circle" size={18} color="#B26A00" />
+            <Ionicons name="alert-circle" size={18} color={palette.warningIcon} />
           </View>
           <View style={{ flex: 1 }}>
             <Text variant="label" weight="semibold">
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   revision: { gap: spacing.md, borderWidth: 2, borderColor: palette.primary },
   warnIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFF1D6', alignItems: 'center', justifyContent: 'center' },
   doneIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  amounts: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: 6 },
+  amounts: { backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md, gap: 6 },
   line: { flexDirection: 'row', justifyContent: 'space-between' },
   divider: { height: 1, backgroundColor: palette.border, marginVertical: 2 },
   assurance: { flexDirection: 'row', alignItems: 'center', gap: 6 },

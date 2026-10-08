@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
   identity: { gap: spacing.lg },
   identityHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   identityText: { flex: 1, gap: 2 },
-  stats: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
+  stats: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md },
 
 
   card: { marginTop: spacing.lg, gap: spacing.md },

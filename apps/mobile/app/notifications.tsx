@@ -123,6 +123,6 @@ const styles = StyleSheet.create({
   list: { gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   rowUnread: { borderWidth: 1, borderColor: palette.primary },
-  icon: { width: 36, height: 36, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F6FBF9' },
-  iconUnread: { backgroundColor: '#E8F6F1' },
+  icon: { width: 36, height: 36, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surfaceSunken },
+  iconUnread: { backgroundColor: palette.primarySoft },
 });

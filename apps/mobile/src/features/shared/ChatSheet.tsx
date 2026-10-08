@@ -100,7 +100,7 @@ export function ChatSheet({ jobId, visible, onClose }: { jobId: string; visible:
               disabled={send.isPending || !draft.trim()}
               style={[styles.sendBtn, (!draft.trim() || send.isPending) && styles.sendOff]}
             >
-              <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
+              <Ionicons name="arrow-up" size={20} color={palette.textOnPrimary} />
             </Pressable>
           </View>
         </Animated.View>
@@ -128,8 +128,8 @@ const styles = StyleSheet.create({
   listInner: { gap: spacing.sm, paddingVertical: spacing.sm },
   bubble: { maxWidth: '86%', borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: 2 },
   mine: { alignSelf: 'flex-end', backgroundColor: palette.primary },
-  mineText: { color: '#FFFFFF' },
-  theirs: { alignSelf: 'flex-start', backgroundColor: '#F1F6F4' },
+  mineText: { color: palette.textOnPrimary },
+  theirs: { alignSelf: 'flex-start', backgroundColor: palette.surfaceSunken },
   flag: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
   input: {
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     maxHeight: 110,
     borderRadius: radius.md,
     borderWidth: 1.5,
-    borderColor: '#E4EDE9',
+    borderColor: palette.borderSoft,
     paddingHorizontal: spacing.md,
     paddingTop: 12,
     fontSize: 15,

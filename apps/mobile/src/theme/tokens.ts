@@ -78,6 +78,14 @@ export const palette = {
   heroAccent: '#04A37D',
 
   // Special
+  /**
+   * Ornament only - 2.1:1, so nothing that carries information may be painted with it.
+   *
+   * It was on the stars in four places, including two interactive rating controls, and the contrast
+   * audit never objected because `gold` is a palette token and the audit only measures *literals*.
+   * That is a real hole in the check and worth knowing about: a token is not automatically safe for
+   * every use, it is safe for the use it was chosen for. Meaningful stars use `ratingOn`.
+   */
   gold: '#F2C14E',
   overlay: 'rgba(16, 35, 28, 0.45)',
 
@@ -113,12 +121,29 @@ export const palette = {
    * somebody the control has five of them, so it has to clear the 3:1 WCAG asks of a meaningful
    * non-text element. The `#C2CEC9` the screens used for this sat at 1.44:1, which on a phone in
    * daylight is an invisible control.
+   *
+   * The first attempt at this was `#7D8F88`, which cleared 3:1 on three of the four surfaces and
+   * landed at **2.984** on `groundDeep` - caught by the audit, not by me, which is the whole reason
+   * for having the thing compute ratios instead of eyeballing them.
    */
-  iconFaint: '#7D8F88',
+  iconFaint: '#798A83',
   /** The amber glyph beside warning text. Non-text, so 3:1 is the bar it has to clear. */
   warningIcon: '#9A7000',
   /** Warning text on `warningSoft` rather than on white, where it needs to go darker still. */
   warningDeep: '#6B4700',
+  /**
+   * The amber on a filled star, and on an icon sitting in a warm chip.
+   *
+   * `gold` above is for ornament - it is 2.1:1 and belongs on things that carry no information. A
+   * rating control is not one of those: in `AfterJobCard` the stars *are* the input, and the filled
+   * ones were `#F0A400` at **1.83:1**, with the empty ones at 1.42:1. The shape differs too
+   * (`star` against `star-outline`), so colour was never the only signal, but a control nobody can
+   * see in daylight is still a control nobody can use.
+   *
+   * This value clears 3:1 on every app surface *and* on the `#FFE0A6` end of the warm gradient the
+   * booking toggles use, which is the tightest background it has to work on.
+   */
+  ratingOn: '#B06A00',
 } as const;
 
 export const spacing = {

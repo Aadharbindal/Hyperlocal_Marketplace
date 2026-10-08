@@ -12,7 +12,7 @@ import {
 } from '@hyperlocal/core';
 import { usePayoutAccount, useSetPayoutAccount } from '@/api/finance';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, Screen, Spacer, Text, TextField } from '@/ui';
+import { Badge, Button, Card, ErrorState, Screen, Skeleton, Spacer, Text, TextField } from '@/ui';
 
 /**
  * Where a provider or vendor gets paid. Shared by both, because the question is the same one.
@@ -62,19 +62,55 @@ export default function PayoutAccountScreen() {
     }
   }
 
+  const header = (
+    <View style={styles.header}>
+      <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
+        <Ionicons name="chevron-back" size={24} color={palette.text} />
+      </Pressable>
+      <Text variant="title" weight="bold">
+        Where you get paid
+      </Text>
+    </View>
+  );
+
+  /**
+   * A failed read gets the screen to itself, with no form underneath it.
+   *
+   * It used to fall through to "add these details", which tells a provider who already has an
+   * account registered that they do not - so the obvious thing to do is type their bank details in
+   * again and replace something that was working. On a screen about money, an empty state standing
+   * in for a network failure is not a cosmetic bug.
+   */
+  if (existing.isError) {
+    return (
+      <Screen>
+        {header}
+        <Spacer h={spacing.xl} />
+        <ErrorState
+          title="We could not check your payout details"
+          body="You may already have an account registered. Try again before adding new details, so you do not replace something that was working."
+          onRetry={() => void existing.refetch()}
+          retrying={existing.isRefetching}
+        />
+      </Screen>
+    );
+  }
+
   return (
     <Screen keyboard>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="chevron-back" size={24} color={palette.text} />
-        </Pressable>
-        <Text variant="title" weight="bold">
-          Where you get paid
-        </Text>
-      </View>
+      {header}
       <Spacer h={spacing.lg} />
 
-      {existing.data ? (
+      {/* Three states, not two, and the third one is the whole reason for this block.
+          Until now a failed read of the existing account fell through to "add these details" -
+          telling a provider who already has an account registered that they do not, so the obvious
+          thing to do was type their bank details in again. On money that is not a cosmetic bug. */}
+      {existing.isPending ? (
+        <Card style={styles.current}>
+          <Skeleton height={14} width="40%" />
+          <Skeleton height={18} width="70%" />
+        </Card>
+      ) : existing.data ? (
         <Card style={styles.current}>
           <View style={styles.currentRow}>
             <View style={{ flex: 1 }}>
@@ -200,7 +236,7 @@ const styles = StyleSheet.create({
   current: { gap: spacing.sm },
   currentRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   note: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tabs: { flexDirection: 'row', backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: 4, gap: 4 },
+  tabs: { flexDirection: 'row', backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: 4, gap: 4 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm, borderRadius: radius.sm },
   tabActive: { backgroundColor: palette.surface },
 });

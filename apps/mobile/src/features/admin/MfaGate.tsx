@@ -40,8 +40,8 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
     return (
       <>
         <View style={styles.warn}>
-          <Ionicons name="warning-outline" size={15} color="#B26A00" />
-          <Text variant="micro" style={{ color: '#7A5200', flex: 1 }}>
+          <Ionicons name="warning-outline" size={15} color={palette.warningIcon} />
+          <Text variant="micro" style={{ color: palette.warningDeep, flex: 1 }}>
             Two-factor is switched off for this environment. It is mandatory in production.
           </Text>
         </View>

@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   quoteBest: { borderWidth: 2, borderColor: palette.primary },
   quoteHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  breakdown: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: 5 },
+  breakdown: { backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md, gap: 5 },
   divider: { height: 1, backgroundColor: palette.border, marginVertical: 2 },
   assurance: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   actions: { flexDirection: 'row', gap: spacing.sm },

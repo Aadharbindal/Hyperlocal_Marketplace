@@ -13,8 +13,8 @@ import { useLogout, useMe, useUpdateMe } from '@/api/hooks';
 import { useWarrantyClaims } from '@/api/warranty';
 import { useStrings } from '@/i18n';
 import { useSession } from '@/store/session';
-import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { palette, spacing } from '@/theme';
+import { Badge, Button, Card, ErrorState, Screen, SegmentedControl, Skeleton, Spacer, Text } from '@/ui';
 
 const VERIFICATION_TONE: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
   VERIFIED: 'success',
@@ -128,33 +128,18 @@ export function ProfileScreen() {
             <Text variant="subheading" weight="bold">
               {t('profile.roles')}
             </Text>
-            <View style={styles.chips}>
-              {roles.map((r) => {
-                const active = r === activeRole;
-                return (
-                  <Pressable
-                    key={r}
-                    accessibilityRole="button"
-                    accessible
-                    accessibilityLabel={r.charAt(0) + r.slice(1).toLowerCase()}
-                    accessibilityState={{ selected: active }}
-                    onPress={() => void setActiveRole(r as UserRole)}
-                    style={[styles.chip, active && styles.chipActive]}
-                  >
-                    <View style={styles.chipInner} importantForAccessibility="no-hide-descendants">
-                      <Ionicons
-                        name={active ? 'checkmark-circle' : 'people-outline'}
-                        size={16}
-                        color={active ? palette.textOnPrimary : palette.primaryDeep}
-                      />
-                      <Text variant="label" weight="semibold" style={{ color: active ? palette.textOnPrimary : palette.primaryDeep }}>
-                        {r.charAt(0) + r.slice(1).toLowerCase()}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {/* Switching role changes what the whole app is, so a screen reader hearing this as a
+                radio group rather than a row of buttons is not a nicety. */}
+            <SegmentedControl
+              label={t('profile.roles')}
+              options={roles.map((r) => ({
+                value: r,
+                label: r.charAt(0) + r.slice(1).toLowerCase(),
+                icon: r === activeRole ? 'checkmark-circle' : 'people-outline',
+              }))}
+              value={activeRole}
+              onChange={(r) => void setActiveRole(r as UserRole)}
+            />
           </Animated.View>
         </>
       )}
@@ -163,35 +148,18 @@ export function ProfileScreen() {
         <Text variant="subheading" weight="bold">
           {t('profile.language')}
         </Text>
-        <View style={styles.chips}>
-          {(['en', 'hi'] as const).map((l) => {
-            const active = language === l;
-            return (
-              <Pressable
-                key={l}
-                accessibilityRole="button"
-                accessible
-                accessibilityLabel={l === 'en' ? 'English' : 'Hindi'}
-                accessibilityState={{ selected: active }}
-                onPress={() => changeLanguage(l)}
-                style={[styles.chip, active && styles.chipActive]}
-              >
-                <View style={styles.chipInner} importantForAccessibility="no-hide-descendants">
-                  {l === 'en' ? (
-                    <Ionicons name="globe-outline" size={16} color={active ? palette.textOnPrimary : palette.primaryDeep} />
-                  ) : (
-                    <Text variant="label" weight="bold" style={{ color: active ? palette.textOnPrimary : palette.primaryDeep }}>
-                      {'अ'}
-                    </Text>
-                  )}
-                  <Text variant="label" weight="semibold" style={{ color: active ? palette.textOnPrimary : palette.primaryDeep }}>
-                    {l === 'en' ? 'English' : 'हिन्दी'}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* Each option is written in its own language rather than translated into the current one:
+            somebody who has landed in the wrong language needs to recognise their own word for it,
+            not read ours. */}
+        <SegmentedControl
+          label={t('profile.language')}
+          options={[
+            { value: 'en', label: 'English', icon: 'globe-outline' },
+            { value: 'hi', label: 'हिन्दी', icon: 'language-outline' },
+          ]}
+          value={language}
+          onChange={(l) => changeLanguage(l as 'en' | 'hi')}
+        />
       </Animated.View>
 
       {/* Everything else a person owns, in one place. Shown per role, because a vendor has no
@@ -394,7 +362,7 @@ const styles = StyleSheet.create({
   links: { gap: 0, overflow: 'hidden' },
   link: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   linkInner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  linkDivider: { borderBottomWidth: 1, borderBottomColor: '#EEF4F2' },
+  linkDivider: { borderBottomWidth: 1, borderBottomColor: palette.surfaceMuted },
   linkIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   linkText: { flex: 1, gap: 1 },
   linkBadge: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primary },
@@ -412,8 +380,4 @@ const styles = StyleSheet.create({
   identityText: { flex: 1, gap: 2 },
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   section: { marginTop: spacing.xxl, gap: spacing.md },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { paddingHorizontal: spacing.lg, minHeight: 44, borderRadius: radius.pill, backgroundColor: palette.primarySoft, justifyContent: 'center' },
-  chipInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  chipActive: { backgroundColor: palette.primary },
 });

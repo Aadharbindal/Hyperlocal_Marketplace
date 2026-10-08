@@ -216,7 +216,7 @@ function Toggle({
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ true: palette.primary, false: '#D9E4E0' }}
+        trackColor={{ true: palette.primary, false: palette.borderStrong }}
         accessibilityLabel={label}
       />
     </View>
@@ -229,9 +229,9 @@ const styles = StyleSheet.create({
   calloutRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   group: { gap: 0, paddingVertical: 0 },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
-  toggleDivider: { borderBottomWidth: 1, borderBottomColor: '#EEF4F2' },
+  toggleDivider: { borderBottomWidth: 1, borderBottomColor: palette.surfaceMuted },
   device: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
-  deviceDivider: { borderBottomWidth: 1, borderBottomColor: '#EEF4F2' },
+  deviceDivider: { borderBottomWidth: 1, borderBottomColor: palette.surfaceMuted },
   forgetBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   note: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
 });

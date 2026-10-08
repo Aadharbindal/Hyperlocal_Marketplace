@@ -42,7 +42,7 @@ interface Feature {
 
 const FEATURES: Feature[] = [
   { icon: 'shield-checkmark', from: '#E6F7EF', to: '#C8EBDC', fg: '#0E8A6A', title: 'Verified', body: 'Professionals' },
-  { icon: 'flash', from: '#FFF6E0', to: '#FFE8B8', fg: '#F0A400', title: 'Quick', body: 'Easy booking' },
+  { icon: 'flash', from: palette.warningSoft, to: palette.warningSoft, fg: '#F0A400', title: 'Quick', body: 'Easy booking' },
   { glyph: '₹', from: '#E6F7EF', to: '#C8EBDC', fg: '#0E8A6A', title: 'Affordable', body: 'Clear pricing' },
 ];
 
@@ -141,7 +141,7 @@ export default function PhoneScreen() {
     }
   };
 
-  const borderColor = error ? palette.danger : focused ? palette.primary : '#E4EDE9';
+  const borderColor = error ? palette.danger : focused ? palette.primary : palette.borderSoft;
   const digits = phone.replace(/\D/g, '');
   const complete = normaliseIndianPhone(phone) !== null && !checkMobileField(phone);
 
@@ -167,7 +167,7 @@ export default function PhoneScreen() {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
           {/* ---------------- brand ---------------- */}
           <Animated.View entering={FadeInDown.duration(500)} style={styles.brand}>
-            <LinearGradient colors={['#1BA87E', '#0A6A51']} start={{ x: 0.2, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.logo}>
+            <LinearGradient colors={['#1BA87E', palette.primaryDeep]} start={{ x: 0.2, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.logo}>
               <LinearGradient colors={['rgba(255,255,255,0.45)', 'rgba(255,255,255,0)']} style={styles.logoGloss} />
               <Ionicons name="home" size={30} color={palette.textOnPrimary} />
             </LinearGradient>
@@ -321,7 +321,7 @@ export default function PhoneScreen() {
               disabled={request.isPending}
               style={[styles.ctaWrap, ctaStyle]}
             >
-              <LinearGradient colors={['#12886A', '#0A6A51']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.cta, compact && styles.ctaCompact]}>
+              <LinearGradient colors={['#12886A', palette.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.cta, compact && styles.ctaCompact]}>
                 <LinearGradient colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']} style={styles.ctaGloss} />
                 <Text weight="bold" style={styles.ctaText}>
                   {request.isPending ? 'Sending code…' : 'Continue'}
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
     elevation: 7,
   },
   logoGloss: { position: 'absolute', top: 0, left: 0, right: 0, height: 26, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
-  brandName: { fontSize: 25, lineHeight: 31, color: '#0F1D18', letterSpacing: -0.4 },
+  brandName: { fontSize: 25, lineHeight: 31, color: palette.text, letterSpacing: -0.4 },
   brandAccent: { color: palette.primary },
   brandTag: { fontSize: 13, lineHeight: 18, color: palette.textMuted, marginTop: 1 },
 
@@ -385,12 +385,12 @@ const styles = StyleSheet.create({
   copyColumn: { alignSelf: 'flex-start' },
   featureCompact: { fontSize: 13, lineHeight: 18.5 },
   featuresCompact: { gap: spacing.md },
-  featureTitle: { fontSize: 14.5, lineHeight: 20, color: '#16241F' },
+  featureTitle: { fontSize: 14.5, lineHeight: 20, color: palette.text },
   featureBody: { fontSize: 14.5, lineHeight: 20, color: palette.textSecondary },
   glyph: { fontSize: 22, lineHeight: 26 },
 
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.surface,
     marginHorizontal: spacing.md + 2,
     marginTop: -spacing.xxl,
     borderRadius: 26,
@@ -406,23 +406,23 @@ const styles = StyleSheet.create({
   cardCompact: { paddingTop: spacing.md, paddingBottom: spacing.md },
   fieldCompact: { height: 52 },
   ctaCompact: { height: 52 },
-  cardTitle: { fontSize: 15, lineHeight: 22, letterSpacing: -0.2, color: '#0F1D18' },
+  cardTitle: { fontSize: 15, lineHeight: 22, letterSpacing: -0.2, color: palette.text },
   fieldLabel: { fontSize: 12.5, color: palette.textMuted, marginTop: spacing.md + 2, marginBottom: spacing.xs + 2 },
   ring: { borderRadius: 19, padding: 4, marginHorizontal: -4 },
-  field: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 56, borderRadius: 15, borderWidth: 1.5, backgroundColor: '#FFFFFF', paddingHorizontal: spacing.md },
+  field: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 56, borderRadius: 15, borderWidth: 1.5, backgroundColor: palette.surface, paddingHorizontal: spacing.md },
   country: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44 },
   flag: { width: 28, height: 19, borderRadius: 3, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: '#D9E4DF' },
   flagBand: { flex: 1 },
-  flagMid: { backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  flagMid: { backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center' },
   chakra: { width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: '#000080' },
-  code: { fontSize: 15.5, color: '#16241F' },
-  divider: { width: 1, height: 28, backgroundColor: '#E4EDE9' },
-  input: { flex: 1, fontSize: 16.5, letterSpacing: 0.4, fontFamily: typography.family.medium, color: '#0F1D18', height: '100%' },
+  code: { fontSize: 15.5, color: palette.text },
+  divider: { width: 1, height: 28, backgroundColor: palette.borderSoft },
+  input: { flex: 1, fontSize: 16.5, letterSpacing: 0.4, fontFamily: typography.family.medium, color: palette.text, height: '100%' },
   noteRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: spacing.md },
   note: { fontSize: 12.5, color: palette.textMuted, flexShrink: 1 },
 
-  ctaWrap: { marginTop: spacing.lg + 2, borderRadius: radius.pill, shadowColor: '#0A6A51', shadowOpacity: 0.32, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
+  ctaWrap: { marginTop: spacing.lg + 2, borderRadius: radius.pill, shadowColor: palette.primaryDeep, shadowOpacity: 0.32, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
   cta: { height: 56, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md, overflow: 'hidden' },
   ctaGloss: { position: 'absolute', top: 0, left: 0, right: 0, height: 28 },
-  ctaText: { fontSize: 16.5, color: '#FFFFFF', letterSpacing: 0.2 },
+  ctaText: { fontSize: 16.5, color: palette.textOnPrimary, letterSpacing: 0.2 },
 });

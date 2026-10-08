@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
   card: { gap: spacing.md },
   hero: { gap: spacing.sm },
   big: { fontSize: 34, lineHeight: 42, color: palette.text, letterSpacing: -1 },
-  splitRow: { flexDirection: 'row', gap: spacing.md, backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
+  splitRow: { flexDirection: 'row', gap: spacing.md, backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md },
   note: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   callout: { gap: spacing.sm, borderWidth: 1, borderColor: palette.primary },
   calloutRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

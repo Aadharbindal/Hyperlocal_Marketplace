@@ -90,7 +90,7 @@ function DisputeCard({ dispute }: { dispute: DisputeView }) {
   return (
     <Card style={[styles.card, !dispute.resolvedAt && styles.cardAlert]}>
       <View style={styles.head}>
-        <Ionicons name={dispute.resolvedAt ? 'checkmark-circle' : 'time-outline'} size={17} color={dispute.resolvedAt ? palette.primary : '#B26A00'} />
+        <Ionicons name={dispute.resolvedAt ? 'checkmark-circle' : 'time-outline'} size={17} color={dispute.resolvedAt ? palette.primary : palette.warningIcon} />
         <Text weight="semibold" style={{ flex: 1 }}>
           {dispute.resolvedAt ? 'Your report was resolved' : 'We are looking into it'}
         </Text>
@@ -137,7 +137,7 @@ function ReviewSheet({ jobId, visible, onClose }: { jobId: string; visible: bool
       <View style={styles.stars}>
         {[1, 2, 3, 4, 5].map((n) => (
           <Pressable key={n} accessibilityRole="button" accessibilityLabel={`${n} star`} hitSlop={6} onPress={() => setRating(n)}>
-            <Ionicons name={n <= rating ? 'star' : 'star-outline'} size={34} color={n <= rating ? '#F0A400' : '#C2CEC9'} />
+            <Ionicons name={n <= rating ? 'star' : 'star-outline'} size={34} color={n <= rating ? palette.ratingOn : palette.iconFaint} />
           </Pressable>
         ))}
       </View>
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   cardAlert: { borderWidth: 2, borderColor: '#FFD38A' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { fontSize: 16 },
-  breakdown: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: 6 },
+  breakdown: { backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md, gap: 6 },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
   divider: { height: 1, backgroundColor: palette.border, marginVertical: 2 },
   note: { flexDirection: 'row', alignItems: 'center', gap: 6 },

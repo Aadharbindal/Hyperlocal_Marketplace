@@ -145,7 +145,7 @@ export default function ProviderProfileScreen() {
                   <Text variant="micro" tone="muted" style={{ width: 14 }}>
                     {b.stars}
                   </Text>
-                  <Ionicons name="star" size={11} color={palette.gold} />
+                  <Ionicons name="star" size={11} color={palette.ratingOn} />
                   <View style={styles.barTrack}>
                     <View style={[styles.barFill, { width: `${Math.round((b.count / maxBar) * 100)}%` }]} />
                   </View>
@@ -169,7 +169,7 @@ export default function ProviderProfileScreen() {
                       <View style={styles.reviewHead}>
                         <View style={styles.starRow}>
                           {[1, 2, 3, 4, 5].map((n) => (
-                            <Ionicons key={n} name={n <= r.rating ? 'star' : 'star-outline'} size={12} color={palette.gold} />
+                            <Ionicons key={n} name={n <= r.rating ? 'star' : 'star-outline'} size={12} color={palette.ratingOn} />
                           ))}
                         </View>
                         <Text variant="micro" tone="muted" style={{ flex: 1 }}>
@@ -207,16 +207,16 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   hero: { gap: spacing.md },
   identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  avatar: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F6F1' },
+  avatar: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primarySoft },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
-  stats: { flexDirection: 'row', gap: spacing.md, backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
+  stats: { flexDirection: 'row', gap: spacing.md, backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md },
   section: { fontSize: 14, marginTop: spacing.lg, marginBottom: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: '#E8F6F1' },
+  chip: { paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: palette.primarySoft },
   list: { gap: spacing.sm },
   reviewHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   starRow: { flexDirection: 'row', gap: 1 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  barTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: '#EEF4F2', overflow: 'hidden' },
+  barTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: palette.surfaceMuted, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3, backgroundColor: palette.primary },
 });

@@ -74,7 +74,7 @@ export function RateCustomerCard({ jobId, status, customerName }: { jobId: strin
             accessibilityLabel={`${n} star${n > 1 ? 's' : ''}`}
             accessibilityState={{ selected: rating >= n }}
           >
-            <Ionicons name={rating >= n ? 'star' : 'star-outline'} size={26} color={rating >= n ? palette.gold : palette.textMuted} />
+            <Ionicons name={rating >= n ? 'star' : 'star-outline'} size={26} color={rating >= n ? palette.ratingOn : palette.iconFaint} />
           </Pressable>
         ))}
       </View>

@@ -109,7 +109,7 @@ export default function ProviderJobsScreen() {
         <Animated.View entering={FadeInDown.duration(360)}>
           <Card style={styles.verifyCard}>
             <View style={styles.verifyHead}>
-              <Ionicons name="shield-checkmark" size={20} color="#8A6400" />
+              <Ionicons name="shield-checkmark" size={20} color={palette.warning} />
               <Text weight="semibold" style={styles.verifyTitle}>
                 {profile.data.verificationStatus === 'SUBMITTED' || profile.data.verificationStatus === 'UNDER_REVIEW'
                   ? 'Verification in review'
@@ -244,7 +244,7 @@ function JobCard({ job, onBid }: { job: NearbyJobItem; onBid: () => void }) {
             <Text variant="caption" weight="bold" style={styles.bidBtnText}>
               Send offer
             </Text>
-            <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+            <Ionicons name="arrow-forward" size={15} color={palette.textOnPrimary} />
           </Pressable>
         )}
       </View>
@@ -260,16 +260,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 8,
     borderRadius: radius.pill,
-    backgroundColor: '#E8F6F1',
+    backgroundColor: palette.primarySoft,
   },
   filterButtonOn: { backgroundColor: palette.primary },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   headerText: { flex: 1 },
   availability: { alignItems: 'center', gap: 2 },
 
-  verifyCard: { marginTop: spacing.lg, gap: spacing.sm, backgroundColor: '#FFFBF0', borderWidth: 1, borderColor: '#FFE8B8' },
+  verifyCard: { marginTop: spacing.lg, gap: spacing.sm, backgroundColor: '#FFFBF0', borderWidth: 1, borderColor: palette.warningSoft },
   verifyHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  verifyTitle: { fontSize: 15, color: '#8A6400' },
+  verifyTitle: { fontSize: 15, color: palette.warning },
   verifyAction: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: spacing.xs, minHeight: 36 },
 
   list: { gap: spacing.md },
@@ -283,5 +283,5 @@ const styles = StyleSheet.create({
   jobFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   bidBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.primary, paddingHorizontal: spacing.lg, minHeight: 40, borderRadius: radius.pill },
   bidBtnMine: { backgroundColor: palette.primarySoft },
-  bidBtnText: { color: '#FFFFFF' },
+  bidBtnText: { color: palette.textOnPrimary },
 });

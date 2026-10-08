@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   icon: { width: 34, height: 34, borderRadius: 17, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
   headText: { flex: 1, gap: 2 },
-  amounts: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
+  amounts: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md },
   struck: { textDecorationLine: 'line-through', color: palette.textMuted },
   diff: { marginLeft: 'auto' },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

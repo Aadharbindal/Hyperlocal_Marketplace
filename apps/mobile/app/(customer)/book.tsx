@@ -359,8 +359,8 @@ export default function BookScreen() {
 function Toggle({ icon, label, body, value, onChange }: { icon: keyof typeof Ionicons.glyphMap; label: string; body: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
     <Card onPress={() => onChange(!value)} padding="md" style={[styles.toggle, value && styles.toggleActive]} accessibilityLabel={label}>
-      <LinearGradient colors={value ? ['#FFF1D2', '#FFE0A6'] : ['#EEF3F0', '#E4EDE9']} style={styles.toggleIcon}>
-        <Ionicons name={icon} size={18} color={value ? '#E58E00' : palette.textSecondary} />
+      <LinearGradient colors={value ? ['#FFF1D2', '#FFE0A6'] : ['#EEF3F0', palette.borderSoft]} style={styles.toggleIcon}>
+        <Ionicons name={icon} size={18} color={value ? palette.ratingOn : palette.textSecondary} />
       </LinearGradient>
       <View style={styles.toggleText}>
         <Text variant="label" weight="semibold">
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
   slots: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   slot: { paddingHorizontal: spacing.lg, minHeight: 42, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: palette.surface },
   slotActive: { backgroundColor: palette.primary },
-  slotTextActive: { color: '#FFFFFF' },
+  slotTextActive: { color: palette.textOnPrimary },
 
   addresses: { gap: spacing.sm },
   address: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderWidth: 2, borderColor: 'transparent' },

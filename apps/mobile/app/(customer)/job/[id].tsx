@@ -138,7 +138,7 @@ export default function JobDetailScreen() {
 
       {duplicateOf ? (
         <Animated.View entering={FadeIn.duration(300)} style={styles.notice}>
-          <Ionicons name="information-circle" size={18} color="#8A6400" />
+          <Ionicons name="information-circle" size={18} color={palette.warning} />
           <Text variant="caption" weight="medium" style={styles.noticeText}>
             You already have an open request for this service at the same address.
           </Text>
@@ -147,7 +147,7 @@ export default function JobDetailScreen() {
 
       {/* live status hero */}
       <Animated.View entering={FadeInDown.duration(420)}>
-        <LinearGradient colors={cancelled ? ['#8A9B94', '#5B6E67'] : rescuing ? ['#C98A1B', '#9A6510'] : ['#12886A', '#0A6A51']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+        <LinearGradient colors={cancelled ? ['#8A9B94', '#5B6E67'] : rescuing ? ['#C98A1B', '#9A6510'] : ['#12886A', palette.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           <View style={styles.heroTop}>
             <View style={styles.statusDotWrap}>
               {live && <Animated.View style={[styles.statusPulse, pulseStyle]} />}
@@ -176,7 +176,7 @@ export default function JobDetailScreen() {
               {cancelled ? (j.cancelledReason ?? 'This request was cancelled.') : 'We will notify you the moment something changes.'}
             </Text>
           )}
-          {j.priority === 'URGENT' && <View style={styles.urgentPill}><Ionicons name="flash" size={12} color="#8A6400" /><Text variant="micro" weight="bold" style={{ color: '#8A6400' }}>URGENT</Text></View>}
+          {j.priority === 'URGENT' && <View style={styles.urgentPill}><Ionicons name="flash" size={12} color={palette.warning} /><Text variant="micro" weight="bold" style={{ color: palette.warning }}>URGENT</Text></View>}
         </LinearGradient>
       </Animated.View>
 
@@ -190,7 +190,7 @@ export default function JobDetailScreen() {
               <View key={m.key} style={styles.milestone}>
                 <View style={styles.milestoneRail}>
                   <View style={[styles.milestoneDot, done && styles.dotDone, current && styles.dotCurrent]}>
-                    {done && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
+                    {done && <Ionicons name="checkmark" size={12} color={palette.textOnPrimary} />}
                   </View>
                   {i < MILESTONES.length - 1 && <View style={[styles.milestoneLine, done && styles.lineDone]} />}
                 </View>
@@ -335,8 +335,8 @@ export default function JobDetailScreen() {
           {/* What it costs is shown before the button is pressed, never after. */}
           {cancelQuote.data && cancelQuote.data.chargePaise > 0 && (
             <View style={styles.notice}>
-              <Ionicons name="information-circle-outline" size={16} color="#B26A00" />
-              <Text variant="caption" style={{ flex: 1, color: '#7A5200' }}>
+              <Ionicons name="information-circle-outline" size={16} color={palette.warningIcon} />
+              <Text variant="caption" style={{ flex: 1, color: palette.warningDeep }}>
                 {cancelQuote.data.explanation} You would be charged {formatInr(cancelQuote.data.chargePaise)}.
               </Text>
             </View>
@@ -361,17 +361,17 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
   headerText: { flex: 1 },
 
-  notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: '#FFF6E0', borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
-  noticeText: { color: '#8A6400', flex: 1 },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: palette.warningSoft, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
+  noticeText: { color: palette.warning, flex: 1 },
 
   hero: { borderRadius: radius.xl, padding: spacing.xl, gap: spacing.sm, overflow: 'hidden' },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   statusDotWrap: { width: 14, height: 14, alignItems: 'center', justifyContent: 'center' },
-  statusDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#FFFFFF' },
-  statusPulse: { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: '#FFFFFF' },
+  statusDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.surface },
+  statusPulse: { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: palette.surface },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
-  countdown: { fontSize: 22, color: '#FFFFFF' },
-  urgentPill: { position: 'absolute', top: spacing.lg, right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFE8B8', paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
+  countdown: { fontSize: 22, color: palette.textOnPrimary },
+  urgentPill: { position: 'absolute', top: spacing.lg, right: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.warningSoft, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
 
   card: { marginTop: spacing.lg, gap: spacing.md },
   cardTitle: { fontSize: 15 },
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
   milestoneRail: { alignItems: 'center', width: 22 },
   milestoneDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: palette.border, alignItems: 'center', justifyContent: 'center' },
   dotDone: { backgroundColor: palette.primary, borderColor: palette.primary },
-  dotCurrent: { borderColor: palette.primary, backgroundColor: '#FFFFFF', borderWidth: 5 },
+  dotCurrent: { borderColor: palette.primary, backgroundColor: palette.surface, borderWidth: 5 },
   milestoneLine: { width: 2, flex: 1, minHeight: 18, backgroundColor: palette.border, marginVertical: 2 },
   lineDone: { backgroundColor: palette.primary },
   milestoneLabel: { flex: 1, paddingBottom: spacing.md },

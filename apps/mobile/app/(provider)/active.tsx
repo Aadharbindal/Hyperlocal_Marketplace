@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   headText: { flex: 1, gap: 2 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  amounts: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
+  amounts: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md },
   withdraw: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 36 },
   error: { marginBottom: spacing.md },
   counterWrap: { marginBottom: spacing.md },

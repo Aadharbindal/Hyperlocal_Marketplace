@@ -5,7 +5,7 @@ import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAddresses, useDeleteAddress } from '@/api/jobs';
 import { palette, spacing } from '@/theme';
-import { Badge, Button, Card, EmptyState, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
 
 /**
  * Where the work happens.
@@ -53,7 +53,7 @@ export default function AddressesScreen() {
   }
 
   return (
-    <Screen>
+    <Screen refreshing={addresses.isRefetching} onRefresh={() => void addresses.refetch()}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="chevron-back" size={24} color={palette.text} />
@@ -69,6 +69,16 @@ export default function AddressesScreen() {
           <Skeleton height={76} />
           <Skeleton height={76} />
         </View>
+      ) : addresses.isError ? (
+        /* A failed load used to fall through to "No address yet", which tells somebody who has
+           three saved addresses that they have none - and the obvious response is to add a fourth.
+           An empty state standing in for a network failure is a lie the screen tells confidently. */
+        <ErrorState
+          title="We could not load your addresses"
+          body="They are still saved. Check your connection and try again."
+          onRetry={() => void addresses.refetch()}
+          retrying={addresses.isRefetching}
+        />
       ) : addresses.data?.items.length ? (
         <View style={styles.list}>
           {addresses.data.items.map((a, i) => (

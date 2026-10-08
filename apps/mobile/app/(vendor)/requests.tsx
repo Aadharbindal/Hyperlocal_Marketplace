@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
   card: { gap: spacing.md },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   icon: { width: 38, height: 38, borderRadius: 19, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  items: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: 5 },
+  items: { backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md, gap: 5 },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
 
   sheetWrap: { ...StyleSheet.absoluteFill, backgroundColor: palette.overlay, justifyContent: 'flex-end' },

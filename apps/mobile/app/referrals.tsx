@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   hero: { gap: spacing.xs },
   codeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   code: { fontSize: 34, lineHeight: 42, letterSpacing: 6, color: palette.text },
-  stats: { flexDirection: 'row', gap: spacing.md, backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md },
+  stats: { flexDirection: 'row', gap: spacing.md, backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md },
   section: { fontSize: 14, marginTop: spacing.lg, marginBottom: spacing.md },
   list: { gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

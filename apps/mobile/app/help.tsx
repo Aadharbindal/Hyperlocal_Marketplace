@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   contactText: { flex: 1, gap: 1 },
   list: { gap: 0, overflow: 'hidden' },
   item: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
-  itemDivider: { borderBottomWidth: 1, borderBottomColor: '#EEF4F2' },
+  itemDivider: { borderBottomWidth: 1, borderBottomColor: palette.surfaceMuted },
   itemHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   itemQ: { flex: 1 },
 });

@@ -126,8 +126,8 @@ function ClaimCard({ claim, onDecline }: { claim: WarrantyClaimView; onDecline: 
           {/* The clock, said plainly. After it runs out the claim goes to support and the
               professional loses the chance to sort it themselves. */}
           <View style={[styles.clock, left <= 12 && styles.clockUrgent]}>
-            <Ionicons name="time-outline" size={14} color={left <= 12 ? '#B26A00' : palette.textMuted} />
-            <Text variant="micro" style={{ color: left <= 12 ? '#7A5200' : palette.textMuted }}>
+            <Ionicons name="time-outline" size={14} color={left <= 12 ? palette.warningIcon : palette.textMuted} />
+            <Text variant="micro" style={{ color: left <= 12 ? palette.warningDeep : palette.textMuted }}>
               {left > 0
                 ? `${left} ${left === 1 ? 'hour' : 'hours'} to answer before our team takes it over`
                 : 'Time is up - our team is taking this over'}
@@ -275,13 +275,13 @@ const styles = StyleSheet.create({
   card: { gap: spacing.sm },
   cardOpen: { borderWidth: 1, borderColor: '#F0C26A' },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  clock: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F6FBF9', borderRadius: radius.sm, padding: spacing.sm },
-  clockUrgent: { backgroundColor: '#FFF6E5' },
+  clock: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.surfaceSunken, borderRadius: radius.sm, padding: spacing.sm },
+  clockUrgent: { backgroundColor: palette.warningSoft },
   actions: { flexDirection: 'row', gap: spacing.sm },
   action: { flex: 1 },
-  quote: { backgroundColor: '#F6FBF9', borderRadius: radius.sm, padding: spacing.sm },
+  quote: { backgroundColor: palette.surfaceSunken, borderRadius: radius.sm, padding: spacing.sm },
   backdrop: { flex: 1, backgroundColor: 'rgba(12, 32, 26, 0.45)' },
   sheet: { backgroundColor: palette.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg },
-  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#D9E4E0', marginBottom: spacing.md },
+  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.borderStrong, marginBottom: spacing.md },
   input: { minHeight: 96, textAlignVertical: 'top' },
 });

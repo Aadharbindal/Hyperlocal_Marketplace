@@ -260,6 +260,16 @@ function auditHardcodedText() {
       [/color:\s*'(#[0-9A-Fa-f]{6})'/g, 4.5, 'text colour'],
       [/placeholderTextColor=(?:"|\{')(#[0-9A-Fa-f]{6})(?:"|'\})/g, 4.5, 'placeholder'],
       [/\bcolor=(?:"|\{')(#[0-9A-Fa-f]{6})(?:"|'\})/g, 3, 'icon or element colour'],
+      /**
+       * A literal inside an expression, which the pattern above cannot see.
+       *
+       * `color={n <= rating ? '#F0A400' : '#C2CEC9'}` is how the rating stars were painted, and the
+       * unfilled one sat at **1.42:1** - an invisible control in daylight, and precisely the defect
+       * the `iconFaint` token was added for. It survived the first version of this check because the
+       * hex sat behind a ternary rather than at the start of the prop. Held to 3:1: almost all of
+       * these are glyphs, and a glyph that carries meaning still owes that much.
+       */
+      [/\b(?:color|tintColor|fill)=\{[^}]*?'(#[0-9A-Fa-f]{6})'/g, 3, 'colour inside an expression'],
     ];
     for (const [re, need, kind] of patterns) {
       for (const m of src.matchAll(re)) {
@@ -270,6 +280,42 @@ function auditHardcodedText() {
         if (worst >= need) continue;
         findings.push({ file: rel, line: src.slice(0, m.index).split('\n').length, hex, ratio: worst, need, kind });
       }
+    }
+
+    /**
+     * Tokens, measured where they are actually used - not only literals.
+     *
+     * The hole this closes was found by hand and is the more interesting kind. `palette.gold` is
+     * 2.1:1 and was chosen for ornament; it had ended up on the stars in four places, two of them
+     * interactive rating controls. Nothing complained, because every check above skips anything in
+     * the palette - the audit was measuring *spelling* rather than *use*. A token is not safe
+     * everywhere, it is safe for the job it was picked for.
+     *
+     * So any token sitting in a colour position is held to the 3:1 a meaningful non-text element
+     * owes. Text tokens clear that comfortably; the ornamental ones do not, which is the point.
+     */
+    /**
+     * `textOnPrimary` and its muted sibling are exempt, and only those two.
+     *
+     * They are white, and they are *defined* as the colour that goes on the teal fill - so measuring
+     * them against the app's light surfaces reports 1:1 and means nothing. The pairing table above
+     * already measures them against `primary`, which is the background they actually sit on. Every
+     * other token is held to the bar here, including the ones that look harmless.
+     */
+    const onPrimary = new Set(['textOnPrimary', 'textOnPrimaryMuted']);
+    for (const m of src.matchAll(/\b(?:color|tintColor|fill)=\{[^}]*?palette\.(\w+)/g)) {
+      const hex = c[m[1]];
+      if (typeof hex !== 'string' || onPrimary.has(m[1])) continue;
+      const worst = Math.min(...surfaces.map((bg) => contrast(hex, bg)));
+      if (worst >= 3) continue;
+      findings.push({
+        file: rel,
+        line: src.slice(0, m.index).split('\n').length,
+        hex: `palette.${m[1]} (${hex})`,
+        ratio: worst,
+        need: 3,
+        kind: 'token used where it carries meaning',
+      });
     }
   }
   return findings;

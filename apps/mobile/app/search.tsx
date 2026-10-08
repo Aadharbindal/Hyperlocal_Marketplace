@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSearch } from '@/api/warranty';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
-import { Card, Screen, Spacer, Text } from '@/ui';
+import { Card, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
 
 /**
  * The search box that has been a stub since M2.
@@ -73,8 +73,24 @@ export default function SearchScreen() {
       </View>
       <Spacer h={spacing.lg} />
 
-      {query.length >= 2 && showing.length === 0 && !results.isPending ? (
-        <Card style={{ gap: 4 }}>
+      {/* Three answers to "why is this list empty", and they are not interchangeable. Searching,
+          we could not reach the server, and there is genuinely nothing - the last one used to stand
+          in for all three, so a dropped connection read as "we do not do that". */}
+      {query.length >= 2 && results.isPending ? (
+        <View style={styles.list}>
+          <Skeleton height={56} />
+          <Skeleton height={56} />
+          <Skeleton height={56} />
+        </View>
+      ) : query.length >= 2 && results.isError ? (
+        <ErrorState
+          title="Search is not reachable"
+          body="Check your connection, or pick a trade below - those work offline."
+          onRetry={() => void results.refetch()}
+          retrying={results.isRefetching}
+        />
+      ) : query.length >= 2 && showing.length === 0 ? (
+        <Card style={styles.nothing}>
           <Text variant="label" weight="semibold">
             Nothing matches &ldquo;{query}&rdquo;
           </Text>
@@ -154,6 +170,7 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, color: palette.text, fontSize: 15, padding: 0 },
   section: { fontSize: 14, marginBottom: spacing.sm },
+  nothing: { gap: 4 },
   list: { gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
 });

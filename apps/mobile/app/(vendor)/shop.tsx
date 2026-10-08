@@ -111,16 +111,35 @@ export default function VendorShopScreen() {
       )}
 
       <Spacer h={spacing.lg} />
-      {/* A vendor is paid the same way a provider is, so it is the same screen underneath. */}
+      {/* A vendor is paid the same way a provider is, so it is the same screen underneath.
+          Three states deliberately: a failed read used to render as "Add your bank details", which
+          tells somebody who already registered an account that they have not - and invites them to
+          replace working details with a second copy. */}
       <Pressable onPress={() => router.push('/payout-account')} accessibilityRole="button">
         <Card style={styles.payout}>
-          <Ionicons name="wallet-outline" size={20} color={payoutAccount.data ? palette.textMuted : palette.primary} />
-          <View style={{ flex: 1 }}>
+          <Ionicons
+            name={payoutAccount.isError ? 'alert-circle-outline' : 'wallet-outline'}
+            size={20}
+            color={payoutAccount.isError ? palette.warning : payoutAccount.data ? palette.textMuted : palette.primary}
+          />
+          <View style={styles.payoutText}>
             <Text variant="label" weight="semibold">
-              {payoutAccount.data ? 'Where you get paid' : 'Add your bank details'}
+              {payoutAccount.isPending
+                ? 'Checking your payout details'
+                : payoutAccount.isError
+                  ? 'We could not check your payout details'
+                  : payoutAccount.data
+                    ? 'Where you get paid'
+                    : 'Add your bank details'}
             </Text>
             <Text variant="micro" tone="muted">
-              {payoutAccount.data ? payoutAccount.data.masked : 'Payments for your supplies wait until we know where to send them'}
+              {payoutAccount.isPending
+                ? 'One moment'
+                : payoutAccount.isError
+                  ? 'Open this to try again - you may already have an account registered'
+                  : payoutAccount.data
+                    ? payoutAccount.data.masked
+                    : 'Payments for your supplies wait until we know where to send them'}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
@@ -134,6 +153,7 @@ export default function VendorShopScreen() {
 }
 
 const styles = StyleSheet.create({
+  payoutText: { flex: 1, gap: 1 },
   payout: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   card: { gap: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

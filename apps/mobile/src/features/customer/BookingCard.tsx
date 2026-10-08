@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
   headText: { flex: 1, gap: 2 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  breakdown: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: spacing.sm },
+  breakdown: { backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md, gap: spacing.sm },
   divider: { height: 1, backgroundColor: palette.border, marginVertical: 2 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   assurance: { flexDirection: 'row', alignItems: 'center', gap: 6 },

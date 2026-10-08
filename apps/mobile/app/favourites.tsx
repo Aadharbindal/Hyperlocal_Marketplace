@@ -137,9 +137,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E8F6F1',
+    backgroundColor: palette.primarySoft,
   },
   note: { fontStyle: 'italic' },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: '#EEF4F2', paddingTop: spacing.sm },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: palette.surfaceMuted, paddingTop: spacing.sm },
   chip: { borderRadius: radius.sm },
 });

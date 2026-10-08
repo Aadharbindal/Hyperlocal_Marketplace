@@ -73,8 +73,8 @@ export default function TeamScreen() {
       {unverified > 0 ? (
         <>
           <View style={styles.notice}>
-            <Ionicons name="shield-outline" size={16} color="#B26A00" />
-            <Text variant="caption" style={{ flex: 1, color: '#7A5200' }}>
+            <Ionicons name="shield-outline" size={16} color={palette.warningIcon} />
+            <Text variant="caption" style={{ flex: 1, color: palette.warningDeep }}>
               {unverified === 1 ? 'One person still needs' : `${unverified} people still need`} documents before they can be
               sent to a customer.
             </Text>
@@ -330,16 +330,13 @@ function Sheet({ visible, onClose, title, children }: { visible: boolean; onClos
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: '#FFF6E5', borderRadius: radius.md, padding: spacing.md },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: palette.warningSoft, borderRadius: radius.md, padding: spacing.md },
   list: { gap: spacing.sm },
   card: { gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  avatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F6F1' },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: '#EEF4F2', paddingTop: spacing.sm },
+  avatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primarySoft },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderTopWidth: 1, borderTopColor: palette.surfaceMuted, paddingTop: spacing.sm },
   backdrop: { flex: 1, backgroundColor: 'rgba(12, 32, 26, 0.45)' },
   sheet: { backgroundColor: palette.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg },
-  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#D9E4E0', marginBottom: spacing.md },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: { paddingVertical: 8, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: '#E8F6F1' },
-  chipOn: { backgroundColor: palette.primary },
+  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.borderStrong, marginBottom: spacing.md },
 });

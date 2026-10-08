@@ -480,7 +480,7 @@ function Security() {
 
 const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: '#E8F6F1' },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: palette.primarySoft },
   tabOn: { backgroundColor: palette.primary },
   group: { gap: spacing.sm },
   alert: { gap: spacing.sm, borderWidth: 1, borderColor: palette.danger },
@@ -488,10 +488,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   auditRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { paddingVertical: 7, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: '#E8F6F1' },
-  chipOn: { backgroundColor: palette.primary },
   codes: { gap: 2, borderWidth: 1, borderColor: palette.primary },
   codeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  code: { fontFamily: undefined, letterSpacing: 1, backgroundColor: '#F6FBF9', borderRadius: radius.sm, paddingVertical: 6, paddingHorizontal: spacing.md },
+  code: { fontFamily: undefined, letterSpacing: 1, backgroundColor: palette.surfaceSunken, borderRadius: radius.sm, paddingVertical: 6, paddingHorizontal: spacing.md },
 });

@@ -178,7 +178,7 @@ function DisputeCard({ dispute }: { dispute: DisputeView }) {
             <>
               <View style={styles.note}>
                 <Ionicons name="people-outline" size={14} color={palette.warningIcon} />
-                <Text variant="micro" style={{ color: '#7A5200', flex: 1 }}>
+                <Text variant="micro" style={{ color: palette.warningDeep, flex: 1 }}>
                   Over {formatInr(TWO_PERSON_REFUND_THRESHOLD_PAISE)} needs a second approver, and it cannot be you.
                 </Text>
               </View>

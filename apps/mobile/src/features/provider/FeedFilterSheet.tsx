@@ -1,9 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { FEED_SORTS, type FeedFacetsView, type FeedFilters, type FeedSort } from '@hyperlocal/core';
 import { palette, radius, spacing } from '@/theme';
-import { Button, Spacer, Text } from '@/ui';
+import { Button, ChipMultiSelect, SegmentedControl, Spacer, Text } from '@/ui';
 
 /**
  * Narrowing the feed.
@@ -67,58 +66,62 @@ export function FeedFilterSheet({
 
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
           <Section title="Sort by">
-            <View style={styles.chips}>
-              {FEED_SORTS.map((s) => (
-                <Chip
-                  key={s}
-                  label={SORT_LABEL[s]}
-                  selected={(draft.sort ?? 'NEAREST') === s}
-                  onPress={() => setDraft({ ...draft, sort: s })}
-                />
-              ))}
-            </View>
+            <SegmentedControl
+              label="Sort by"
+              options={FEED_SORTS.map((s) => ({ value: s, label: SORT_LABEL[s] }))}
+              value={draft.sort ?? 'NEAREST'}
+              onChange={(sort) => setDraft({ ...draft, sort })}
+            />
           </Section>
 
           {facets?.categories.length ? (
             <Section title="Trade">
-              <View style={styles.chips}>
-                {facets.categories.map((c) => (
-                  <Chip
-                    key={c.id}
-                    // The count is on the chip so the choice is made with the answer visible.
-                    label={`${c.name} (${c.count})`}
-                    selected={!!draft.categoryIds?.includes(c.id)}
-                    onPress={() => toggleCategory(c.id)}
-                  />
-                ))}
-              </View>
+              {/* Checkboxes: picking plumbing does not unpick electrical. The old chips said
+                  "button" to a screen reader, so which ones were already on was invisible. */}
+              <ChipMultiSelect
+                label="Trade"
+                options={facets.categories.map((c) => ({
+                  value: c.id,
+                  // The count is on the chip so the choice is made with the answer visible.
+                  label: `${c.name} (${c.count})`,
+                }))}
+                value={draft.categoryIds ?? []}
+                onToggle={toggleCategory}
+              />
             </Section>
           ) : null}
 
+          {/* These two were chips you tapped a second time to clear, which is an interaction nobody
+              discovers - so a provider who set 3 km had no visible way back to "any distance". An
+              explicit option for it costs one chip and removes the guessing. */}
           <Section title="How far you will travel">
-            <View style={styles.chips}>
-              {DISTANCES.filter((km) => !facets || km <= Math.ceil(facets.furthestKm) + 5).map((km) => (
-                <Chip
-                  key={km}
-                  label={`${km} km`}
-                  selected={draft.maxDistanceKm === km}
-                  onPress={() => setDraft({ ...draft, maxDistanceKm: draft.maxDistanceKm === km ? undefined : km })}
-                />
-              ))}
-            </View>
+            <SegmentedControl
+              label="How far you will travel"
+              options={[
+                { value: 'any', label: 'Any distance' },
+                ...DISTANCES.filter((km) => !facets || km <= Math.ceil(facets.furthestKm) + 5).map((km) => ({
+                  value: String(km),
+                  label: `${km} km`,
+                })),
+              ]}
+              value={draft.maxDistanceKm ? String(draft.maxDistanceKm) : 'any'}
+              onChange={(v) => setDraft({ ...draft, maxDistanceKm: v === 'any' ? undefined : Number(v) })}
+            />
           </Section>
 
           <Section title="Competition">
-            <View style={styles.chips}>
-              {[0, 2, 5].map((n) => (
-                <Chip
-                  key={n}
-                  label={n === 0 ? 'No bids yet' : `Under ${n + 1} bids`}
-                  selected={draft.maxBids === n}
-                  onPress={() => setDraft({ ...draft, maxBids: draft.maxBids === n ? undefined : n })}
-                />
-              ))}
-            </View>
+            <SegmentedControl
+              label="Competition"
+              options={[
+                { value: 'any', label: 'Any' },
+                ...[0, 2, 5].map((n) => ({
+                  value: String(n),
+                  label: n === 0 ? 'No bids yet' : `Under ${n + 1} bids`,
+                })),
+              ]}
+              value={draft.maxBids === undefined ? 'any' : String(draft.maxBids)}
+              onChange={(v) => setDraft({ ...draft, maxBids: v === 'any' ? undefined : Number(v) })}
+            />
           </Section>
 
           <Toggle
@@ -162,22 +165,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      style={[styles.chip, selected && styles.chipOn]}
-    >
-      {selected ? <Ionicons name="checkmark" size={14} color={palette.textOnPrimary} /> : null}
-      <Text variant="micro" weight="semibold" style={{ color: selected ? palette.textOnPrimary : palette.primaryDeep }}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 function Toggle({
   label,
   hint,
@@ -201,7 +188,7 @@ function Toggle({
           {hint}
         </Text>
       </View>
-      <Switch value={value} onValueChange={onChange} trackColor={{ true: palette.primary, false: '#D9E4E0' }} accessibilityLabel={label} />
+      <Switch value={value} onValueChange={onChange} trackColor={{ true: palette.primary, false: palette.borderStrong }} accessibilityLabel={label} />
     </View>
   );
 }
@@ -216,21 +203,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     maxHeight: '82%',
   },
-  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#D9E4E0', marginBottom: spacing.md },
+  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.borderStrong, marginBottom: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
   body: { flexGrow: 0 },
   section: { gap: spacing.sm, marginBottom: spacing.lg },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: '#E8F6F1',
-  },
-  chipOn: { backgroundColor: palette.primary },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
-  toggleDivider: { borderBottomWidth: 1, borderBottomColor: '#EEF4F2' },
+  toggleDivider: { borderBottomWidth: 1, borderBottomColor: palette.borderSoft },
 });

@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   card: { gap: spacing.md },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  detail: { backgroundColor: '#F6FBF9', borderRadius: radius.md, padding: spacing.md, gap: 5 },
+  detail: { backgroundColor: palette.surfaceSunken, borderRadius: radius.md, padding: spacing.md, gap: 5 },
   note: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   actions: { flexDirection: 'row', gap: spacing.sm },
   action: { flex: 1 },

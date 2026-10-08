@@ -196,10 +196,10 @@ function ClaimSheet({ visible, jobId, onClose }: { visible: boolean; jobId: stri
 const styles = StyleSheet.create({
   card: { gap: spacing.sm, borderWidth: 1, borderColor: '#DCEFE8' },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  detail: { gap: spacing.sm, borderTopWidth: 1, borderTopColor: '#EEF4F2', paddingTop: spacing.sm },
-  quote: { gap: 2, backgroundColor: '#F6FBF9', borderRadius: radius.sm, padding: spacing.sm },
+  detail: { gap: spacing.sm, borderTopWidth: 1, borderTopColor: palette.surfaceMuted, paddingTop: spacing.sm },
+  quote: { gap: 2, backgroundColor: palette.surfaceSunken, borderRadius: radius.sm, padding: spacing.sm },
   backdrop: { flex: 1, backgroundColor: 'rgba(12, 32, 26, 0.45)' },
   sheet: { backgroundColor: palette.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg },
-  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#D9E4E0', marginBottom: spacing.md },
+  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: palette.borderStrong, marginBottom: spacing.md },
   input: { minHeight: 96, textAlignVertical: 'top' },
 });
