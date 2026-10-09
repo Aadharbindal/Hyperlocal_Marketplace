@@ -81,9 +81,15 @@ export default function HomeScreen() {
               lines there are and the type gives way if it has to - in Hindi as well. */}
           {/* One fixed size for both lines. They used to auto-shrink, and because each line
               shrinks on its own the longer one came out visibly smaller than the other - the
-              two halves of one phrase set at two different sizes. 23px is measured against the
-              column beside the artwork: "Home Services" is the widest line at 179pt and the
-              column is 189pt, so there is room to spare. */}
+              two halves of one phrase set at two different sizes.
+
+              The size is 21, and the previous 23 was arrived at from a measurement that was simply
+              wrong: the comment here claimed a 189pt column and a 179pt line, and the column is
+              **167.3pt** on a 375pt screen while "Home Services" renders at 176. So the headline on
+              the first screen of the app read "Home Servic..." - caught by looking at it rather
+              than by any test, which is the argument for looking at it. Measured in the running app
+              at 375pt: 21px puts the widest line at 161pt with six to spare, and Hindi is far
+              narrower (113pt), so English is what this is sized against. */}
           <View style={styles.heroTitleBlock}>
             {heroTitleLines.map((line, i) => (
               <Text
@@ -91,12 +97,14 @@ export default function HomeScreen() {
                 variant="title"
                 weight="extrabold"
                 numberOfLines={1}
-                // A safety net for a large system font, not a layout tool: at the normal size
-                // the column has room to spare, so neither line shrinks and the two halves of
-                // the phrase are the same size. The floor is high so that if somebody's text is
-                // scaled up they still match.
+                // A safety net for a narrower phone or a large system font, not a layout tool. At
+                // 375pt neither line shrinks, so the two halves of the phrase stay the same size;
+                // the floor covers down to about a 340pt screen, which is below anything this app
+                // supports. It does nothing on web - `adjustsFontSizeToFit` is not implemented
+                // there - which is why the base size has to fit on its own rather than relying on
+                // this to rescue it.
                 adjustsFontSizeToFit
-                minimumFontScale={0.9}
+                minimumFontScale={0.85}
                 tone={i === heroTitleLines.length - 1 ? 'default' : 'onPrimary'}
                 style={[styles.heroTitle, i === heroTitleLines.length - 1 && styles.heroTitleAccent]}
               >
@@ -146,17 +154,26 @@ export default function HomeScreen() {
         <View style={styles.grid}>
           {categories.data.items.map((c) => {
             return (
-              <Card key={c.id} style={styles.tile} padding="md" onPress={() => book(c.id)} accessibilityLabel={c.name}>
+              <Card key={c.id} style={styles.tile} padding="sm" onPress={() => book(c.id)} accessibilityLabel={c.name}>
                 <RealisticIcon iconKey={c.iconKey} size={56} />
-                {/* One line that shrinks rather than two that break a word in half:
-                    "Carpentry" was splitting into "Carpentr / y". */}
+                {/* "Carpentry" came out as "Carpent..." - measured in the running app at 78.0pt
+                    inside a 78.4pt box, which is no margin at all, and the `adjustsFontSizeToFit`
+                    meant to rescue it does nothing on web and only shrinks the type on native.
+                    The tile's own padding was the problem rather than the type size: `sm` instead
+                    of `md` returns nine points to the label, which is enough for the longest trade
+                    name here.
+
+                    Two lines are allowed again now that a single word fits on one. The reason they
+                    were banned - "Carpentry" splitting into "Carpentr / y" - was a symptom of the
+                    word not fitting at all; with room for it, wrapping only ever happens at a space,
+                    which is what a two-word trade like "Appliance repair" needs. */}
                 <Text
                   variant="label"
                   weight="medium"
                   center
-                  numberOfLines={1}
+                  numberOfLines={2}
                   adjustsFontSizeToFit
-                  minimumFontScale={0.8}
+                  minimumFontScale={0.85}
                   style={styles.tileLabel}
                 >
                   {c.name}
@@ -258,7 +275,7 @@ const styles = StyleSheet.create({
   // Two lines of one phrase, so they are set tight - the line box is barely taller than the
   // letters and there is no gap between them.
   heroTitleBlock: { marginVertical: 2 },
-  heroTitle: { fontSize: 23, lineHeight: 26, letterSpacing: -0.5, width: '100%' },
+  heroTitle: { fontSize: 21, lineHeight: 25, letterSpacing: -0.5, width: '100%' },
   heroTitleAccent: { color: palette.heroTitleAccent },
   heroSubtitle: { marginTop: 2 },
   heroCta: { marginTop: spacing.md },
@@ -285,6 +302,9 @@ const styles = StyleSheet.create({
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   tile: { width: '22.5%', flexGrow: 1, alignItems: 'center', gap: spacing.sm, minHeight: 124 },
+  // Natural height, not two lines' worth reserved. Reserving it kept the price lines level and
+  // left a visible hole under every short name; the row stretches its tiles to the tallest on its
+  // own, so a name that does wrap lifts the whole row rather than punching a gap in each tile.
   tileLabel: { minHeight: 20, width: '100%' },
   tileSkeletonLabel: { marginTop: spacing.xs },
   offer: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, borderRadius: radius.xl },

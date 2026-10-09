@@ -306,6 +306,7 @@ export default function AddressPickerScreen() {
             </Text>
             <SegmentedControl
               label="Name this address"
+              fill
               options={[
                 { value: 'Home', label: 'Home', icon: 'home' },
                 { value: 'Work', label: 'Work', icon: 'briefcase' },

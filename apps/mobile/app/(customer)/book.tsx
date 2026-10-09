@@ -184,8 +184,14 @@ export default function BookScreen() {
 
         {/* description */}
         <Animated.View entering={FadeInDown.delay(80).duration(380)}>
+          {/* The heading stays a section heading, set like "What do you need?" and "Photos" above
+              and below it. Moving it into the field's own `label` slot was a quiet demotion - it
+              came out muted and light, so one of the three steps of this form stopped looking like
+              a step. The field keeps the helper, the counter and the validation. */}
+          <Text weight="semibold" style={styles.label}>
+            Describe the problem
+          </Text>
           <TextField
-            label="Describe the problem"
             helper="A few words or a photo is enough - providers need something to quote on."
             value={description}
             onChangeText={setDescription}

@@ -27,6 +27,18 @@ interface Props<T extends string> {
   stacked?: boolean;
   /** Let a long row scroll sideways rather than wrapping. Ignored when `stacked`. */
   scroll?: boolean;
+  /**
+   * Share the row equally between the options instead of letting each one size to its label.
+   *
+   * For a small, closed set that belongs on one line - Home / Work / Other, UPI / Bank. Those three
+   * chips with their icons came to about 370pt against 335pt of room, so the last one dropped to a
+   * second row and a three-way choice looked like a two-way choice with an afterthought. Equal
+   * widths also stop the selected chip shifting its neighbours as it changes weight.
+   *
+   * Only for short sets: four or more, or anything with a long label, is better scrolled or stacked
+   * than squeezed.
+   */
+  fill?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -49,6 +61,7 @@ export function SegmentedControl<T extends string>({
   label,
   stacked,
   scroll,
+  fill,
   style,
 }: Props<T>) {
   /**
@@ -64,7 +77,7 @@ export function SegmentedControl<T extends string>({
   const chips = options.map((o) => {
     const on = o.value === value;
     return (
-      <View key={o.value} style={stacked ? styles.stackedItem : undefined}>
+      <View key={o.value} style={stacked ? styles.stackedItem : fill ? styles.fillItem : undefined}>
         <Pressable
           onPress={() => !o.disabled && onChange(o.value)}
           accessibilityRole="radio"
@@ -73,6 +86,7 @@ export function SegmentedControl<T extends string>({
           disabled={o.disabled}
           style={({ pressed }) => [
             styles.chip,
+            fill && styles.chipFill,
             stacked && styles.chipStacked,
             on && styles.chipOn,
             o.disabled && styles.chipOff,
@@ -183,6 +197,9 @@ const styles = StyleSheet.create({
   scrollInner: { flexDirection: 'row', gap: spacing.sm, paddingRight: spacing.lg },
   stacked: { gap: spacing.sm },
   stackedItem: { width: '100%' },
+  fillItem: { flex: 1 },
+  // Centred and with the padding down, because an equal share of a narrow row is not much room.
+  chipFill: { paddingHorizontal: spacing.sm, justifyContent: 'center' },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
