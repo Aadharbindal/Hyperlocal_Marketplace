@@ -84,14 +84,15 @@ export function ProfileScreen() {
             )}
           </View>
           <View style={styles.identityText}>
-            <View style={styles.identityRow}>
-              <Text variant="heading" weight="bold">
-                {'\u{1F1EE}\u{1F1F3}'}
-              </Text>
-              <Text variant="heading" weight="bold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ flex: 1 }}>
-                {user?.displayName ?? user?.phoneMasked ?? ''}
-              </Text>
-            </View>
+            {/* The Indian flag emoji used to sit in front of the name, and two things were wrong
+                with it. A regional-indicator pair has no glyph on several platforms and the
+                fallback is the two letters it is built from - so a person opened their own profile
+                and found "IN Ravi Kumar", which reads as a typo in their name. And where it does
+                render it still says nothing: this app runs in one country, so a flag is not
+                distinguishing them from anybody. */}
+            <Text variant="heading" weight="bold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+              {user?.displayName ?? user?.phoneMasked ?? ''}
+            </Text>
             <Text variant="caption" tone="muted">
               {user?.phoneMasked}
             </Text>
@@ -378,6 +379,5 @@ const styles = StyleSheet.create({
   },
   identityAvatarImage: { width: '100%', height: '100%' },
   identityText: { flex: 1, gap: 2 },
-  identityRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   section: { marginTop: spacing.xxl, gap: spacing.md },
 });

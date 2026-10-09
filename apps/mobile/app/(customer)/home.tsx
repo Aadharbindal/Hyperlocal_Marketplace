@@ -12,7 +12,7 @@ import { layout, palette, radius, spacing } from '@/theme';
 import { BookAgain } from '@/features/customer/BookAgain';
 import { HomeHeader } from '@/features/customer/HomeHeader';
 import { PriceGuideLine } from '@/features/customer/PriceGuideLine';
-import { Button, Card, Dots, IconButton, Screen, SectionHeader, Skeleton, Spacer, Text, TextField, ErrorState, RealisticIcon, OfferIllustration } from '@/ui';
+import { Button, Card, IconButton, Screen, SectionHeader, Skeleton, Spacer, Text, TextField, ErrorState, RealisticIcon, OfferIllustration } from '@/ui';
 
 function greetingKey(): 'greeting.morning' | 'greeting.afternoon' | 'greeting.evening' {
   const h = new Date().getHours();
@@ -129,7 +129,11 @@ export default function HomeScreen() {
           importantForAccessibility="no-hide-descendants"
         />
       </LinearGradient>
-      <Dots count={4} active={0} />
+      {/* The pagination dots that used to sit here said `count={4} active={0}` under a single
+          hero that does not scroll. They promised three more panels to swipe to and swiping did
+          nothing - a control describing an interface the app does not have. Building the carousel
+          would mean inventing three more hero messages, which is product copy rather than a
+          design fix, so the dots go and the hero keeps the room. */}
 
       {/* Categories */}
       <Spacer h={spacing.xxl} />
