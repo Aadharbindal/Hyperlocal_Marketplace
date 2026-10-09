@@ -251,6 +251,54 @@ describe('promo codes', () => {
     expect(second.json().error.details.promo).toEqual(['ALREADY_USED']);
   });
 
+  it('hands the applied code and discount back, so the app can show them', async () => {
+    /**
+     * The route has returned both since promo codes were built and `AcceptOfferResponse` never
+     * declared them - so even once there was somewhere to type a code, the app could not read what
+     * had been taken off. That gap is why this assertion exists rather than a happy-path one.
+     */
+    await makeCode('SHOWME');
+    const c = await customerWithOpenJob('+919777000040');
+    const p = await makeProvider('+919777000041');
+    const offer = await app.inject({ method: 'POST', url: `/jobs/${c.job.id}/bids`, headers: p.headers, payload: BID });
+
+    const previewed = await app.inject({
+      method: 'GET',
+      url: `/promo/preview?code=SHOWME&orderPaise=${offer.json().totalPaise}`,
+      headers: c.headers,
+    });
+    expect(previewed.statusCode).toBe(200);
+
+    const accepted = await app.inject({
+      method: 'POST', url: `/bids/${offer.json().id}/accept`, headers: c.headers,
+      payload: { promoCode: 'SHOWME' },
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json().promoCode).toBe('SHOWME');
+    // The preview and the acceptance must agree, because the sheet shows one and charges the other.
+    expect(accepted.json().discountPaise).toBe(previewed.json().promo.discountPaise);
+    /**
+     * The quote stays whole and the *payment* is what shrinks.
+     *
+     * That is the documented rule rather than an accident: a discount is the platform's cost, and
+     * the professional is paid what the quote said. Worth pinning, because the obvious assumption -
+     * that the total comes down - would quietly cut somebody's earnings by the value of a code they
+     * had nothing to do with.
+     */
+    expect(accepted.json().payment.amountPaise).toBe(
+      accepted.json().quote.totalPaise - accepted.json().discountPaise,
+    );
+  });
+
+  it('charges the full price when no code is sent', async () => {
+    const c = await customerWithOpenJob('+919777000042');
+    const p = await makeProvider('+919777000043');
+    const offer = await app.inject({ method: 'POST', url: `/jobs/${c.job.id}/bids`, headers: p.headers, payload: BID });
+    const accepted = await app.inject({ method: 'POST', url: `/bids/${offer.json().id}/accept`, headers: c.headers, payload: {} });
+    expect(accepted.json().promoCode).toBeUndefined();
+    expect(accepted.json().discountPaise).toBeUndefined();
+  });
+
   it('stops working once it is deactivated, without touching bookings already made', async () => {
     const created = await makeCode('STOPME');
     const a = await admin();

@@ -97,6 +97,15 @@ export async function negotiationRoutes(app: FastifyInstance, ctx: AppContext) {
       quote: await negotiation.toQuoteView(quote),
       payment: negotiation.toPaymentView(payment),
       jobStatus: 'PAYMENT_PENDING',
+      /**
+       * The code that was applied, and what it took off.
+       *
+       * This went into the audit record and nowhere else, so the customer saw a total that was
+       * quietly smaller than the offer with nothing saying why. A discount nobody can see is
+       * indistinguishable from a pricing error - and if the code had silently *not* applied, the
+       * screen would have looked exactly the same.
+       */
+      ...(promo ? { promoCode: promo.code, discountPaise: promo.discountPaise } : {}),
     };
   });
 

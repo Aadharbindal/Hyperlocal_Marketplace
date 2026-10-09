@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { formatInr, type AcceptOfferResponse, type OfferView } from '@hyperlocal/core';
+import { formatInr, type AcceptOfferResponse, type OfferView, type PromoPreview } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useAcceptOffer, useCompleteMockPayment } from '@/api/negotiation';
+import { usePromoPreview } from '@/api/growth';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, DataRow, Text } from '@/ui';
+import { Badge, Button, DataRow, Text, TextField } from '@/ui';
 
 type Stage = 'review' | 'paying' | 'done';
 
@@ -21,10 +22,43 @@ export function ConfirmSheet({ jobId, offer, onClose }: { jobId: string; offer: 
   const accept = useAcceptOffer();
   const pay = useCompleteMockPayment();
 
+  /**
+   * A promo code, which had nowhere to be typed.
+   *
+   * The whole pipeline existed: staff can create codes in the console, `/promo/preview` prices one
+   * against an order, and `/bids/:id/accept` takes a `promoCode`, re-checks it and returns the
+   * discount it applied. The only missing piece was a box - so every code anybody created was
+   * unredeemable.
+   *
+   * Previewing is deliberately separate from applying. What the preview says is not trusted for a
+   * moment: the server prices it again at acceptance, which is the only number that can be charged.
+   */
+  const preview = usePromoPreview();
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [promo, setPromo] = useState<PromoPreview | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+
+  async function checkCode() {
+    setPromoError(null);
+    setPromo(null);
+    if (!offer) return;
+    try {
+      const res = await preview.mutateAsync({ code: code.trim().toUpperCase(), orderPaise: offer.totalPaise });
+      setPromo(res.promo);
+    } catch (e) {
+      setPromoError(e instanceof ApiError ? e.message : 'That code did not work.');
+    }
+  }
+
   function close() {
     setStage('review');
     setAccepted(null);
     setError(null);
+    setPromoOpen(false);
+    setCode('');
+    setPromo(null);
+    setPromoError(null);
     onClose();
   }
 
@@ -32,7 +66,11 @@ export function ConfirmSheet({ jobId, offer, onClose }: { jobId: string; offer: 
     if (!offer) return;
     setError(null);
     try {
-      const res = await accept.mutateAsync({ jobId, bidId: offer.id });
+      const res = await accept.mutateAsync({
+        jobId,
+        bidId: offer.id,
+        ...(promo ? { promoCode: promo.code } : {}),
+      });
       setAccepted(res);
       setStage('paying');
     } catch (e) {
@@ -107,8 +145,78 @@ export function ConfirmSheet({ jobId, offer, onClose }: { jobId: string; offer: 
                 )}
                 <DataRow label="Platform fee" value={formatInr(q?.platformFeePaise ?? offer?.platformFeePaise ?? 0)} tone="muted" />
                 <DataRow label="Tax on fee" value={formatInr(q?.taxPaise ?? offer?.taxPaise ?? 0)} tone="muted" />
-                      <DataRow label="Total" value={formatInr(q?.totalPaise ?? offer?.totalPaise ?? 0)} total />
+                {/* The discount the *server* applied once accepted, or the previewed one before
+                    that. They are the same number in every ordinary case; if they ever differ the
+                    accepted quote is the one that is true, so it wins here. */}
+                {accepted?.promoCode ? (
+                  <DataRow
+                    label={`Discount (${accepted.promoCode})`}
+                    value={`- ${formatInr(accepted.discountPaise ?? 0)}`}
+                    tone="success"
+                  />
+                ) : promo && stage === 'review' ? (
+                  <DataRow label={`Discount (${promo.code})`} value={`- ${formatInr(promo.discountPaise)}`} tone="success" />
+                ) : null}
+                {/* After acceptance this is what the gateway is actually asked for, which is the
+                    quote minus the discount - the quote itself stays whole, because a discount is
+                    the platform's cost and the professional is paid what the quote said. Showing
+                    the quote total here beside a discount row would not add up on the page. */}
+                <DataRow
+                  label="Total"
+                  value={formatInr(
+                    accepted?.payment.amountPaise ??
+                      (promo && stage === 'review' ? promo.newTotalPaise : offer?.totalPaise ?? 0),
+                  )}
+                  total
+                />
               </View>
+
+              {/* Only before acceptance. Once the quote is frozen the price is the price, and a
+                  code box that silently does nothing would be worse than no box. */}
+              {stage === 'review' ? (
+                promoOpen ? (
+                  <View style={styles.promo}>
+                    <TextField
+                      label="Promo code"
+                      value={code}
+                      onChangeText={(v) => {
+                        setCode(v.toUpperCase());
+                        setPromo(null);
+                        setPromoError(null);
+                      }}
+                      placeholder="SAVE100"
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      maxLength={24}
+                      error={promoError}
+                      helper={promo ? promo.description : undefined}
+                    />
+                    <View style={styles.promoActions}>
+                      <Button title="Remove" size="sm" variant="ghost" onPress={() => { setPromoOpen(false); setCode(''); setPromo(null); setPromoError(null); }} />
+                      <Button
+                        title={promo ? 'Applied' : 'Check'}
+                        size="sm"
+                        icon={promo ? 'checkmark' : undefined}
+                        loading={preview.isPending}
+                        disabled={code.trim().length < 3 || !!promo}
+                        onPress={() => void checkCode()}
+                      />
+                    </View>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => setPromoOpen(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add a promo code"
+                    style={styles.promoLink}
+                  >
+                    <Ionicons name="pricetag-outline" size={15} color={palette.primaryDeep} />
+                    <Text variant="caption" weight="semibold" tone="primary">
+                      Have a promo code?
+                    </Text>
+                  </Pressable>
+                )
+              ) : null}
 
               <View style={styles.tags}>
                 <Badge tone="neutral" icon="time-outline" label={`${Math.round((q?.etaMinutes ?? offer?.etaMinutes ?? 0) / 60) || 1} h arrival`} />
@@ -175,6 +283,9 @@ function acceptError(e: ApiError): string {
 }
 
 const styles = StyleSheet.create({
+  promo: { gap: spacing.md, marginTop: spacing.md },
+  promoActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm },
+  promoLink: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, marginTop: spacing.xs },
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: palette.overlay },
   sheet: {
     position: 'absolute',

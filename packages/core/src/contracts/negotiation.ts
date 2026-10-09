@@ -100,6 +100,16 @@ export const AcceptOfferResponse = z.object({
   quote: BookingQuoteView,
   payment: PaymentView,
   jobStatus: z.string(),
+  /**
+   * The code the server actually applied, and what it took off.
+   *
+   * The route has returned both since promo codes were built and the contract never declared them,
+   * so the app could not read them even once it had somewhere to type a code. Present only when a
+   * code was accepted - and it is this number, not the preview's, that the receipt will show,
+   * because the server prices the code again at acceptance.
+   */
+  promoCode: z.string().optional(),
+  discountPaise: z.number().int().optional(),
 });
 export type AcceptOfferResponse = z.infer<typeof AcceptOfferResponse>;
 

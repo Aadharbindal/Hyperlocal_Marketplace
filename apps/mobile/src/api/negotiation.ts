@@ -64,8 +64,15 @@ export function useRespondToOffer() {
 export function useAcceptOffer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ bidId }: { jobId: string; bidId: string }) =>
-      api<AcceptOfferResponse>(`/bids/${bidId}/accept`, { method: 'POST', idempotencyKey: newIdempotencyKey() }),
+    // The promo code travels with the acceptance rather than being "applied" beforehand: the
+    // server re-checks it at this moment and prices the quote itself, so nothing the client worked
+    // out from a preview is trusted.
+    mutationFn: ({ bidId, promoCode }: { jobId: string; bidId: string; promoCode?: string }) =>
+      api<AcceptOfferResponse>(`/bids/${bidId}/accept`, {
+        method: 'POST',
+        body: promoCode ? { promoCode } : {},
+        idempotencyKey: newIdempotencyKey(),
+      }),
     onSuccess: (_r, v) => invalidateBooking(qc, v.jobId),
   });
 }
