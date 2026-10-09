@@ -607,3 +607,129 @@ describe('asking for a copy of everything', () => {
     expect(res.json().counts.addresses).toBe(1);
   });
 });
+
+describe('asking for a second look at a decision', () => {
+  /**
+   * DISPUTE_POLICY section 6 grants one appeal within a week, reviewed by somebody other than
+   * whoever decided it. The rule had unit tests and the endpoint had none, and no screen offered
+   * it - so in practice a decision was final the moment it was made.
+   */
+  it('is not offered until there is a decision to appeal', async () => {
+    const { c, jobId } = await completedJob('+919555003001', '+919555003002');
+    const raised = await app.inject({
+      method: 'POST', url: `/jobs/${jobId}/dispute`, headers: c.headers,
+      payload: { category: 'POOR_WORKMANSHIP', description: 'The tap started leaking again within an hour of them leaving' },
+    });
+    // The field the app's button depends on. While it is open there is nothing to appeal.
+    expect(raised.json().canAppeal).toBe(false);
+    expect(raised.json().appealClosesAt).toBeNull();
+
+    const early = await app.inject({
+      method: 'POST', url: `/disputes/${raised.json().id}/appeal`, headers: c.headers,
+      payload: { reason: 'I do not agree with how this is going at all so far' },
+    });
+    // A named blocker rather than a bare refusal, which is what lets the app say *why*.
+    expect(early.statusCode).toBe(400);
+    expect(early.json().error.details.admin).toContain('NOT_RESOLVED');
+  });
+
+  it('opens once it is decided, and says when it shuts', async () => {
+    const { c, jobId } = await completedJob('+919555003003', '+919555003004');
+    const raised = await app.inject({
+      method: 'POST', url: `/jobs/${jobId}/dispute`, headers: c.headers,
+      payload: { category: 'INCOMPLETE_WORK', description: 'Half the job was left unfinished when they walked out' },
+    });
+    const a = await admin();
+    await app.inject({
+      method: 'POST', url: `/admin/disputes/${raised.json().id}/resolve`, headers: a.headers,
+      payload: { resolution: 'NO_ACTION', reason: 'The photos show the work matches what was agreed in the quote' },
+    });
+
+    const after = await app.inject({ method: 'GET', url: `/jobs/${jobId}/disputes`, headers: c.headers });
+    const view = after.json().items[0];
+    expect(view.canAppeal).toBe(true);
+    // Seven days from the decision, so somebody can see how long they have rather than find out
+    // by missing it.
+    const window = new Date(view.appealClosesAt).getTime() - new Date(view.resolvedAt).getTime();
+    expect(Math.round(window / 86_400_000)).toBe(7);
+  });
+
+  it('reopens the dispute and will not do it twice', async () => {
+    const { c, jobId } = await completedJob('+919555003005', '+919555003006');
+    const raised = await app.inject({
+      method: 'POST', url: `/jobs/${jobId}/dispute`, headers: c.headers,
+      payload: { category: 'INCOMPLETE_WORK', description: 'Half the job was left unfinished when they walked out' },
+    });
+    const a = await admin();
+    await app.inject({
+      method: 'POST', url: `/admin/disputes/${raised.json().id}/resolve`, headers: a.headers,
+      payload: { resolution: 'NO_ACTION', reason: 'The photos show the work matches what was agreed in the quote' },
+    });
+
+    const appealed = await app.inject({
+      method: 'POST', url: `/disputes/${raised.json().id}/appeal`, headers: c.headers,
+      payload: { reason: 'The photos were taken before the second tap was started, not after' },
+    });
+    expect(appealed.statusCode).toBe(200);
+
+    const after = await app.inject({ method: 'GET', url: `/jobs/${jobId}/disputes`, headers: c.headers });
+    const view = after.json().items[0];
+    expect(view.status).toBe('REOPENED');
+    // One appeal only - and the view says so, so the screen can explain rather than go quiet.
+    expect(view.alreadyAppealed).toBe(true);
+    expect(view.canAppeal).toBe(false);
+
+    const again = await app.inject({
+      method: 'POST', url: `/disputes/${raised.json().id}/appeal`, headers: c.headers,
+      payload: { reason: 'I still think the decision was wrong and want it looked at again' },
+    });
+    expect(again.statusCode).toBe(400);
+    expect(again.json().error.details.admin).toContain('ALREADY_REOPENED');
+  });
+
+  it('is not offered to somebody who is not on the dispute', async () => {
+    const { c, jobId } = await completedJob('+919555003007', '+919555003008');
+    const raised = await app.inject({
+      method: 'POST', url: `/jobs/${jobId}/dispute`, headers: c.headers,
+      payload: { category: 'INCOMPLETE_WORK', description: 'Half the job was left unfinished when they walked out' },
+    });
+    const a = await admin();
+    await app.inject({
+      method: 'POST', url: `/admin/disputes/${raised.json().id}/resolve`, headers: a.headers,
+      payload: { resolution: 'NO_ACTION', reason: 'The photos show the work matches what was agreed in the quote' },
+    });
+
+    const stranger = await login(app, '+919555003009');
+    const res = await app.inject({
+      method: 'POST', url: `/disputes/${raised.json().id}/appeal`, headers: bearer(stranger.accessToken),
+      payload: { reason: 'I read about this on the internet and disagree with the outcome' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.details.admin).toContain('NOT_ON_DISPUTE');
+  });
+});
+
+describe('adding to a dispute after it was raised', () => {
+  it('lets the person who raised it attach something later', async () => {
+    // The endpoint existed with nothing calling it, so a customer who found the receipt an hour
+    // after reporting the problem had no way to hand it over - and support decided on whatever
+    // was in the first message.
+    const { c, jobId } = await completedJob('+919555003010', '+919555003011');
+    const raised = await app.inject({
+      method: 'POST', url: `/jobs/${jobId}/dispute`, headers: c.headers,
+      payload: { category: 'PAYMENT_ISSUE', description: 'The payment went through twice for this one booking' },
+    });
+    const shot = await app.inject({
+      method: 'POST', url: `/jobs/${jobId}/evidence`, headers: c.headers,
+      payload: { kind: 'PHOTO', mime: 'image/jpeg', sizeBytes: 120_000 },
+    });
+    expect(shot.statusCode).toBe(201);
+
+    const added = await app.inject({
+      method: 'POST', url: `/disputes/${raised.json().id}/evidence`, headers: c.headers,
+      payload: { mediaIds: [shot.json().media.id], note: 'The bank statement showing both charges' },
+    });
+    expect(added.statusCode).toBe(201);
+    expect(added.json().evidenceUrls.length).toBeGreaterThan(0);
+  });
+});

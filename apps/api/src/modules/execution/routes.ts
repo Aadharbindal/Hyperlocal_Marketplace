@@ -14,6 +14,7 @@ import {
   arrivalState,
   blunt,
   maySeeLiveLocation,
+  disputeIsOpen,
   mediaPhaseFor,
   shouldTrack,
   type ArrivalView,
@@ -266,11 +267,31 @@ export async function executionRoutes(app: FastifyInstance, ctx: AppContext) {
     const { id } = parse(IdParam, req.params);
     const body = parse(JobMediaCreate, req.body);
     const job = await jobForParty(req, id);
-    const phase = mediaPhaseFor(job.status);
+    /**
+     * A job that is over still accepts evidence while a dispute on it is open.
+     *
+     * The `DISPUTE` phase has been in the `media_phase` enum since 0002 and `mediaPhaseFor` never
+     * returned it, so uploading stopped dead at COMPLETED - and disputes are raised *after* that.
+     * The effect was that `POST /disputes/:id/evidence` could only ever be handed media captured
+     * before the job finished, which is not the evidence anybody is trying to add: a photo of the
+     * leak that came back, or a statement showing the second charge, can only exist afterwards.
+     * That is almost certainly why nothing ever called it.
+     */
+    const open = (await store.finance.listDisputesForJob(job.id)).find((d) => disputeIsOpen(d.status));
+    const phase = open ? 'DISPUTE' : mediaPhaseFor(job.status);
     if (!phase || phase === 'REQUEST') {
       throw new AppError('CONFLICT', { details: { reason: 'media_phase_closed', status: job.status } });
     }
-    await execution.requireOnJob(job, auth.userId);
+    /**
+     * Work photos are the professional's; dispute evidence belongs to whoever is disputing.
+     *
+     * `requireOnJob` is a provider-side check, and applying it to every upload meant the customer -
+     * who raises most disputes - could not attach anything to their own. Between that and the phase
+     * stopping at COMPLETED, `POST /disputes/:id/evidence` had no reachable way to be given a new
+     * photo at all, which is the likeliest reason it was never called. `jobForParty` above has
+     * already established this person is on the booking.
+     */
+    if (phase !== 'DISPUTE') await execution.requireOnJob(job, auth.userId);
     const { media, target, uploadRequired } = await services.jobs.createMediaUpload(job, {
       kind: body.kind,
       mime: body.mime,

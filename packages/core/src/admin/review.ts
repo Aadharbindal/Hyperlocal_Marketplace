@@ -69,8 +69,17 @@ export function checkAppeal(
   now: Date = new Date(),
 ): AppealBlocker | null {
   if (dispute.raisedBy !== input.userId && dispute.againstUserId !== input.userId) return 'NOT_ON_DISPUTE';
-  if (dispute.status !== 'RESOLVED' && dispute.status !== 'REJECTED') return 'NOT_RESOLVED';
+  /**
+   * Before the status check, not after, and the order is the whole point.
+   *
+   * A successful appeal sets the dispute back to REOPENED and clears `resolvedAt`, so both of the
+   * next two conditions are true at once for anybody asking a second time - and the status check
+   * ran first, which meant the answer was "this is not resolved". To somebody who watched it get
+   * resolved and then appealed it, that is not merely unhelpful, it reads as the system having
+   * lost track. The true reason is that they have already had their one appeal.
+   */
   if (dispute.reopenedCount >= 1) return 'ALREADY_REOPENED';
+  if (dispute.status !== 'RESOLVED' && dispute.status !== 'REJECTED') return 'NOT_RESOLVED';
   if (input.reason.trim().length < 20) return 'REASON_TOO_SHORT';
   if (!dispute.resolvedAt) return 'NOT_RESOLVED';
   if (now.getTime() - dispute.resolvedAt.getTime() > APPEAL_WINDOW_DAYS * 86_400_000) return 'APPEAL_WINDOW_CLOSED';

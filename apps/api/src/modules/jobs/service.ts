@@ -340,10 +340,21 @@ export function jobService(d: JobDeps) {
       /** Defaults to the request phase; execution evidence passes PROGRESS/COMPLETION/PRICE_REVISION. */
       phase?: JobMediaRecord['phase'];
     }) {
-      // The phase a job can receive depends on where it is, and mirrors
-      // job_media_phase_allowed() in 0002.
+      /**
+       * The phase a job can receive depends on where it is - except for DISPUTE, which does not.
+       *
+       * This claimed to mirror `job_media_phase_allowed()` in 0002, and it was stricter than the
+       * thing it mirrored: the trigger only ever refuses REQUEST media on a job that has moved on,
+       * while this refused anything whose phase did not match the current status. DISPUTE is the
+       * case that breaks on: a dispute is raised *after* COMPLETED, when `mediaPhaseFor` returns
+       * null, so there was no reachable way to attach a photo to one. `POST /disputes/:id/evidence`
+       * has sat unused since the finance work for exactly that reason.
+       *
+       * The caller decides whether a dispute is actually open; this only stops the phase rule from
+       * forbidding what the database allows.
+       */
       const phase = input.phase ?? 'REQUEST';
-      if (mediaPhaseFor(job.status) !== phase) {
+      if (phase !== 'DISPUTE' && mediaPhaseFor(job.status) !== phase) {
         throw new AppError('CONFLICT', { details: { reason: 'media_phase_closed', status: job.status, phase } });
       }
       const existing = await store.jobs.listMedia(job.id, phase);

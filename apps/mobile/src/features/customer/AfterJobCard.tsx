@@ -4,7 +4,16 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { checkMeaningfulText, checkReviewComment, formatInr, type DisputeView, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
-import { useDisputes, useJobMoney, useLeaveReview, useRaiseDispute } from '@/api/finance';
+import { askForPhoto } from '@/features/capture/media';
+import { useAddEvidence } from '@/api/execution';
+import {
+  useAddDisputeEvidence,
+  useAppealDispute,
+  useDisputes,
+  useJobMoney,
+  useLeaveReview,
+  useRaiseDispute,
+} from '@/api/finance';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, DataRow, SegmentedControl, Text, TextField } from '@/ui';
 
@@ -86,7 +95,67 @@ export function AfterJobCard({ jobId, status }: { jobId: string; status: JobStat
   );
 }
 
+/**
+ * A report, and the two things somebody can still do about it.
+ *
+ * Both endpoints behind this have existed since the finance work with nothing calling them. The
+ * effect was that a decision was final the moment it was made - DISPUTE_POLICY section 6 grants an
+ * appeal and the app offered no way to use it - and that a customer who found the receipt an hour
+ * after reporting the problem had nowhere to put it, so support decided on whatever was in the
+ * first message.
+ */
 function DisputeCard({ dispute }: { dispute: DisputeView }) {
+  const appeal = useAppealDispute();
+  const addEvidence = useAddDisputeEvidence();
+  const uploadEvidence = useAddEvidence();
+  const [appealing, setAppealing] = useState(false);
+  const [reason, setReason] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Twenty characters is the server's floor for an appeal, and the junk check is the shared one -
+  // "not fair" is not a ground for review and would be refused after the typing rather than before.
+  const reasonProblem = reason.trim() ? checkMeaningfulText(reason, 20, 'Your reason') : null;
+  const canSendAppeal = reason.trim().length >= 20 && !reasonProblem;
+
+  function attach() {
+    setError(null);
+    askForPhoto(
+      (file) => {
+        void (async () => {
+          setBusy(true);
+          try {
+            const shot = await uploadEvidence.mutateAsync({ jobId: dispute.jobId, file });
+            await addEvidence.mutateAsync({
+              jobId: dispute.jobId,
+              disputeId: dispute.id,
+              mediaIds: [shot.media.id],
+              ...(note.trim() ? { note: note.trim() } : {}),
+            });
+            setNote('');
+          } catch (e) {
+            setError(e instanceof ApiError ? e.message : 'That did not attach. Please try again.');
+          } finally {
+            setBusy(false);
+          }
+        })();
+      },
+      (m) => setError(m),
+    );
+  }
+
+  async function sendAppeal() {
+    setError(null);
+    try {
+      await appeal.mutateAsync({ jobId: dispute.jobId, disputeId: dispute.id, reason: reason.trim() });
+      setAppealing(false);
+      setReason('');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'That did not send. Please try again.');
+    }
+  }
+
   return (
     <Card style={[styles.card, !dispute.resolvedAt && styles.cardAlert]}>
       <View style={styles.head}>
@@ -106,11 +175,82 @@ function DisputeCard({ dispute }: { dispute: DisputeView }) {
       )}
       {dispute.refundPaise ? <Badge tone="success" icon="arrow-undo-outline" label={`${formatInr(dispute.refundPaise)} refunded`} /> : null}
       {!dispute.resolvedAt && (
-        <Text variant="micro" tone="muted">
-          Support will reply by {new Date(dispute.slaDueAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.
-          {dispute.needsHuman ? ' A person reviews this kind of report — never an automated rule.' : ''}
-        </Text>
+        <>
+          <Text variant="micro" tone="muted">
+            Support will reply by {new Date(dispute.slaDueAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.
+            {dispute.needsHuman ? ' A person reviews this kind of report — never an automated rule.' : ''}
+          </Text>
+          {dispute.evidenceUrls.length > 0 ? (
+            <Text variant="micro" tone="muted">
+              {dispute.evidenceUrls.length === 1 ? '1 photo attached' : `${dispute.evidenceUrls.length} photos attached`}
+            </Text>
+          ) : null}
+          {/* While it is still open, anything that arrives late can still change the answer. */}
+          <TextField
+            label="Anything else to add? (optional)"
+            value={note}
+            onChangeText={setNote}
+            placeholder="The receipt shows the second charge"
+            multiline
+            minLines={2}
+            maxLength={500}
+          />
+          <Button
+            title="Add a photo"
+            size="sm"
+            variant="secondary"
+            icon="camera-outline"
+            loading={busy}
+            onPress={attach}
+          />
+        </>
       )}
+
+      {dispute.resolvedAt && dispute.canAppeal ? (
+        appealing ? (
+          <View style={styles.appeal}>
+            <TextField
+              label="Why should this be looked at again?"
+              helper="Somebody who did not make the first decision reads this"
+              value={reason}
+              onChangeText={setReason}
+              placeholder="The photos were taken before the work was finished, not after."
+              multiline
+              minLines={3}
+              maxLength={1000}
+              counter
+              required
+              error={reasonProblem?.message ?? null}
+            />
+            <View style={styles.appealActions}>
+              <Button title="Never mind" size="sm" variant="ghost" onPress={() => setAppealing(false)} />
+              <Button title="Send appeal" size="sm" loading={appeal.isPending} disabled={!canSendAppeal} onPress={() => void sendAppeal()} />
+            </View>
+          </View>
+        ) : (
+          <>
+            <Button title="Ask for another look" size="sm" variant="secondary" icon="refresh-outline" onPress={() => setAppealing(true)} />
+            {dispute.appealClosesAt ? (
+              /* The deadline said out loud. One appeal, seven days - somebody deciding whether to
+                 bother should not have to find that out by missing it. */
+              <Text variant="micro" tone="muted">
+                You can ask once, until {new Date(dispute.appealClosesAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}.
+              </Text>
+            ) : null}
+          </>
+        )
+      ) : dispute.alreadyAppealed ? (
+        <Text variant="micro" tone="muted">
+          You have asked for another look at this one. Somebody who did not make the first decision
+          is reviewing it.
+        </Text>
+      ) : null}
+
+      {error ? (
+        <Text variant="micro" tone="danger">
+          {error}
+        </Text>
+      ) : null}
     </Card>
   );
 }
@@ -255,6 +395,8 @@ function Sheet({ visible, onClose, title, children }: { visible: boolean; onClos
 }
 
 const styles = StyleSheet.create({
+  appeal: { gap: spacing.md },
+  appealActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm },
   wrap: { marginTop: spacing.lg, gap: spacing.md },
   card: { gap: spacing.md },
   cardAlert: { borderWidth: 2, borderColor: '#FFD38A' },

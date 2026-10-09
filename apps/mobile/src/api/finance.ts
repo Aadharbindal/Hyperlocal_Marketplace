@@ -69,6 +69,38 @@ export function useRaiseDispute() {
   });
 }
 
+/**
+ * Appealing a decision.
+ *
+ * One per dispute, within a week, reviewed by somebody who did not decide it the first time - all
+ * enforced on the server. The view's `canAppeal` is what decides whether this is offered at all,
+ * so the button and the rule cannot disagree.
+ */
+export function useAppealDispute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ disputeId, reason }: { jobId: string; disputeId: string; reason: string }) =>
+      api<{ ok: true }>(`/disputes/${disputeId}/appeal`, { method: 'POST', body: { reason } }),
+    onSuccess: (_r, v) => invalidate(qc, v.jobId),
+  });
+}
+
+/**
+ * Adding something to a dispute that is still open.
+ *
+ * The endpoint has existed since the finance work with nothing calling it, which meant a customer
+ * who found the receipt an hour after reporting the problem had no way to hand it over - and
+ * support decided on what was in the first message.
+ */
+export function useAddDisputeEvidence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ disputeId, mediaIds, note }: { jobId: string; disputeId: string; mediaIds: string[]; note?: string }) =>
+      api<DisputeView>(`/disputes/${disputeId}/evidence`, { method: 'POST', body: { mediaIds, ...(note ? { note } : {}) } }),
+    onSuccess: (_r, v) => invalidate(qc, v.jobId),
+  });
+}
+
 export function useLeaveReview() {
   const qc = useQueryClient();
   return useMutation({

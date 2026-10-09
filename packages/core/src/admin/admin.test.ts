@@ -152,3 +152,34 @@ describe('ops report', () => {
     ).toBe(2);
   });
 });
+
+describe('the reason an appeal is refused', () => {
+  const base = {
+    status: 'RESOLVED',
+    resolvedAt: new Date(),
+    reopenedCount: 0,
+    raisedBy: 'u1',
+    againstUserId: 'u2',
+  };
+  const reason = 'The photos were taken before the second tap was started, not after';
+
+  it('says the appeal is used up, not that nothing was decided', () => {
+    // A successful appeal sets the dispute back to REOPENED and clears `resolvedAt`, so both
+    // conditions are true at once for anybody asking a second time. The status check used to run
+    // first, so the answer was "this is not resolved" - which, to somebody who watched it get
+    // resolved and then appealed it, reads as the system having lost track.
+    const after = { ...base, status: 'REOPENED', resolvedAt: null, reopenedCount: 1 };
+    expect(checkAppeal(after, { userId: 'u1', reason })).toBe('ALREADY_REOPENED');
+  });
+
+  it('still says nothing was decided when that is actually why', () => {
+    const open = { ...base, status: 'OPEN', resolvedAt: null };
+    expect(checkAppeal(open, { userId: 'u1', reason })).toBe('NOT_RESOLVED');
+  });
+
+  it('puts being a stranger ahead of everything else', () => {
+    // Somebody not on the dispute should not learn its state from the refusal.
+    const after = { ...base, status: 'REOPENED', resolvedAt: null, reopenedCount: 1 };
+    expect(checkAppeal(after, { userId: 'nobody', reason })).toBe('NOT_ON_DISPUTE');
+  });
+});

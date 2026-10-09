@@ -76,6 +76,20 @@ export const DisputeView = z.object({
   evidenceUrls: z.array(z.string()),
   resolvedAt: z.string().nullable(),
   createdAt: z.string(),
+  /**
+   * Whether this viewer can still appeal, decided by the server.
+   *
+   * The rules are one appeal per dispute, within a week of the decision, by a party to it
+   * (DISPUTE_POLICY section 6) - and the client had no way to know any of that, because the view
+   * carried neither the reopen count nor the window. Re-deriving it in the app would mean two
+   * copies of a deadline that must agree, so `checkAppeal` answers it once and the button appears
+   * exactly when the server would accept the press.
+   */
+  canAppeal: z.boolean(),
+  /** When the window shuts, so somebody can see how long they have rather than guessing. */
+  appealClosesAt: z.string().nullable(),
+  /** True once the one appeal has been used, so the screen can say that instead of staying silent. */
+  alreadyAppealed: z.boolean(),
 });
 export type DisputeView = z.infer<typeof DisputeView>;
 

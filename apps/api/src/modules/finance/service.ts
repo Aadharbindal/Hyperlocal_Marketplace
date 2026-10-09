@@ -7,8 +7,10 @@ import {
   buildDisputeReleaseLines,
   buildMaterialCaptureLines,
   buildRefundLines,
+  APPEAL_WINDOW_DAYS,
   buildSettlementLines,
   cancellationNeedsSupport,
+  checkAppeal,
   cancellationStage,
   checkCanCapture,
   checkCanRaiseDispute,
@@ -1310,6 +1312,28 @@ export function financeService(d: FinanceDeps) {
           .filter((x): x is string => !!x),
         resolvedAt: dispute.resolved_at?.toISOString() ?? null,
         createdAt: dispute.created_at.toISOString(),
+        /**
+         * Answered here rather than in the app, with the same function the appeal route enforces.
+         *
+         * The reason is passed as a placeholder long enough to clear the length rule: this is
+         * asking "could this person appeal at all", not "is this particular text acceptable", and
+         * the real text is checked again when they send it.
+         */
+        canAppeal:
+          checkAppeal(
+            {
+              status: dispute.status,
+              resolvedAt: dispute.resolved_at,
+              reopenedCount: dispute.reopened_count,
+              raisedBy: dispute.raised_by,
+              againstUserId: dispute.against_user_id,
+            },
+            { userId: viewerId, reason: 'x'.repeat(20) },
+          ) === null,
+        appealClosesAt: dispute.resolved_at
+          ? new Date(dispute.resolved_at.getTime() + APPEAL_WINDOW_DAYS * 86_400_000).toISOString()
+          : null,
+        alreadyAppealed: dispute.reopened_count >= 1,
       };
     },
   };
