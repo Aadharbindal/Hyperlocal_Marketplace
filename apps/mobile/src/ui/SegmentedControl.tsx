@@ -81,7 +81,22 @@ export function SegmentedControl<T extends string>({
         <Pressable
           onPress={() => !o.disabled && onChange(o.value)}
           accessibilityRole="radio"
-          accessibilityState={{ selected: on, disabled: !!o.disabled }}
+          /**
+           * Both spellings, because the two platforms read different ones.
+           *
+           * `accessibilityState` is what native reads, and `aria-checked` is what ends up in the
+           * DOM - React Native Web does not translate the first into the second on a `Pressable`,
+           * so the rendered page had five radios and nothing saying which was on. And it is
+           * `checked` rather than `selected` in both: a radio's state is checked, `selected`
+           * belongs to options and tabs, and `aria-selected` is invalid on `role="radio"` so it
+           * rendered as nothing even where it was emitted.
+           *
+           * None of this was visible to the component test, which reads `accessibilityState`
+           * directly and passed throughout. It took looking at the DOM.
+           */
+          accessibilityState={{ checked: on, disabled: !!o.disabled }}
+          aria-checked={on}
+          aria-disabled={!!o.disabled}
           accessibilityLabel={o.hint ? `${o.label}. ${o.hint}` : o.label}
           disabled={o.disabled}
           style={({ pressed }) => [
@@ -175,6 +190,10 @@ export function ChipMultiSelect<T extends string>({ options, value, onToggle, la
             onPress={() => !o.disabled && onToggle(o.value)}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: on, disabled: !!o.disabled }}
+            // Same reason as the radio above: native reads the state object, the DOM needs the
+            // ARIA attribute, and neither is derived from the other.
+            aria-checked={on}
+            aria-disabled={!!o.disabled}
             accessibilityLabel={o.label}
             disabled={o.disabled}
             style={({ pressed }) => [styles.chip, on && styles.chipOn, pressed && !o.disabled && styles.chipPressed]}

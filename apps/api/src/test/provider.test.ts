@@ -164,6 +164,19 @@ describe('nearby feed eligibility (BID-04, BID-08)', () => {
     const unverified = await makeProvider('+919444000018', { verified: false, available: false });
     const feed2 = await app.inject({ method: 'GET', url: '/provider/jobs/nearby', headers: unverified.headers });
     expect(feed2.json().blockers).toContain('VERIFICATION_PENDING');
+
+    /**
+     * The blocked path answers in the same shape as every other one.
+     *
+     * It used to return `{ items, blockers }` and nothing else, and the provider's feed screen
+     * reads `facets.total` to decide whether to offer the filter button - so it threw, and **every
+     * brand-new provider** (unverified, no skills, no base location, which is all of them on day
+     * one) met "Something went wrong, please restart the app" instead of the list of things to
+     * finish. The assertions above passed throughout, because they only ever looked at the two
+     * fields that were there.
+     */
+    expect(feed2.json().facets).toMatchObject({ total: 0, categories: [], furthestKm: 0 });
+    expect(feed.json().facets).toBeDefined();
   });
 
   it('a customer cannot read the provider feed', async () => {

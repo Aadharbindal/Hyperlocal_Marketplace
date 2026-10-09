@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
-import type { DataExportView } from '@hyperlocal/core';
+import type { DataExportView, ExportSection } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useDataExport } from '@/api/warranty';
 import { palette, radius, spacing } from '@/theme';
@@ -179,22 +179,33 @@ export default function MyDataScreen() {
   );
 }
 
-/** The server's section keys, as a person would name them. */
+/**
+ * The server's section keys, as a person would name them.
+ *
+ * Typed as a complete `Record<ExportSection, string>` rather than a lookup with a fallback, and
+ * that is the whole point: the first version of this was guessed rather than read, so `profile`,
+ * `bookings`, `disputes` and `warrantyClaims` fell through and the screen showed somebody the raw
+ * key "profile" next to a number. Three of the labels it did define named sections that do not
+ * exist. With this shape, adding a section to `EXPORT_SECTIONS` without naming it here stops
+ * compiling instead of leaking a field name into a privacy screen.
+ */
+const SECTION_LABEL: Record<ExportSection, string> = {
+  profile: 'Your account',
+  addresses: 'Saved addresses',
+  consents: 'Consents you gave',
+  jobs: 'Bookings',
+  bookings: 'Confirmed bookings',
+  payments: 'Payments',
+  invoices: 'Receipts',
+  reviews: 'Reviews you wrote',
+  disputes: 'Problems you reported',
+  warrantyClaims: 'Warranty claims',
+  messages: 'Messages',
+  notifications: 'Notifications',
+};
+
 function sectionLabel(key: string): string {
-  const map: Record<string, string> = {
-    account: 'Your account',
-    roles: 'Roles',
-    consents: 'Consents you gave',
-    addresses: 'Saved addresses',
-    jobs: 'Bookings',
-    payments: 'Payments',
-    invoices: 'Receipts',
-    reviews: 'Reviews you wrote',
-    claims: 'Warranty claims',
-    messages: 'Messages',
-    notifications: 'Notifications',
-  };
-  return map[key] ?? key.replace(/_/g, ' ');
+  return SECTION_LABEL[key as ExportSection] ?? key;
 }
 
 const styles = StyleSheet.create({

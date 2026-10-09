@@ -68,7 +68,9 @@ export default function ProviderJobsScreen() {
           </Text>
         </View>
         {/* Only offered once there is a feed to narrow. */}
-        {feed.data && feed.data.facets.total > 0 ? (
+        {/* Optional-chained because a crash is a far worse failure than a missing filter
+            button. The server sends facets on every path now; this is the belt. */}
+        {feed.data?.facets?.total ? (
           <Pressable
             onPress={() => setFiltering(true)}
             accessibilityRole="button"

@@ -239,7 +239,23 @@ export function providerService(d: ProviderDeps) {
       const skills = await skillsOf(userId);
       const skillIds = skills.map((s) => s.id);
       const blockers = profileBlockers(p, skillIds.length);
-      if (blockers.length) return { items: [], blockers };
+      if (blockers.length) {
+        /**
+         * The same shape as every other return, including the facets.
+         *
+         * This used to be `{ items: [], blockers }` and nothing else, and the provider's feed
+         * screen reads `feed.data.facets.total` to decide whether to offer the filter button - so
+         * it threw and the error boundary took over. Which means **every brand-new provider**,
+         * who by definition has blockers (unverified, no skills chosen, no base location), met a
+         * "Something went wrong, please restart the app" screen instead of the list of things to
+         * finish. Found by signing up as one.
+         *
+         * Guarding the client is the other half and worth doing, but the cause is here: a response
+         * that sometimes omits fields its own contract declares is a trap for every caller, not
+         * just this one.
+         */
+        return { items: [], blockers, facets: EMPTY_FACETS, emptyReason: null };
+      }
 
       const categoryIds = await categoryIdsForSkills(skillIds);
       const [jobs, cats] = await Promise.all([store.jobs.listOpenForFeed({ categoryIds, limit: limit * 3 }), store.categories.listEnabled()]);
@@ -481,6 +497,15 @@ export function providerService(d: ProviderDeps) {
  * rather than from the whole catalog. A filter for a category with nothing in it is a dead end
  * somebody has to discover by tapping it.
  */
+/** What a feed with nothing in it looks like, so the blocked path can still answer in full. */
+const EMPTY_FACETS: FeedFacetsView = {
+  categories: [],
+  priorities: [],
+  requestTypes: [],
+  furthestKm: 0,
+  total: 0,
+};
+
 function facetsFor(candidates: FilterableJob[], items: Array<{ categoryName: string }>, total: number): FeedFacetsView {
   const categories = new Map<string, { name: string; count: number }>();
   const priorities = new Map<FilterableJob['priority'], number>();

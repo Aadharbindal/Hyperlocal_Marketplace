@@ -64,6 +64,19 @@ export default function ContractorBusinessScreen() {
     setRadiusKm(profile.data.serviceRadiusKm || 8);
   }, [profile.data, seeded]);
 
+  /**
+   * A 404 here means no profile row, which is a new contractor rather than a failure.
+   *
+   * Checked by walking it rather than by reading: granting the CONTRACTOR role **does** bootstrap
+   * the row, so the normal path returns 200 with nulls and this branch does not fire. It stays
+   * because the alternative is worse than unused - `GET /contractor/profile` throws `notFound` if
+   * the row is ever missing, and the generic error says "They are still saved. Check your
+   * connection and try again" above a Try again button that could never succeed. The form is the
+   * right answer to an account that is not set up, and `PUT` upserts, so saving creates it.
+   */
+  const notSetUpYet = profile.error instanceof ApiError && profile.error.status === 404;
+  const loadFailed = profile.isError && !notSetUpYet;
+
   const nameProblem = checkBusinessName(businessName);
   const defaultAddress = addresses.data?.items.find((a) => a.isDefault) ?? addresses.data?.items[0];
   const status = VERIFICATION[profile.data?.verificationStatus ?? 'UNVERIFIED'] ?? VERIFICATION.UNVERIFIED!;
@@ -103,7 +116,7 @@ export default function ContractorBusinessScreen() {
           <Skeleton height={56} />
           <Skeleton height={56} />
         </Card>
-      ) : profile.isError ? (
+      ) : loadFailed ? (
         <ErrorState
           title="We could not load your business details"
           body="They are still saved. Check your connection and try again."
@@ -119,14 +132,21 @@ export default function ContractorBusinessScreen() {
               </Text>
               <Badge tone={status.tone} label={status.label} />
             </View>
-            <View style={styles.tiles}>
-              <StatTile label="In your team" value={String(profile.data.teamSize)} />
-              <StatTile
-                label="Verified"
-                value={String(profile.data.verifiedTeamSize)}
-                hint={profile.data.verifiedTeamSize < profile.data.teamSize ? 'The rest cannot be sent out' : undefined}
-              />
-            </View>
+            {profile.data ? (
+              <View style={styles.tiles}>
+                <StatTile label="In your team" value={String(profile.data.teamSize)} />
+                <StatTile
+                  label="Verified"
+                  value={String(profile.data.verifiedTeamSize)}
+                  hint={profile.data.verifiedTeamSize < profile.data.teamSize ? 'The rest cannot be sent out' : undefined}
+                />
+              </View>
+            ) : (
+              <Text variant="caption" tone="secondary">
+                Fill this in and your business is set up. Nothing here is shown to customers until
+                you save it.
+              </Text>
+            )}
           </Card>
 
           <Spacer h={spacing.lg} />

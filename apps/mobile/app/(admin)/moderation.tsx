@@ -150,7 +150,8 @@ function ReviewSheet({ message, onClose }: { message: FlaggedMessageView | null;
             key={o.value}
             onPress={() => setOutcome(o.value)}
             accessibilityRole="radio"
-            accessibilityState={{ selected: outcome === o.value }}
+            // A radio's state is `checked`; `selected` renders as nothing on web.
+            accessibilityState={{ checked: outcome === o.value }}
             style={[styles.option, outcome === o.value && styles.optionOn]}
           >
             <Ionicons

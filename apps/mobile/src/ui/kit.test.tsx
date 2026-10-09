@@ -123,7 +123,10 @@ describe('SegmentedControl', () => {
 
     expect(screen.getByLabelText('Outcome')).toBeTruthy();
     expect(screen.getAllByRole('radio')).toHaveLength(2);
-    expect(screen.getByRole('radio', { name: 'No action', selected: true })).toBeTruthy();
+    // `checked`, matching what a radio actually exposes. Asserting `selected` passed here while
+    // the rendered DOM carried no state at all, because the query reads `accessibilityState` and
+    // React Native Web drops `aria-selected` on a radio.
+    expect(screen.getByRole('radio', { name: 'No action', checked: true })).toBeTruthy();
   });
 
   it('reports the value that was chosen', async () => {
