@@ -217,7 +217,17 @@ export default function PayoutAccountScreen() {
       ) : null}
 
       <Spacer h={spacing.md} />
-      <Button title={existing.data ? 'Replace these details' : 'Save and get paid'} onPress={() => void submit()} loading={save.isPending} fullWidth />
+      {/* Disabled until the details are complete, like every other form in the app. It sat fully
+          enabled over two empty fields, which promises a save that cannot happen - and on this
+          screen the thing being promised is getting paid. The fields themselves say what is wrong
+          as soon as somebody leaves one, so the button does not have to carry that too. */}
+      <Button
+        title={existing.data ? 'Replace these details' : 'Save and get paid'}
+        onPress={() => void submit()}
+        loading={save.isPending}
+        disabled={!!blocker}
+        fullWidth
+      />
 
       <Spacer h={spacing.md} />
       <View style={styles.note}>

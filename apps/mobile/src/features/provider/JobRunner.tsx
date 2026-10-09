@@ -248,7 +248,15 @@ function StartCodeEntry({ jobId, attemptsLeft }: { jobId: string; attemptsLeft: 
             style={styles.codeInput}
           />
         </View>
-        <Button title="Start work" style={styles.codeAction} loading={start.isPending} onPress={submit} />
+        {/* Four digits before this does anything. There are only five attempts on a start code and
+            the job locks after them, so a mis-press on an empty box should not spend one. */}
+        <Button
+          title="Start work"
+          style={styles.codeAction}
+          loading={start.isPending}
+          disabled={code.length < 4}
+          onPress={submit}
+        />
       </View>
       {error ? (
         <Text variant="micro" style={{ color: palette.danger }}>

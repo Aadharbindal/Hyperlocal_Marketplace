@@ -141,9 +141,15 @@ export default function AddressesScreen() {
       ) : null}
 
       <Spacer h={spacing.lg} />
+      {/* Two sentences with different audiences, and only one of them is always true.
+          "Tap an address to move its pin" was being shown to somebody looking at an empty screen,
+          which is an instruction they cannot follow about a thing they do not have. The privacy
+          line is worth saying either way - it is as much reassurance before the first address as
+          after it. */}
       <Text variant="micro" tone="muted">
-        Tap an address to move its pin or change the details. We only show the full address to the
-        professional who is actually coming, and only once the booking is confirmed.
+        {addresses.data?.items.length
+          ? 'Tap an address to move its pin or change the details. We only show the full address to the professional who is actually coming, and only once the booking is confirmed.'
+          : 'We only show the full address to the professional who is actually coming, and only once the booking is confirmed.'}
       </Text>
       <Spacer h={spacing.xxl} />
     </Screen>

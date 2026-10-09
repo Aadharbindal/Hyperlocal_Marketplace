@@ -33,6 +33,7 @@ export default function EmergencyContactsScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const items = list.data?.items ?? [];
+  const canAdd = !checkPersonName(name) && !!name.trim() && !checkMobileField(phone) && !!phone.trim();
   const full = items.length >= EMERGENCY_CONTACT_LIMIT;
   const enter = (i: number) => (reduced ? undefined : FadeInDown.delay(i * 60).duration(380));
 
@@ -149,7 +150,16 @@ export default function EmergencyContactsScreen() {
             ) : null}
             <View style={styles.formActions}>
               <Button title={t('common.cancel')} variant="ghost" size="md" onPress={() => setOpen(false)} />
-              <Button title={t('emergency.add')} size="md" loading={add.isPending} onPress={submit} />
+              {/* A name and a number are the whole of what this needs, so the button waits for
+                  them rather than offering a save that the server will refuse. The two fields say
+                  what is wrong with what is there; the button only says whether there is enough. */}
+              <Button
+                title={t('emergency.add')}
+                size="md"
+                loading={add.isPending}
+                disabled={!canAdd}
+                onPress={submit}
+              />
             </View>
           </Card>
         </Animated.View>

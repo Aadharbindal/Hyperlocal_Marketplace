@@ -199,7 +199,17 @@ export default function ProviderProfileScreen() {
                   Only the last four characters are stored. Customers never see your documents.
                 </Text>
               </View>
-              <Button title="Submit for verification" size="md" fullWidth loading={kyc.isPending} onPress={submitDocument} style={styles.cardCta} />
+              <Button
+                title="Submit for verification"
+                size="md"
+                fullWidth
+                loading={kyc.isPending}
+                // `submitDocument` already refused a short number and set an error; waiting for the
+                // number is the same answer given before the press instead of after it.
+                disabled={docNumber.trim().length < 4}
+                onPress={submitDocument}
+                style={styles.cardCta}
+              />
             </>
           )}
         </Card>
@@ -264,7 +274,19 @@ export default function ProviderProfileScreen() {
             </Text>
           )}
 
-          <Button title={saved ? 'Saved' : 'Save changes'} size="md" fullWidth icon={saved ? 'checkmark' : undefined} loading={update.isPending} onPress={save} style={styles.cardCta} />
+          <Button
+            title={saved ? 'Saved' : 'Save changes'}
+            size="md"
+            fullWidth
+            icon={saved ? 'checkmark' : undefined}
+            loading={update.isPending}
+            // `save` already returned silently on a bad business name, which is a press that looks
+            // like a failure with no message. The field says what is wrong; this says it is not
+            // ready.
+            disabled={!!nameProblem}
+            onPress={save}
+            style={styles.cardCta}
+          />
         </Card>
       </Animated.View>
 
