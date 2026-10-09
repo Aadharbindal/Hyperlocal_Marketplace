@@ -123,6 +123,8 @@ export type MaterialQuoteView = z.infer<typeof MaterialQuoteView>;
 
 export const MaterialOrderView = z.object({
   id: z.string().uuid(),
+  /** The booking this supplied. The vendor needs it to file the bill against the right job. */
+  jobId: z.string().uuid(),
   requestId: z.string().uuid(),
   quoteId: z.string().uuid(),
   status: z.enum(MATERIAL_ORDER_STATUSES),

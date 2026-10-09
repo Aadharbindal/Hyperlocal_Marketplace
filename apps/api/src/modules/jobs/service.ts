@@ -350,11 +350,14 @@ export function jobService(d: JobDeps) {
        * null, so there was no reachable way to attach a photo to one. `POST /disputes/:id/evidence`
        * has sat unused since the finance work for exactly that reason.
        *
-       * The caller decides whether a dispute is actually open; this only stops the phase rule from
-       * forbidding what the database allows.
+       * INVOICE is the same shape of exception, added in 0021: a vendor files the bill for
+       * materials to be paid, and that regularly happens after the job is finished.
+       *
+       * The caller decides whether a dispute is open or an order is the vendor's; this only stops
+       * the phase rule from forbidding what the database allows.
        */
       const phase = input.phase ?? 'REQUEST';
-      if (phase !== 'DISPUTE' && mediaPhaseFor(job.status) !== phase) {
+      if (phase !== 'DISPUTE' && phase !== 'INVOICE' && mediaPhaseFor(job.status) !== phase) {
         throw new AppError('CONFLICT', { details: { reason: 'media_phase_closed', status: job.status, phase } });
       }
       const existing = await store.jobs.listMedia(job.id, phase);

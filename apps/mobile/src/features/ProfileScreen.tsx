@@ -184,6 +184,19 @@ export function ProfileScreen() {
             hint={t('settings.notifications.hint')}
             onPress={() => router.push('/notification-settings')}
           />
+          {/* The contractor's own business details. `GET`/`PUT /contractor/profile` had existed
+              with nothing calling them and this tab was the shared screen, so a whole role could
+              add technicians and send them out while having no way to set the business name
+              customers see or the radius that decides which jobs reach them. */}
+          {activeRole === 'CONTRACTOR' ? (
+            <Link
+              tint="teal"
+              icon="storefront-outline"
+              label="Your business"
+              hint="Business name, how far your team travels, verification"
+              onPress={() => router.push('/contractor-business')}
+            />
+          ) : null}
           {/* A claim carries a 48-hour clock, so it is badged rather than buried. */}
           {activeRole === 'PROVIDER' || activeRole === 'CONTRACTOR' ? (
             <Link

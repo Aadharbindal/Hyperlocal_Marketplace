@@ -295,7 +295,7 @@ export interface JobMediaRecord {
   uploader_id: string;
   uploader_role: UserRole;
   kind: 'PHOTO' | 'VIDEO' | 'VOICE_NOTE' | 'DOCUMENT' | 'INVOICE';
-  phase: 'REQUEST' | 'PROGRESS' | 'COMPLETION' | 'DISPUTE' | 'PRICE_REVISION';
+  phase: 'REQUEST' | 'PROGRESS' | 'COMPLETION' | 'DISPUTE' | 'PRICE_REVISION' | 'INVOICE';
   storage_key: string;
   mime: string;
   size_bytes: number;

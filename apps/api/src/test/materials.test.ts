@@ -347,6 +347,50 @@ describe('delivery, confirmation and the invoice', () => {
     expect(right.json().invoiceNumber).toBe('INV-2026-114');
   });
 
+  it('lets the vendor photograph the bill themselves, which is the only way they get paid', async () => {
+    /**
+     * The test above uploaded the media as the *provider* and then filed it as the vendor, which is
+     * not a journey anybody can take - and it is why this gap survived. In the app the vendor is
+     * the one holding the bill, and `POST /jobs/:id/evidence` refused them twice over: the phase
+     * comes from the job's status, and the guard is provider-side. With `checkCanSettleVendor`
+     * returning NO_INVOICE without an invoice, a vendor could never be paid for materials at all.
+     */
+    const s = await deliveredOrder('+919888000061', '+919888000062', '+919888000063');
+    await app.inject({ method: 'POST', url: `/material-orders/${s.orderId}/confirm`, headers: s.c.headers, payload: { ok: true } });
+
+    const upload = await app.inject({
+      method: 'POST', url: `/jobs/${s.jobId}/evidence`, headers: s.v.headers,
+      payload: { kind: 'PHOTO', mime: 'image/jpeg', sizeBytes: 90_000 },
+    });
+    expect(upload.statusCode).toBe(201);
+    // Its own phase, added in 0021: a bill is not work evidence and its window stays open after
+    // the job is finished.
+    expect(upload.json().media.phase).toBe('INVOICE');
+
+    const filed = await app.inject({
+      method: 'POST', url: `/material-orders/${s.orderId}/invoice`, headers: s.v.headers,
+      payload: { mediaId: upload.json().media.id, amountPaise: s.total, invoiceNumber: 'INV-2026-220' },
+    });
+    expect(filed.statusCode).toBe(200);
+    expect(filed.json().invoiceNumber).toBe('INV-2026-220');
+    // The field the vendor's screen needs to file against the right job in the first place.
+    expect(filed.json().jobId).toBe(s.jobId);
+  });
+
+  it('does not let a different vendor upload against this job', async () => {
+    // The INVOICE phase is reached by owning a confirmed, uninvoiced order on that job - not by
+    // being a vendor in general.
+    const s = await deliveredOrder('+919888000064', '+919888000065', '+919888000066');
+    await app.inject({ method: 'POST', url: `/material-orders/${s.orderId}/confirm`, headers: s.c.headers, payload: { ok: true } });
+
+    const other = await makeVendor('+919888000067');
+    const res = await app.inject({
+      method: 'POST', url: `/jobs/${s.jobId}/evidence`, headers: other.headers,
+      payload: { kind: 'PHOTO', mime: 'image/jpeg', sizeBytes: 90_000 },
+    });
+    expect(res.statusCode).not.toBe(201);
+  });
+
   it('keeps a stranger away from someone else’s order', async () => {
     const s = await deliveredOrder('+919888000044', '+919888000045', '+919888000046');
     const other = await makeVendor('+919888000047');

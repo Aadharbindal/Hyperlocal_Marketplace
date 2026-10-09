@@ -1,17 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { checkRupees, formatInr } from '@hyperlocal/core';
+import { checkReason, checkRupees, formatInr } from '@hyperlocal/core';
+import { useAdminUser } from '@/api/admin';
 import {
   useAuditLog,
   useOpsOverview,
+  useReactivateUser,
   useRetrySettlement,
   useRunTask,
   useScheduler,
   useSettlements,
+  useSuspendUser,
   useUserSearch,
   type AdminUser,
 } from '@/api/admin-console';
+import { ApiError } from '@/api/client';
 import { useCreatePromo, useDeactivatePromo, usePromos, useGenerateRecoveryCodes, useRecoveryCodeCount } from '@/api/admin-trust';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, DataRow, ErrorState, Screen, SegmentedControl, Skeleton, Spacer, Text, TextField } from '@/ui';
@@ -161,7 +165,46 @@ function People() {
 
 function PersonCard({ user }: { user: AdminUser }) {
   const audit = useAuditLog('user', user.id);
+  const suspend = useSuspendUser();
+  const reactivate = useReactivateUser();
   const [showHistory, setShowHistory] = useState(false);
+  /**
+   * The full record, fetched only when asked for.
+   *
+   * `GET /admin/users/:id` carries what the search row does not - verification status, reliability,
+   * rating, completed jobs, **strikes** and what is owed - and had no caller at all. Strikes matter
+   * most here: suspension thresholds are strike-based, so deciding to suspend somebody without them
+   * on screen is deciding blind. It is behind a tap rather than eager, because a search of twelve
+   * people should not fire twelve detail requests.
+   */
+  const [showRecord, setShowRecord] = useState(false);
+  const record = useAdminUser(showRecord ? user.id : undefined);
+  const [acting, setActing] = useState<'suspend' | 'reactivate' | null>(null);
+  const [reason, setReason] = useState('');
+  const [approver, setApprover] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const reasonProblem = reason.trim() ? checkReason(reason) : null;
+  // Twenty characters is the server's floor for a suspension; reactivating takes a reason too but
+  // is not held to that length, so the same check runs with the looser bar it actually enforces.
+  const canSuspend = reason.trim().length >= 20 && !reasonProblem && /^[0-9a-f-]{36}$/i.test(approver.trim());
+  const canReactivate = !!reason.trim() && !reasonProblem;
+
+  async function run() {
+    setError(null);
+    try {
+      if (acting === 'suspend') {
+        await suspend.mutateAsync({ userId: user.id, reason: reason.trim(), secondApproverId: approver.trim() });
+      } else {
+        await reactivate.mutateAsync({ userId: user.id, reason: reason.trim() });
+      }
+      setActing(null);
+      setReason('');
+      setApprover('');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'That did not go through.');
+    }
+  }
 
   return (
     <Card style={{ gap: spacing.sm }}>
@@ -183,9 +226,121 @@ function PersonCard({ user }: { user: AdminUser }) {
         </Text>
       ) : null}
 
-      {/* Suspension is a two-person action and needs a second approver's id, so it is not
-          offered as a button here - doing it properly means the dispute or verification screen
-          where the second person is already involved. */}
+      {/*
+        This used to say suspension was "not offered as a button here - doing it properly means the
+        dispute or verification screen where the second person is already involved". That screen was
+        never built, so in practice neither action was reachable from anywhere: an account could be
+        suspended by nothing, and - the worse half - a suspended account could never be brought back.
+        A one-way door that only exists in the database is not a safeguard.
+
+        The two-person rule is kept and made visible rather than hidden. The approver's id is a field
+        somebody has to go and get, which is the friction the rule is actually for; the server checks
+        it regardless. Reactivating needs one person and a reason, which is what the endpoint has
+        always required.
+      */}
+      {acting ? (
+        <View style={styles.action}>
+          <TextField
+            label={acting === 'suspend' ? 'Why this account is being suspended' : 'Why it is being restored'}
+            helper={acting === 'suspend' ? 'At least 20 characters, and it is kept on the record' : 'Kept on the record'}
+            value={reason}
+            onChangeText={setReason}
+            placeholder={
+              acting === 'suspend'
+                ? 'Repeated no-shows after three warnings, confirmed in tickets 412 and 455'
+                : 'Identity re-verified and the documents now match'
+            }
+            multiline
+            minLines={2}
+            maxLength={500}
+            counter
+            required
+            error={reasonProblem?.message ?? null}
+          />
+          {acting === 'suspend' ? (
+            <TextField
+              label="Second approver"
+              helper="Their user id. It cannot be you, and the server checks that."
+              value={approver}
+              onChangeText={setApprover}
+              placeholder="00000000-0000-0000-0000-000000000000"
+              autoCapitalize="none"
+              autoCorrect={false}
+              required
+            />
+          ) : null}
+          {error ? (
+            <Text variant="micro" tone="danger">
+              {error}
+            </Text>
+          ) : null}
+          <View style={styles.actionRow}>
+            <Button title="Cancel" size="sm" variant="ghost" onPress={() => { setActing(null); setError(null); }} />
+            <Button
+              title={acting === 'suspend' ? 'Suspend' : 'Restore'}
+              size="sm"
+              variant={acting === 'suspend' ? 'danger' : 'primary'}
+              loading={suspend.isPending || reactivate.isPending}
+              disabled={acting === 'suspend' ? !canSuspend : !canReactivate}
+              onPress={() => void run()}
+            />
+          </View>
+        </View>
+      ) : (
+        <View style={styles.actionRow}>
+          {user.status === 'ACTIVE' ? (
+            <Button title="Suspend" size="sm" variant="ghost" onPress={() => { setActing('suspend'); setReason(''); }} />
+          ) : (
+            <Button title="Restore access" size="sm" variant="secondary" onPress={() => { setActing('reactivate'); setReason(''); }} />
+          )}
+        </View>
+      )}
+
+      <Pressable onPress={() => setShowRecord((v) => !v)} accessibilityRole="button" style={styles.linkRow}>
+        <Text variant="micro" style={{ color: palette.primary }}>
+          {showRecord ? 'Hide the full record' : 'The full record'}
+        </Text>
+        <Ionicons name={showRecord ? 'chevron-up' : 'chevron-down'} size={14} color={palette.primary} />
+      </Pressable>
+
+      {showRecord ? (
+        record.isPending ? (
+          <Skeleton height={90} />
+        ) : record.isError ? (
+          <Text variant="micro" tone="danger">
+            Could not load the record.
+          </Text>
+        ) : (
+          <View style={styles.record}>
+            <DataRow label="Verification" value={record.data.verification ?? 'none on file'} />
+            <DataRow label="Jobs completed" value={String(record.data.completedJobs)} />
+            {record.data.ratingAvg !== null ? (
+              <DataRow label="Rating" value={record.data.ratingAvg.toFixed(1)} />
+            ) : null}
+            {record.data.reliabilityScore !== null ? (
+              <DataRow label="Reliability" value={record.data.reliabilityScore.toFixed(1)} />
+            ) : null}
+            <DataRow
+              label="Owed to them"
+              value={formatInr(record.data.owedPaise)}
+              tone={record.data.owedPaise > 0 ? 'primary' : 'muted'}
+            />
+            {/* Spelled out rather than counted: "three strikes" is a number, and what they were
+                for is the thing a decision should rest on. */}
+            <DataRow
+              label="Strikes"
+              value={record.data.strikes.length === 0 ? 'none' : String(record.data.strikes.length)}
+              tone={record.data.strikes.length > 0 ? 'danger' : 'default'}
+            />
+            {record.data.strikes.map((st) => (
+              <Text key={st.id} variant="micro" tone="muted">
+                {`${new Date(st.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · ${st.severity.toLowerCase()} · ${st.reason}`}
+              </Text>
+            ))}
+          </View>
+        )
+      ) : null}
+
       <Pressable onPress={() => setShowHistory((v) => !v)} accessibilityRole="button" style={styles.linkRow}>
         <Text variant="micro" style={{ color: palette.primary }}>
           {showHistory ? 'Hide history' : 'What has happened to this account'}
@@ -479,6 +634,9 @@ function Security() {
 
 
 const styles = StyleSheet.create({
+  record: { gap: spacing.sm },
+  action: { gap: spacing.md },
+  actionRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm },
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tab: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: palette.primarySoft },
   tabOn: { backgroundColor: palette.primary },

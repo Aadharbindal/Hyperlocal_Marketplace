@@ -96,6 +96,30 @@ export function useSendMaterialQuote() {
   });
 }
 
+/**
+ * The vendor filing the bill for an order they supplied.
+ *
+ * Two calls rather than one: the photo is created as job media first, then the order is pointed at
+ * it with the amount. `checkInvoice` insists the amount equals the order total exactly, so there is
+ * nothing for the vendor to type - sending anything else is a refusal, not a negotiation.
+ */
+export function useFileMaterialInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, mediaId, amountPaise, invoiceNumber }: {
+      orderId: string;
+      mediaId: string;
+      amountPaise: number;
+      invoiceNumber?: string;
+    }) =>
+      api<MaterialOrderView>(`/material-orders/${orderId}/invoice`, {
+        method: 'POST',
+        body: { mediaId, amountPaise, ...(invoiceNumber ? { invoiceNumber } : {}) },
+      }),
+    onSuccess: () => invalidate(qc),
+  });
+}
+
 export function useMoveMaterialOrder() {
   const qc = useQueryClient();
   return useMutation({

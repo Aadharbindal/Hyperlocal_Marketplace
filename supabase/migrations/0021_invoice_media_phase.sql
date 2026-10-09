@@ -1,0 +1,22 @@
+-- 0021_invoice_media_phase.sql
+-- One new media phase, and nothing else.
+--
+-- Forward-only. Nothing in 0001-0020 is rewritten.
+--
+-- One line long for the same reason 0017 is: Postgres will not let a new enum value be *used* in
+-- the transaction that adds it, and the migration runner sends each file as one implicit
+-- transaction. Anything that refers to 'INVOICE' belongs in a later file.
+--
+-- What it is for. A vendor is paid for materials only once they have filed the bill:
+-- `checkCanSettleVendor` returns NO_INVOICE without one, and `POST /material-orders/:id/invoice`
+-- takes a `mediaId`. The only way to create job media was `POST /jobs/:id/evidence`, whose phase
+-- comes from the *job's* status and whose guard is provider-side - and a vendor is neither the
+-- provider nor the customer. So there was no reachable way for a vendor to file a bill, and
+-- therefore no way for a vendor to ever be paid through the app. The orders screen even told them
+-- to "upload your invoice to be paid for this order" and offered no control to do it with.
+--
+-- A phase of its own rather than borrowing PROGRESS or COMPLETION: a bill is not work evidence,
+-- it is not uploaded by the person doing the work, and it is the one kind of media whose window
+-- stays open after the job is finished. Reusing a work phase would have made all three of those
+-- untrue in the data.
+alter type media_phase add value if not exists 'INVOICE';

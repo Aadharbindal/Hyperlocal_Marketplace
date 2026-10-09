@@ -152,6 +152,7 @@ export function materialsService(d: MaterialsDeps) {
     const invoice = o.invoice_media_id ? await store.jobs.getMedia(o.invoice_media_id) : null;
     return {
       id: o.id,
+      jobId: o.job_id,
       requestId: o.request_id,
       quoteId: o.quote_id,
       status: o.status,

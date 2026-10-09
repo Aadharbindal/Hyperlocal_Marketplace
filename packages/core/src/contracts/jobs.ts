@@ -6,7 +6,14 @@ export const JobStatusSchema = z.enum(JOB_STATUSES);
 export const PaymentStatusSchema = z.enum(PAYMENT_STATUSES);
 
 export const MediaKindSchema = z.enum(['PHOTO', 'VOICE_NOTE', 'VIDEO', 'DOCUMENT']);
-export const MediaPhaseSchema = z.enum(['REQUEST', 'PROGRESS', 'COMPLETION', 'DISPUTE', 'PRICE_REVISION']);
+/**
+ * `INVOICE` is the vendor's bill, added in 0021.
+ *
+ * It is not work evidence: it is uploaded by somebody who is neither the provider nor the
+ * customer, and it is the one phase whose window stays open after the job is finished - a vendor
+ * files the bill to be paid, and that often happens afterwards.
+ */
+export const MediaPhaseSchema = z.enum(['REQUEST', 'PROGRESS', 'COMPLETION', 'DISPUTE', 'PRICE_REVISION', 'INVOICE']);
 
 /** Creating a job always starts a DRAFT; nothing is broadcast until it is submitted. */
 export const JobCreate = z

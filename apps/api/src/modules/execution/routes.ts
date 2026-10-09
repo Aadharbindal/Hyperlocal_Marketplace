@@ -20,7 +20,7 @@ import {
   type ArrivalView,
 } from '@hyperlocal/core';
 import { z } from 'zod';
-import { AppError, notFound } from '../../lib/errors';
+import { AppError, forbidden, notFound } from '../../lib/errors';
 import { parse } from '../../lib/validate';
 import { requireAction, requireAuth } from '../../plugins/auth';
 import type { AppContext } from '../../app';
@@ -278,7 +278,17 @@ export async function executionRoutes(app: FastifyInstance, ctx: AppContext) {
      * That is almost certainly why nothing ever called it.
      */
     const open = (await store.finance.listDisputesForJob(job.id)).find((d) => disputeIsOpen(d.status));
-    const phase = open ? 'DISPUTE' : mediaPhaseFor(job.status);
+    /**
+     * A vendor filing the bill for materials they supplied on this job.
+     *
+     * Checked before the dispute case because an order's invoice is not about the dispute even when
+     * one is running. `INVOICE` arrived in 0021 for this; see that file for why a bill does not
+     * belong in a work phase.
+     */
+    const vendorOrder = (await store.materials.listOrdersForJob(job.id)).find(
+      (o) => o.vendor_id === auth.userId && o.status === 'CONFIRMED' && !o.invoice_media_id,
+    );
+    const phase = vendorOrder ? 'INVOICE' : open ? 'DISPUTE' : mediaPhaseFor(job.status);
     if (!phase || phase === 'REQUEST') {
       throw new AppError('CONFLICT', { details: { reason: 'media_phase_closed', status: job.status } });
     }
@@ -291,7 +301,24 @@ export async function executionRoutes(app: FastifyInstance, ctx: AppContext) {
      * photo at all, which is the likeliest reason it was never called. `jobForParty` above has
      * already established this person is on the booking.
      */
-    if (phase !== 'DISPUTE') await execution.requireOnJob(job, auth.userId);
+    if (phase === 'INVOICE') {
+      // Owning the order is the whole check: `vendorOrder` above already matched on `vendor_id`.
+    } else if (phase === 'DISPUTE') {
+      /**
+       * A party to the dispute, checked explicitly.
+       *
+       * `jobForParty` above only fetches the job - it does not, despite the name, check anybody is
+       * on it; the per-route guards do that. So skipping `requireOnJob` here would have let any
+       * signed-in account attach a photo to somebody else's dispute, which is not a trade this
+       * change is allowed to make. The customer on the booking and the two sides of the dispute are
+       * the whole list.
+       */
+      const onIt =
+        job.customer_id === auth.userId || open!.raised_by === auth.userId || open!.against_user_id === auth.userId;
+      if (!onIt) throw forbidden('not on this dispute');
+    } else {
+      await execution.requireOnJob(job, auth.userId);
+    }
     const { media, target, uploadRequired } = await services.jobs.createMediaUpload(job, {
       kind: body.kind,
       mime: body.mime,

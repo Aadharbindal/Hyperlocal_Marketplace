@@ -4,9 +4,11 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { formatInr, type MaterialOrderView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
-import { useMoveMaterialOrder, useVendorOrders } from '@/api/materials';
+import { useFileMaterialInvoice, useMoveMaterialOrder, useVendorOrders } from '@/api/materials';
+import { useAddEvidence } from '@/api/execution';
+import { askForPhoto } from '@/features/capture/media';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text, TextField } from '@/ui';
 
 const STATUS: Record<string, { label: string; tone: 'primary' | 'success' | 'warning' | 'danger' | 'neutral' }> = {
   PENDING_PAYMENT: { label: 'awaiting payment', tone: 'neutral' },
@@ -69,6 +71,38 @@ export default function VendorOrdersScreen() {
 }
 
 function OrderCard({ order }: { order: MaterialOrderView }) {
+  const uploadMedia = useAddEvidence();
+  const file = useFileMaterialInvoice();
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [filing, setFiling] = useState(false);
+
+  function fileInvoice() {
+    setInvoiceError(null);
+    askForPhoto(
+      (photo) => {
+        void (async () => {
+          setFiling(true);
+          try {
+            const shot = await uploadMedia.mutateAsync({ jobId: order.jobId, file: photo });
+            await file.mutateAsync({
+              orderId: order.id,
+              mediaId: shot.media.id,
+              amountPaise: order.totalPaise,
+              ...(invoiceNumber.trim() ? { invoiceNumber: invoiceNumber.trim() } : {}),
+            });
+            setInvoiceNumber('');
+          } catch (e) {
+            setInvoiceError(e instanceof ApiError ? e.message : 'That did not file. Please try again.');
+          } finally {
+            setFiling(false);
+          }
+        })();
+      },
+      (m) => setInvoiceError(m),
+    );
+  }
+
   const move = useMoveMaterialOrder();
   const [error, setError] = useState<string | null>(null);
   const meta = STATUS[order.status] ?? { label: order.status.toLowerCase(), tone: 'neutral' as const };
@@ -136,11 +170,46 @@ function OrderCard({ order }: { order: MaterialOrderView }) {
 
       {order.status === 'PREPARING' && <Button title="Out for delivery" size="sm" fullWidth icon="bicycle-outline" loading={move.isPending} onPress={() => go('OUT_FOR_DELIVERY')} />}
       {order.status === 'OUT_FOR_DELIVERY' && <Button title="Mark delivered" size="sm" fullWidth icon="checkmark" loading={move.isPending} onPress={() => go('DELIVERED')} />}
+      {/*
+        This told the vendor to "upload your invoice to be paid for this order" and gave them no
+        control to do it with - and `checkCanSettleVendor` returns NO_INVOICE without one, so a
+        vendor could never be paid for materials through the app at all. An instruction with no
+        button is the worst version of a missing feature: it reads as the vendor's fault.
+      */}
       {order.status === 'CONFIRMED' && !order.invoiceNumber && (
-        <View style={styles.note}>
-          <Ionicons name="document-text-outline" size={14} color={palette.textMuted} />
-          <Text variant="micro" tone="muted" style={{ flex: 1 }}>
-            Upload your invoice for {formatInr(order.totalPaise)} to be paid for this order.
+        <View style={styles.invoice}>
+          <View style={styles.note}>
+            <Ionicons name="document-text-outline" size={14} color={palette.textMuted} />
+            <Text variant="micro" tone="muted" style={styles.flex}>
+              Photograph your bill for {formatInr(order.totalPaise)} to be paid for this order.
+            </Text>
+          </View>
+          <TextField
+            label="Invoice number (optional)"
+            value={invoiceNumber}
+            onChangeText={setInvoiceNumber}
+            placeholder="INV-2026-0412"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={40}
+          />
+          {invoiceError ? (
+            <Text variant="micro" tone="danger">
+              {invoiceError}
+            </Text>
+          ) : null}
+          <Button
+            title="Photograph the bill"
+            size="sm"
+            fullWidth
+            icon="camera-outline"
+            loading={filing}
+            onPress={fileInvoice}
+          />
+          {/* The amount is not a field. The server refuses anything but the exact order total, so
+              offering a box to type it in would only be offering a way to get it wrong. */}
+          <Text variant="micro" tone="muted">
+            The amount is {formatInr(order.totalPaise)} - the order total, which is what we pay.
           </Text>
         </View>
       )}
@@ -150,6 +219,8 @@ function OrderCard({ order }: { order: MaterialOrderView }) {
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  invoice: { gap: spacing.md },
   list: { gap: spacing.md },
   section: { fontSize: 14, marginTop: spacing.lg, marginBottom: spacing.md },
   card: { gap: spacing.md },

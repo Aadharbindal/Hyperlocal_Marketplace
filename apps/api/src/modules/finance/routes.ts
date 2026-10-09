@@ -161,29 +161,19 @@ export async function financeRoutes(app: FastifyInstance, ctx: AppContext) {
     });
   });
 
-  app.get('/providers/:id/reviews', async (req) => {
-    const { id } = parse(IdParam, req.params);
-    const { limit } = parse(LimitQuery, req.query);
-    const items = await store.finance.listReviewsFor(id, limit);
-    const names = new Map<string, string>();
-    for (const r of items) {
-      if (!names.has(r.reviewer_id)) {
-        const u = await store.users.findById(r.reviewer_id);
-        // Reviews are public, so only a first name is ever shown.
-        names.set(r.reviewer_id, (u?.display_name ?? 'Customer').split(' ')[0] ?? 'Customer');
-      }
-    }
-    return {
-      items: items.map((r) => ({
-        id: r.id,
-        jobId: r.job_id,
-        rating: r.rating,
-        comment: r.comment,
-        reviewerName: names.get(r.reviewer_id) ?? 'Customer',
-        createdAt: r.created_at.toISOString(),
-      })),
-    };
-  });
+  /**
+   * `GET /providers/:id/reviews` was here and is gone.
+   *
+   * Not merely a duplicate, though it was that: `GET /providers/:id` already returns up to twenty
+   * reviews and is what the provider page renders. This one had no caller, no test, and - the part
+   * that decided it - **no authentication**, so it handed out reviewer first names and the `jobId`
+   * of every review for any provider id anybody cared to type. An endpoint nobody reaches is dead
+   * weight; an unauthenticated one nobody reaches is dead weight with a door in it.
+   *
+   * If a "see all reviews" screen ever wants more than twenty, it belongs behind the same gate the
+   * provider page uses.
+   */
+
 
   // ---------------------------------------------------------------- settlements
   /**

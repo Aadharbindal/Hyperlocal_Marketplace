@@ -484,10 +484,23 @@ describe('reviews', () => {
     const again = await app.inject({ method: 'POST', url: `/jobs/${jobId}/review`, headers: c.headers, payload: { rating: 1 } });
     expect(again.json().error.details.finance).toEqual(['ALREADY_REVIEWED']);
 
-    const list = await app.inject({ method: 'GET', url: `/providers/${p.userId}/reviews` });
-    expect(list.json().items[0].rating).toBe(5);
-    // a public review carries a first name only
-    expect(list.json().items[0].reviewerName).not.toContain(' ');
+    /**
+     * Read from the provider's own page rather than the separate review list, which is gone.
+     *
+     * That endpoint had no caller, no test of its own and no authentication - it handed out
+     * reviewer names and job ids for any provider id to anybody. This is the same data behind the
+     * gate the app actually uses, which is where the assertion belongs.
+     */
+    /**
+     * The customer is given a full name first, because without one the view falls back to
+     * "A customer" - and the old assertion passed on the deleted endpoint only because *its*
+     * fallback happened to be the single word "Customer". That tested the fallback, not the rule.
+     */
+    await app.inject({ method: 'PATCH', url: '/me', headers: c.headers, payload: { displayName: 'Meera Nair' } });
+    const page = await app.inject({ method: 'GET', url: `/providers/${p.userId}`, headers: c.headers });
+    expect(page.json().provider.reviews[0].rating).toBe(5);
+    // A public review carries a first name only - never the surname somebody signed up with.
+    expect(page.json().provider.reviews[0].reviewerName).toBe('Meera');
   });
 
   it('cannot be left on a job that is not finished', async () => {
