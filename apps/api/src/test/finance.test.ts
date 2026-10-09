@@ -527,3 +527,83 @@ describe('refund limits', () => {
     expect(money.json().refundedPaise).toBe(30_000);
   });
 });
+
+describe('writing to support', () => {
+  /**
+   * These endpoints had existed, tested from the staff side, with nothing in the app calling them -
+   * "Talk to support" opened a `mailto:` to a reserved TLD that cannot receive mail. The tests here
+   * are about the contract the app now shares with the route, because that is the part that was
+   * never agreed: the route used to take any string as a category and any ten characters as a
+   * message.
+   */
+  it('takes a ticket and hands it back with somewhere to follow it', async () => {
+    const c = await login(app, '+919555002001');
+    const h = bearer(c.accessToken);
+    const res = await app.inject({
+      method: 'POST', url: '/support/tickets', headers: h,
+      payload: { category: 'PAYMENT', subject: 'Charged twice for one booking', body: 'The payment went through twice on Tuesday for the same plumbing job.' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().status).toBe('OPEN');
+
+    const mine = await app.inject({ method: 'GET', url: '/support/tickets', headers: h });
+    expect(mine.json().items.some((t: { id: string }) => t.id === res.json().id)).toBe(true);
+  });
+
+  it('refuses a category that is not one of the five offered', async () => {
+    // The route took any string of two to forty characters, so the app's five buttons and the
+    // server's idea of a category could drift apart without anything failing.
+    const c = await login(app, '+919555002002');
+    const res = await app.inject({
+      method: 'POST', url: '/support/tickets', headers: bearer(c.accessToken),
+      payload: { category: 'BILLING_DEPT_2', subject: 'Something is wrong', body: 'The app keeps logging me out every morning.' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('refuses a message that says nothing', async () => {
+    // Ten characters of "asdasdasdasd" met the old length rule and cost a queue slot and a reply.
+    const c = await login(app, '+919555002003');
+    const res = await app.inject({
+      method: 'POST', url: '/support/tickets', headers: bearer(c.accessToken),
+      payload: { category: 'OTHER', subject: 'asdasdasdasd', body: 'asdasdasdasdasdasd' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('shows somebody only their own tickets', async () => {
+    const a = await login(app, '+919555002004');
+    const b = await login(app, '+919555002005');
+    await app.inject({
+      method: 'POST', url: '/support/tickets', headers: bearer(a.accessToken),
+      payload: { category: 'ACCOUNT', subject: 'Cannot change my number', body: 'I moved networks and the old number is gone for good.' },
+    });
+    const theirs = await app.inject({ method: 'GET', url: '/support/tickets', headers: bearer(b.accessToken) });
+    expect(theirs.json().items).toHaveLength(0);
+  });
+});
+
+describe('asking for a copy of everything', () => {
+  it('names what it left out as well as what it included', async () => {
+    // The right of access had an endpoint and no screen, while *deletion* has had one since M1.
+    // The exclusions are the half that makes the export honest rather than merely compliant.
+    const c = await login(app, '+919555002006');
+    const res = await app.inject({ method: 'GET', url: '/me/export', headers: bearer(c.accessToken) });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().sections.length).toBeGreaterThan(0);
+    expect(Array.isArray(res.json().exclusions)).toBe(true);
+    for (const x of res.json().exclusions) expect(x.why).toBeTruthy();
+  });
+
+  it('counts what it is handing over, so a person can check it against what they remember', async () => {
+    const c = await login(app, '+919555002007');
+    const h = bearer(c.accessToken);
+    await app.inject({ method: 'POST', url: '/me/roles', headers: h, payload: { role: 'CUSTOMER' } });
+    await app.inject({
+      method: 'POST', url: '/me/addresses', headers: h,
+      payload: { line1: '12, Lodhi Colony', city: 'Delhi', pincode: '110003' },
+    });
+    const res = await app.inject({ method: 'GET', url: '/me/export', headers: h });
+    expect(res.json().counts.addresses).toBe(1);
+  });
+});

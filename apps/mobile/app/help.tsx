@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { useStrings } from '@/i18n';
 import { palette, spacing } from '@/theme';
@@ -60,7 +60,10 @@ export default function HelpScreen() {
           real problem into somebody with a real problem and a grievance. */}
       <Card
         style={styles.contact}
-        onPress={() => void Linking.openURL('mailto:support@hyperlocal.example')}
+        // Was a `mailto:` to `support@hyperlocal.example` - a reserved TLD that cannot receive
+        // mail, opened on a phone that may have no mail client configured. The ticket flow it goes
+        // to now has existed in the API the whole time.
+        onPress={() => router.push('/support')}
         accessibilityLabel={`${t('help.contact')}. ${t('help.contact.hint')}`}
       >
         <View style={styles.contactIcon}>

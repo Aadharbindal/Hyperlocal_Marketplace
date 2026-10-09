@@ -7,6 +7,9 @@ import type {
   PayoutAccountBody,
   PayoutAccountView,
   ReviewView,
+  SupportTicketBody,
+  SupportTicketCreated,
+  SupportTicketsResponse,
 } from '@hyperlocal/core';
 import { api, newIdempotencyKey } from './client';
 import { executionKeys } from './execution';
@@ -17,8 +20,8 @@ export const financeKeys = {
   disputes: (jobId: string) => ['job', jobId, 'disputes'] as const,
   cancellation: (jobId: string) => ['job', jobId, 'cancellation-quote'] as const,
   earnings: () => ['me', 'earnings'] as const,
-  reviews: (providerId: string) => ['provider', providerId, 'reviews'] as const,
   payoutAccount: () => ['me', 'payout-account'] as const,
+  supportTickets: () => ['me', 'support-tickets'] as const,
 };
 
 function invalidate(qc: ReturnType<typeof useQueryClient>, jobId: string) {
@@ -108,10 +111,30 @@ export function useSetPayoutAccount() {
   });
 }
 
-export function useProviderReviews(providerId: string | undefined) {
+// ---------------------------------------------------------------------------
+// Support tickets
+// ---------------------------------------------------------------------------
+
+/**
+ * The tickets this person has opened.
+ *
+ * Staff get everybody's from the same endpoint; that branch is the console's, not this app's, and
+ * the server decides which it is from the active role rather than from anything sent here.
+ */
+export function useSupportTickets() {
   return useQuery({
-    queryKey: financeKeys.reviews(providerId ?? ''),
-    enabled: !!providerId,
-    queryFn: () => api<{ items: ReviewView[] }>(`/providers/${providerId}/reviews`),
+    queryKey: financeKeys.supportTickets(),
+    queryFn: () => api<SupportTicketsResponse>('/support/tickets'),
+  });
+}
+
+export function useRaiseSupportTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SupportTicketBody) =>
+      api<SupportTicketCreated>('/support/tickets', { method: 'POST', body, idempotencyKey: newIdempotencyKey() }),
+    // So the list the person is sent back to already has it in, rather than appearing a poll later
+    // and leaving them wondering whether it sent.
+    onSuccess: () => void qc.invalidateQueries({ queryKey: financeKeys.supportTickets() }),
   });
 }

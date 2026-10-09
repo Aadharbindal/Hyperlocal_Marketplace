@@ -262,6 +262,16 @@ export function ProfileScreen() {
             hint={t('settings.help.hint')}
             onPress={() => router.push('/help')}
           />
+          {/* Access sits beside erasure, because they are the same right from opposite ends and
+              a product that offers only the destructive one is making a choice. `GET /me/export`
+              has existed since the trust work with nothing calling it. */}
+          <Link
+            tint="teal"
+            icon="download-outline"
+            label="Download my data"
+            hint="Everything we hold about you, in one file"
+            onPress={() => router.push('/my-data')}
+          />
           <Link
             tint="rose"
             icon="trash-outline"

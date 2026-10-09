@@ -5,6 +5,7 @@ import {
   RaiseDisputeBody,
   ResolveDisputeBody,
   ReviewBody,
+  SupportTicketBody,
 } from '@hyperlocal/core';
 import { z } from 'zod';
 import { forbidden, notFound } from '../../lib/errors';
@@ -264,17 +265,9 @@ export async function financeRoutes(app: FastifyInstance, ctx: AppContext) {
   // ---------------------------------------------------------------- support tickets
   app.post('/support/tickets', async (req, reply) => {
     const auth = requireAuth(req);
-    const body = parse(
-      z
-        .object({
-          category: z.string().trim().min(2).max(40),
-          subject: z.string().trim().min(3).max(120),
-          body: z.string().trim().min(10).max(2000),
-          jobId: z.string().uuid().optional(),
-        })
-        .strict(),
-      req.body,
-    );
+    // The shared contract rather than an inline copy, so the app's form and this route agree on
+    // the categories and refuse the same junk - a subject of "asdasd" wastes a queue slot.
+    const body = parse(SupportTicketBody, req.body);
     const ticket = await store.finance.createTicket({
       opened_by: auth.userId,
       job_id: body.jobId ?? null,

@@ -71,13 +71,6 @@ export function useUpdateNotificationSettings() {
 }
 
 /** Registering this installation so notifications have somewhere to go. */
-export function useRegisterDevice() {
-  return useMutation({
-    mutationFn: (body: { token: string; platform: 'IOS' | 'ANDROID' | 'WEB'; deviceLabel?: string; appVersion?: string }) =>
-      api<{ device: { id: string } }>('/me/devices', { method: 'POST', body }),
-  });
-}
-
 /**
  * Asks the telephony provider to put a number in the middle. What comes back is a number to
  * dial - never the other person's own, in either direction.

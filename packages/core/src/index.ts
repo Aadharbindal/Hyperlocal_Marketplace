@@ -3,6 +3,7 @@ export * from './contracts/common';
 export * from './contracts/auth';
 export * from './contracts/addresses';
 export * from './contracts/geo';
+export * from './contracts/support';
 export * from './contracts/jobs';
 export * from './contracts/provider';
 export * from './contracts/negotiation';
