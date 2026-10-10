@@ -76,6 +76,19 @@ app actually renders, reading the palette straight out of `tokens.ts` so it cann
 real values, and also refuses an icon-only control with no label. It is arithmetic, so it belongs
 in CI rather than in a review.
 
+`npm run test:pg` and `npm run test:e2e` are not in the gates because they need a PostgreSQL
+build on the machine, which does not belong in everybody's install. They are worth running before
+any push that touches a migration or a memory repository - the memory store mirrors every SQL
+constraint by hand, and that mirror has drifted twice:
+
+```bash
+npm i -D embedded-postgres --no-save --workspace apps/api   # once
+npm run test:pg    # 21 migrations + the whole API suite, on a throwaway cluster
+npm run test:e2e   # the same, plus a complete customer-and-professional journey over HTTP
+```
+
+CI runs the equivalent on a PostgreSQL service container on every push.
+
 `npm run load-test` is not in the gates because it needs a running API and a real database:
 
 ```bash

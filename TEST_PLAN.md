@@ -55,6 +55,15 @@ admin privilege escalation · cross-role access · suspended login.
 ## Running against Postgres
 
 ```
+npm run test:pg     # the API suite, against a real PostgreSQL
+npm run test:e2e    # the whole journey, against a real PostgreSQL
+```
+
+Both start a throwaway cluster on a free port, create the database with the right encoding, apply
+every migration and tear the cluster down again. They need a local PostgreSQL build, which is
+deliberately not a dependency - the scripts say how to get it. Against an existing database:
+
+```
 DATA_MODE=postgres DATABASE_URL=... npm run test:integration
 ```
 The same suite must pass, unchanged: the memory repositories exist to mirror the SQL, not to be
@@ -68,6 +77,10 @@ initialised in a Windows-1252 locale refuses `0001` outright:
 ```
 createdb hyperlocal --encoding=UTF8 --template=template0
 ```
+
+This is the single most expensive thing to get wrong here, because it fails late and looks like a
+seed-data bug rather than a cluster one. `test:pg` and `test:e2e` do it for you and check the
+encoding came back UTF8 before they run anything.
 
 CI runs both: the memory suite on every push, and - since the first real run found four bugs the
 memory suite structurally could not - a second job that applies every migration to PostgreSQL 17
