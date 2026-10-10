@@ -4,6 +4,65 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Four tasks shown as four tasks
+
+**Milestone:** post-M9 - provider first-run
+**Date:** 2026-10-10
+**Status:** Complete
+
+**Why this exists:** a brand-new professional has four things to finish before any work can reach
+them, and the screen showed two of them, in two different shapes, with nothing saying how much was
+left. A verification card said "Get verified to start. Submit one ID document." and, directly
+below, an empty state said "Pick your services." Both are real, neither mentions the other two,
+and together they read as the whole of it.
+
+The information was never missing. `blockers` is literally the list of what the server is waiting
+for, and the feed has always received it in full - the screen was choosing one item out of it and
+throwing the rest away.
+
+**What was built:**
+
+- `SetupChecklist` - the whole list, with a count, a progress bar, and ticks that stay on screen
+  once a step is done. Three ticks and one empty circle is both a different feeling from one
+  instruction and the honest picture: they really have done three things. Only the next step
+  explains itself, because four explanations is a wall of text on the screen somebody is trying to
+  get past, and only the next step has a button, because there is a correct order here.
+- The order is load-bearing rather than cosmetic. The server refuses `isAvailable: true` until
+  verification is through (`verification_pending`), so verification sorting first is what stops
+  "Go online" from ever being offered as a step while it is impossible. Skills and base location
+  have no such guard; those really can be done first, they are just a worse order.
+- "Go online" has no button at all. The switch is already in this screen's header, and a second
+  control for it would be a second source of truth.
+- The availability switch was correctly disabled while unverified and said nothing about why - a
+  dead control. It now carries the reason.
+- Being suspended arrives in the same `blockers` array and is not a setup step. Ticking three
+  boxes and offering a progress bar to somebody whose account is on hold would have been cheerful
+  and about the wrong subject; it gets its own message and a route to support, and the checklist
+  stands down while it shows.
+- The empty feed below no longer repeats a task. It answers the only question the blank space
+  asks: what this list is, and why it is empty.
+
+**Changed files:** `apps/mobile/src/features/provider/SetupChecklist.tsx` (new),
+`apps/mobile/src/features/provider/SetupChecklist.test.tsx` (new),
+`apps/mobile/app/(provider)/jobs.tsx`.
+**Database changes:** none.
+**API changes:** none - this is the existing `blockers` array, shown.
+**Tests added / passed:** 6 new (the whole list is visible; finished steps stay; one explanation;
+one action; no action for the step the header owns; what a screen reader is told). Mobile 55/55,
+core 279/279, API 392/392, lint clean, a11y 0, wiring 0 and 0.
+**Manual verification completed:** signed in as a new provider against the running API, read "0 of
+4 done" with every step listed; set a skill through the real endpoint and watched the card move to
+"1 of 4 done" with "Services chosen" ticked and struck through, and the next step and its button
+change with it. Confirmed the availability switch is server-refused while unverified
+(`403 verification_pending`) and that the control is disabled to match.
+**Known limitations:** the rejected-verification card still needs its own words rather than a tick,
+and keeps them.
+**Security considerations:** none - no new endpoint, no new data on screen.
+**External integrations mocked or live:** unchanged.
+**Next milestone:** the remaining role screens - vendor, technician, admin.
+
+---
+
 ## A map to point at, and inputs that have to be real
 
 **Milestone:** post-M9 - maps and input validation

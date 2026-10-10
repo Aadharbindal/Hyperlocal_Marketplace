@@ -9,18 +9,11 @@ import { useNearbyJobs, useProviderProfile, useSetAvailability } from '@/api/pro
 import { BidSheet } from '@/features/provider/BidSheet';
 import { FeedFilterSheet } from '@/features/provider/FeedFilterSheet';
 import { RedispatchInvites } from '@/features/provider/RedispatchInvites';
+import { SetupChecklist } from '@/features/provider/SetupChecklist';
 import { useStrings } from '@/i18n';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
 import { RealisticIcon } from '@/ui/RealisticIcon';
-
-const BLOCKER_COPY: Record<string, { title: string; body: string; action?: string }> = {
-  VERIFICATION_PENDING: { title: 'Verification pending', body: 'Submit your ID to start receiving jobs.', action: 'Complete verification' },
-  AVAILABILITY_OFF: { title: "You're offline", body: 'Turn availability on to receive nearby jobs.' },
-  NO_SKILLS_SELECTED: { title: 'Pick your services', body: 'Choose what you work on so we can match you.', action: 'Choose services' },
-  NO_BASE_LOCATION: { title: 'Set your base location', body: 'We use it to find jobs near you.', action: 'Set location' },
-  SUSPENDED: { title: 'Account on hold', body: 'Contact support to restore your account.' },
-};
 
 function Countdown({ endsAt }: { endsAt: string }) {
   const [left, setLeft] = useState(() => Math.max(0, new Date(endsAt).getTime() - Date.now()));
@@ -53,7 +46,16 @@ export default function ProviderJobsScreen() {
   const activeFilters = activeFilterCount(filters);
 
   const blockers = feed.data?.blockers ?? profile.data?.blockers ?? [];
-  const primaryBlocker = blockers.find((b) => b !== 'AVAILABILITY_OFF') ?? blockers[0];
+  /**
+   * Being suspended is not a setup step.
+   *
+   * It arrives in the same `blockers` array as the four things a new professional has to finish,
+   * and putting it in the checklist would have ticked three boxes and offered a progress bar to
+   * somebody whose account is on hold - cheerful, and about the wrong subject. It gets its own
+   * message, and the checklist stands down while it is showing.
+   */
+  const suspended = blockers.includes('SUSPENDED');
+  const setupSteps = blockers.filter((b) => b !== 'SUSPENDED');
 
   return (
     <Screen withTabBar refreshing={feed.isRefetching} onRefresh={() => void feed.refetch()}>
@@ -97,6 +99,14 @@ export default function ProviderJobsScreen() {
             trackColor={{ true: palette.primary, false: palette.borderStrong }}
             thumbColor="#FFFFFF"
             accessibilityLabel="Availability"
+            /* A disabled switch with no reason is a dead end - the server refuses
+               `isAvailable: true` until verification is through (`verification_pending`), so the
+               control is correctly off, but silently. Somebody tapping it got nothing at all. */
+            accessibilityHint={
+              profile.data && profile.data.verificationStatus !== 'VERIFIED'
+                ? 'You can go online once your ID has been verified.'
+                : undefined
+            }
           />
         </View>
       </View>
@@ -107,32 +117,64 @@ export default function ProviderJobsScreen() {
       <RedispatchInvites />
 
       {/* verification / setup state */}
-      {profile.data && profile.data.verificationStatus !== 'VERIFIED' ? (
+      {/*
+        One list instead of a card plus an empty state.
+
+        Both of those were showing a *single* next step, in two different shapes, while the server
+        was already sending the whole list of what it is waiting for. A professional on their first
+        day could not tell whether they were nearly done or had barely started. The card below is
+        kept only for the two verification states a tick cannot express - being reviewed, and being
+        rejected with a reason that has to be read.
+      */}
+      {suspended ? (
         <Animated.View entering={FadeInDown.duration(360)}>
+          <Card style={styles.holdCard}>
+            <View style={styles.verifyHead}>
+              <Ionicons name="pause-circle" size={20} color={palette.danger} />
+              <Text weight="semibold" style={styles.holdTitle}>
+                Your account is on hold
+              </Text>
+            </View>
+            <Text variant="caption" tone="secondary">
+              No new jobs will reach you until this is lifted. Support can tell you why and what to do next.
+            </Text>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/support')} style={styles.verifyAction}>
+              <Text variant="caption" weight="bold" tone="primary">
+                Talk to support
+              </Text>
+              <Ionicons name="arrow-forward" size={14} color={palette.primary} />
+            </Pressable>
+          </Card>
+        </Animated.View>
+      ) : setupSteps.length > 0 ? (
+        <Animated.View entering={FadeInDown.duration(360)}>
+          <SetupChecklist blockers={setupSteps} onAction={() => router.push('/(provider)/profile')} />
+        </Animated.View>
+      ) : null}
+
+      {profile.data && (profile.data.verificationStatus === 'SUBMITTED' || profile.data.verificationStatus === 'UNDER_REVIEW' || profile.data.verificationStatus === 'REJECTED') ? (
+        <Animated.View entering={FadeInDown.duration(360)}>
+          <Spacer h={spacing.md} />
           <Card style={styles.verifyCard}>
             <View style={styles.verifyHead}>
               <Ionicons name="shield-checkmark" size={20} color={palette.warning} />
               <Text weight="semibold" style={styles.verifyTitle}>
-                {profile.data.verificationStatus === 'SUBMITTED' || profile.data.verificationStatus === 'UNDER_REVIEW'
-                  ? 'Verification in review'
-                  : 'Get verified to start'}
+                {profile.data.verificationStatus === 'REJECTED' ? 'Your documents came back' : 'Verification in review'}
               </Text>
             </View>
             <Text variant="caption" tone="secondary">
               {profile.data.verificationStatus === 'REJECTED'
                 ? (profile.data.kyc[0]?.rejectionReason ?? 'Your documents were not accepted. Please submit again.')
-                : profile.data.verificationStatus === 'SUBMITTED' || profile.data.verificationStatus === 'UNDER_REVIEW'
-                  ? 'We are checking your documents. This usually takes a day.'
-                  : 'Submit one ID document so customers know you are verified.'}
+                : 'We are checking your documents. This usually takes a day.'}
             </Text>
-            {profile.data.verificationStatus !== 'SUBMITTED' && profile.data.verificationStatus !== 'UNDER_REVIEW' && (
+            {profile.data.verificationStatus === 'REJECTED' ? (
               <Pressable accessibilityRole="button" onPress={() => router.push('/(provider)/profile')} style={styles.verifyAction}>
                 <Text variant="caption" weight="bold" tone="primary">
-                  Complete verification
+                  Send them again
                 </Text>
                 <Ionicons name="arrow-forward" size={14} color={palette.primary} />
               </Pressable>
-            )}
+            ) : null}
           </Card>
         </Animated.View>
       ) : null}
@@ -151,13 +193,18 @@ export default function ProviderJobsScreen() {
         </View>
       ) : feed.isError ? (
         <ErrorState title={t('common.loadFailed')} body={t('common.checkConnection')} onRetry={() => void feed.refetch()} retrying={feed.isRefetching} />
-      ) : blockers.length > 0 && primaryBlocker ? (
+      ) : blockers.length > 0 ? (
+        /* No task here - the checklist above is already carrying all of them, in full, which is
+           what the two competing instructions were doing badly. This only answers the question the
+           blank space below the card asks: what is this list, and why is it empty. */
         <EmptyState
-          icon={primaryBlocker === 'AVAILABILITY_OFF' ? 'power-outline' : 'shield-outline'}
-          title={BLOCKER_COPY[primaryBlocker]?.title ?? t('jobs.empty.title')}
-          body={BLOCKER_COPY[primaryBlocker]?.body ?? t('jobs.empty.body')}
-          actionLabel={BLOCKER_COPY[primaryBlocker]?.action}
-          onAction={() => router.push('/(provider)/profile')}
+          icon="briefcase-outline"
+          title="No jobs yet"
+          body={
+            suspended
+              ? 'Jobs near you will appear here once your account is active again.'
+              : 'Once the list above is done, jobs near you appear here - usually within a few minutes.'
+          }
         />
       ) : feed.data.items.length === 0 ? (
         <EmptyState
@@ -269,6 +316,8 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   availability: { alignItems: 'center', gap: 2 },
 
+  holdCard: { marginTop: spacing.md, gap: spacing.sm, backgroundColor: palette.dangerSoft, borderWidth: 1, borderColor: palette.danger },
+  holdTitle: { fontSize: 15, color: palette.danger },
   verifyCard: { marginTop: spacing.lg, gap: spacing.sm, backgroundColor: '#FFFBF0', borderWidth: 1, borderColor: palette.warningSoft },
   verifyHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   verifyTitle: { fontSize: 15, color: palette.warning },
