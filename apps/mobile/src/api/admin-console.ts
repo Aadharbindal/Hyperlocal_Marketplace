@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { OpsReportView, RoleStatus, UserRole, UserStatus } from '@hyperlocal/core';
 import { api } from './client';
 
 export const consoleKeys = {
@@ -9,19 +10,17 @@ export const consoleKeys = {
   settlements: (status: string) => ['admin', 'settlements', status] as const,
 };
 
-export interface OpsOverview {
-  generatedAt: string;
-  liveJobs: number;
-  completedJobs: number;
-  capturedPaise: number;
-  refundedPaise: number;
-  platformRevenuePaise: number;
-  payoutsPendingPaise: number;
-  payoutsPaidPaise: number;
-  disputesOpen: number;
-  disputesBreachingSla: number;
-  kycPending: number;
-}
+/**
+ * The overview, as the contract defines it.
+ *
+ * This was a hand-written copy that had drifted: it declared eleven of the report's fourteen
+ * fields, so `providersVerified`, `providersSuspended` and `jobsByStatus` had been computed by
+ * both data stores and sent on every request since the report was written, and were invisible to
+ * the one screen that reads it. Nobody had to delete them - they just never existed in the type,
+ * so nothing could show them and nothing complained.
+ */
+export type OpsOverview = OpsReportView;
+
 
 /** The numbers somebody on call wants first: what is live, what is stuck, what is owed. */
 export function useOpsOverview() {
@@ -36,8 +35,16 @@ export interface AdminUser {
   id: string;
   displayName: string | null;
   phone: string;
-  status: string;
-  roles: string[];
+  status: UserStatus;
+  /*
+   * `{ role, status }`, not a list of names. It was typed as `string[]` here, and the console
+   * joined it - so the row under every person's phone number read "[object object]". Somebody
+   * deciding whether to suspend an account could not see what that account *is*.
+   *
+   * The per-role status matters as much as the name: a REVOKED provider role and an active one
+   * are very different accounts to be looking at.
+   */
+  roles: Array<{ role: UserRole; status: RoleStatus }>;
   suspendedReason: string | null;
 }
 
@@ -104,7 +111,13 @@ export interface SchedulerTask {
 export function useScheduler() {
   return useQuery({
     queryKey: consoleKeys.scheduler,
-    queryFn: () => api<{ tasks: SchedulerTask[]; streams: { connections: number } }>('/admin/scheduler'),
+    /*
+     * `streams` is `{ streams, users }` - open event streams, and how many distinct people they
+     * belong to. It was typed here as `{ connections }`, a field the server has never sent, so
+     * the console rendered " live connections" with nothing in front of it. A hand-written type
+     * for a response nobody checks it against will say whatever it was first guessed to say.
+     */
+    queryFn: () => api<{ tasks: SchedulerTask[]; streams: { streams: number; users: number } }>('/admin/scheduler'),
     refetchInterval: 30_000,
   });
 }

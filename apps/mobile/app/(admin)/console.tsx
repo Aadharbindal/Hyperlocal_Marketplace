@@ -18,7 +18,7 @@ import {
 import { ApiError } from '@/api/client';
 import { useCreatePromo, useDeactivatePromo, usePromos, useGenerateRecoveryCodes, useRecoveryCodeCount } from '@/api/admin-trust';
 import { palette, radius, spacing } from '@/theme';
-import { Badge, Button, Card, DataRow, ErrorState, Screen, SegmentedControl, Skeleton, Spacer, Text, TextField } from '@/ui';
+import { Badge, Button, Card, DataRow, ErrorState, Screen, SegmentedControl, Skeleton, Spacer, StatTile, Text, TextField } from '@/ui';
 
 /**
  * The parts of the console that had an API and no screen.
@@ -82,46 +82,133 @@ export default function ConsoleScreen() {
   );
 }
 
+/** What each payout state is called. Staff read these too. */
+const SETTLEMENT_LABEL = { ON_HOLD: 'On hold', FAILED: 'Failed', PENDING: 'Waiting', PAID: 'Paid' } as const;
+
+/** `PROVIDER` as `Provider`. These are read by staff, but they are still words. */
+const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, ' ');
+
+/** A heading on a card, so a group of numbers says what it is a group of. */
+function GroupTitle({ children, icon }: { children: string; icon: keyof typeof Ionicons.glyphMap }) {
+  return (
+    <View style={styles.groupHead}>
+      <Ionicons name={icon} size={14} color={palette.iconFaint} />
+      <Text variant="micro" weight="bold" tone="muted" style={styles.groupTitle}>
+        {children.toUpperCase()}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * The first thing somebody sees during an incident.
+ *
+ * It was eight identical rows in two unlabelled cards: "Live jobs 0" set exactly like "Payouts
+ * sent ₹0", and no way to tell which card was work and which was money without reading five lines
+ * of it. This is the screen the comment at the top of the file calls "a place people come to
+ * answer a specific question during an incident", and an incident is precisely when a wall of
+ * same-sized grey rows is useless.
+ *
+ * So the three numbers somebody is actually scanning for are tiles, the rest are headed groups,
+ * and the two counts the report has always carried and this screen never showed - how many
+ * professionals are verified, and how many are suspended - are on it.
+ */
 function Overview() {
   const overview = useOpsOverview();
   if (overview.isPending) return <Skeleton height={200} />;
   if (overview.isError) return <ErrorState title="Could not load" body="Try again." onRetry={() => void overview.refetch()} />;
 
   const d = overview.data;
+  const needsSomebody = d.disputesBreachingSla > 0 || d.kycPending > 0;
   return (
     <>
-      {/* Anything that needs somebody today comes first, and only when it is non-zero. */}
-      {d.disputesBreachingSla > 0 || d.kycPending > 0 ? (
+      {/* Anything that needs somebody today comes first, and only when it is non-zero. A zero in
+          red is a false alarm that teaches people to stop looking at the top of the screen. */}
+      {needsSomebody ? (
         <>
           <Card style={styles.alert}>
-            {d.disputesBreachingSla > 0 ? (
-              <DataRow label="Disputes past their SLA" value={String(d.disputesBreachingSla)} tone="danger" />
-            ) : null}
-            {d.kycPending > 0 ? <DataRow label="Verifications waiting" value={String(d.kycPending)} /> : null}
+            <GroupTitle icon="alert-circle-outline">Needs somebody today</GroupTitle>
+            <View style={styles.tileRow}>
+              {d.disputesBreachingSla > 0 ? (
+                <StatTile
+                  style={styles.tile}
+                  label="Disputes past SLA"
+                  value={String(d.disputesBreachingSla)}
+                  tone="danger"
+                  icon="alert-circle"
+                />
+              ) : null}
+              {d.kycPending > 0 ? (
+                <StatTile style={styles.tile} label="Verifications waiting" value={String(d.kycPending)} icon="shield-outline" />
+              ) : null}
+            </View>
           </Card>
           <Spacer h={spacing.md} />
         </>
       ) : null}
 
+      {/* The live picture, as three numbers rather than three rows. These are what somebody scans
+          for; a row puts the figure last and the same size as its own label. */}
+      <View style={styles.tileRow}>
+        <StatTile style={styles.tile} label="Live jobs" value={String(d.liveJobs)} icon="flash-outline" />
+        <StatTile
+          style={styles.tile}
+          label="Open disputes"
+          value={String(d.disputesOpen)}
+          tone={d.disputesOpen > 0 ? 'danger' : 'default'}
+          icon="alert-circle-outline"
+        />
+        <StatTile style={styles.tile} label="Completed" value={String(d.completedJobs)} icon="checkmark-done-outline" />
+      </View>
+
+      <Spacer h={spacing.md} />
       <Card style={styles.group}>
-        <DataRow label="Live jobs" value={String(d.liveJobs)} />
-        <DataRow label="Completed" value={String(d.completedJobs)} />
-        <DataRow label="Open disputes" value={String(d.disputesOpen)} />
+        <GroupTitle icon="cash-outline">Money</GroupTitle>
+        <DataRow label="Captured" value={formatInr(d.capturedPaise)} />
+        <DataRow label="Refunded" value={formatInr(d.refundedPaise)} />
+        <DataRow label="Payouts sent" value={formatInr(d.payoutsPaidPaise)} />
+        {/* The one number on this card somebody can act on, so it is the one that is emphasised -
+            money waiting is a person waiting to be paid. */}
+        <DataRow
+          label="Payouts waiting"
+          value={formatInr(d.payoutsPendingPaise)}
+          tone={d.payoutsPendingPaise > 0 ? 'danger' : 'default'}
+        />
+        <DataRow label="Platform revenue" value={formatInr(d.platformRevenuePaise)} total />
       </Card>
 
       <Spacer h={spacing.md} />
       <Card style={styles.group}>
-        <DataRow label="Captured" value={formatInr(d.capturedPaise)} />
-        <DataRow label="Refunded" value={formatInr(d.refundedPaise)} />
-        <DataRow label="Platform revenue" value={formatInr(d.platformRevenuePaise)} />
-        <DataRow label="Payouts waiting" value={formatInr(d.payoutsPendingPaise)} />
-        <DataRow label="Payouts sent" value={formatInr(d.payoutsPaidPaise)} />
+        <GroupTitle icon="people-outline">Professionals</GroupTitle>
+        {/* Both of these have been in the report since it was written and on no screen until now.
+            Suspensions in particular: the number going up is the thing somebody wants to notice
+            without going looking for it. */}
+        <DataRow label="Verified" value={String(d.providersVerified)} />
+        <DataRow
+          label="Suspended"
+          value={String(d.providersSuspended)}
+          tone={d.providersSuspended > 0 ? 'danger' : 'default'}
+        />
       </Card>
 
       <Spacer h={spacing.sm} />
-      <Text variant="micro" tone="muted" center>
-        As of {new Date(d.generatedAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}
-      </Text>
+      {/* Attached to a control rather than floating: during an incident the question behind
+          "as of" is always "is this stale", and the answer to that is a refresh. */}
+      <Pressable
+        onPress={() => void overview.refetch()}
+        accessibilityRole="button"
+        accessibilityLabel={`Updated at ${new Date(d.generatedAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}. Refresh`}
+        accessibilityState={{ busy: overview.isRefetching }}
+        aria-busy={overview.isRefetching}
+        style={styles.asOf}
+      >
+        <Ionicons name="refresh" size={13} color={palette.iconFaint} />
+        <Text variant="micro" tone="muted">
+          {overview.isRefetching
+            ? 'Refreshing'
+            : `As of ${new Date(d.generatedAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`}
+        </Text>
+      </Pressable>
     </>
   );
 }
@@ -215,7 +302,10 @@ function PersonCard({ user }: { user: AdminUser }) {
             {user.displayName ?? 'No name'}
           </Text>
           <Text variant="micro" tone="muted">
-            {user.phone} · {user.roles.join(', ').toLowerCase() || 'no roles'}
+            {user.phone} ·{' '}
+            {user.roles.length
+              ? user.roles.map((r) => (r.status === 'ACTIVE' ? titleCase(r.role) : `${titleCase(r.role)} (${r.status.toLowerCase()})`)).join(', ')
+              : 'no roles'}
           </Text>
         </View>
         <Badge tone={user.status === 'ACTIVE' ? 'success' : 'danger'} label={user.status.toLowerCase()} />
@@ -388,9 +478,9 @@ function Payouts() {
       <SegmentedControl
         label="Settlement status"
         scroll
-        options={['ON_HOLD', 'FAILED', 'PENDING', 'PAID'].map((s) => ({
+        options={(['ON_HOLD', 'FAILED', 'PENDING', 'PAID'] as const).map((s) => ({
           value: s,
-          label: s.toLowerCase().replace('_', ' '),
+          label: SETTLEMENT_LABEL[s],
         }))}
         value={status}
         onChange={setStatus}
@@ -399,6 +489,15 @@ function Payouts() {
 
       {settlements.isPending ? (
         <Skeleton height={80} />
+      ) : settlements.isError ? (
+        /* "Nothing in that state" for a failed request tells somebody chasing a stuck payout that
+           there is no stuck payout. The same false negative the vendor's shop card had. */
+        <ErrorState
+          title="Could not load payouts"
+          body="Check the connection and try again."
+          onRetry={() => void settlements.refetch()}
+          retrying={settlements.isRefetching}
+        />
       ) : (settlements.data ?? []).length === 0 ? (
         <Text variant="caption" tone="muted">
           Nothing in that state.
@@ -534,9 +633,15 @@ function Background() {
 
   return (
     <>
-      <Text variant="micro" tone="muted">
-        {scheduler.data.streams.connections} live connections
-      </Text>
+      <View style={styles.tileRow}>
+        <StatTile
+          style={styles.tile}
+          label="Open streams"
+          value={String(scheduler.data.streams.streams)}
+          hint={`${scheduler.data.streams.users} ${scheduler.data.streams.users === 1 ? 'person' : 'people'}`}
+          icon="pulse-outline"
+        />
+      </View>
       <Spacer h={spacing.md} />
       <View style={styles.list}>
         {scheduler.data.tasks.map((task) => (
@@ -642,6 +747,12 @@ const styles = StyleSheet.create({
   tab: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 7, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: palette.primarySoft },
   tabOn: { backgroundColor: palette.primary },
   group: { gap: spacing.sm },
+  groupHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  groupTitle: { letterSpacing: 0.6 },
+  tileRow: { flexDirection: 'row', gap: spacing.sm },
+  // Equal shares, so three numbers of different widths do not make three different-sized tiles.
+  tile: { flex: 1 },
+  asOf: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 32 },
   alert: { gap: spacing.sm, borderWidth: 1, borderColor: palette.danger },
   list: { gap: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

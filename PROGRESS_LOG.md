@@ -4,6 +4,64 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Three fields the console was sure it had
+
+**Milestone:** post-M9 - admin console
+**Date:** 2026-10-10
+**Status:** Complete
+
+**Why this exists:** the console's overview was eight identical rows in two unlabelled cards -
+"Live jobs 0" set exactly like "Payouts sent ₹0", with no way to tell which card was work and
+which was money without reading five lines of it. The comment at the top of the file calls this
+"a place people come to answer a specific question during an incident", and an incident is
+precisely when a wall of same-sized grey rows is useless.
+
+Rebuilding it turned up what the flat layout had been hiding: the client's view of three admin
+responses was hand-written, never checked against the server, and wrong in three different ways.
+
+**What was found by opening it:**
+
+- **`[object object]` under every person's phone number.** `AdminUser.roles` is
+  `{ role, status }[]` and was typed `string[]`, so the row the console joins rendered the
+  placeholder. Somebody deciding whether to suspend an account could not see what that account is.
+  The per-role status is on screen too now - a revoked provider role and an active one are very
+  different accounts to be looking at.
+- **" live connections", with nothing in front of it.** `/admin/scheduler` returns
+  `{ streams, users }`; the client declared `{ connections }`, a field the server has never sent.
+- **Three fields invisible since the report was written.** `OpsOverview` was a hand-written copy
+  of `OpsReportView` carrying eleven of its fourteen fields, so `providersVerified`,
+  `providersSuspended` and `jobsByStatus` were computed by both data stores and sent on every
+  request to a screen that could not see them. It is the contract type now.
+- **"Nothing in that state." for a failed request.** The payouts list never checked `isError`, so
+  somebody chasing a stuck payout would be told there is no stuck payout - the same false negative
+  the vendor's shop card had.
+
+**What was built:** the three numbers somebody scans for are tiles rather than rows; both groups
+have headings; "Payouts waiting" is emphasised because money waiting is a person waiting to be
+paid; "Professionals" is a new group for the two counts nothing could show before; and "As of" is
+attached to a refresh rather than floating, because during an incident the question behind it is
+always "is this stale".
+
+**Changed files:** `apps/mobile/app/(admin)/console.tsx`,
+`apps/mobile/src/api/admin-console.ts`.
+**Database changes:** none.
+**API changes:** none - every field was already being sent.
+**Tests added / passed:** none new; these are wrong-shape defects that only reading the running
+page finds, and two of the three were in types no test asserts. Mobile 59/59, core 279/279, API
+392/392, lint clean, a11y 0, wiring 0 and 0.
+**Manual verification completed:** signed in as the seeded admin and read every one of the six
+sections in the running app. People now reads "+919000000001 · Customer", Background reads
+"1 Open streams / 1 person", Payouts reads "On hold / Failed / Waiting / Paid", and the overview
+shows "Verified 2" - a real number that no screen could display an hour ago. Measured the tile row
+in the page rather than trusting the screenshot: 20 to 355 inside 375, no horizontal scroll.
+**Known limitations:** `jobsByStatus` is now in the type and still on no screen; it wants a
+breakdown view rather than a row.
+**Security considerations:** none - the phone number was already shown in full to an admin by
+design, and the audit note about it is unchanged.
+**Next milestone:** the remaining admin screens - disputes, verify, money, moderation.
+
+---
+
 ## Twelve controls that never said which one was on
 
 **Milestone:** post-M9 - control state on the web
