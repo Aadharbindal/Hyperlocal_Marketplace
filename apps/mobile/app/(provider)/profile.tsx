@@ -2,26 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { checkBusinessName } from '@hyperlocal/core';
+import { KYC_DOCUMENT_TYPES, checkBusinessName, type KycDocumentType } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useCategories, useLogout, useMe } from '@/api/hooks';
 import { useAddresses } from '@/api/jobs';
 import { useProviderProfile, useSubmitKyc, useUpdateProviderProfile } from '@/api/provider';
 import { useStrings } from '@/i18n';
 import { useSession } from '@/store/session';
-import { VERIFICATION } from '@/i18n/status';
+import { KYC_DOCUMENT, VERIFICATION } from '@/i18n/status';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, ErrorState, Screen, Skeleton, ChipMultiSelect, SegmentedControl, Spacer, StatTile, Text, TextField } from '@/ui';
 import { RealisticIcon } from '@/ui/RealisticIcon';
 
 const RADIUS_OPTIONS = [2, 3, 5, 8, 12];
 
-const DOCS = [
-  { key: 'AADHAAR', label: 'Aadhaar' },
-  { key: 'PAN', label: 'PAN' },
-  { key: 'DRIVING_LICENCE', label: 'Driving licence' },
-  { key: 'SHOP_LICENCE', label: 'Shop licence' },
-];
 
 export default function ProviderProfileScreen() {
   const t = useStrings();
@@ -40,7 +34,7 @@ export default function ProviderProfileScreen() {
   const nameProblem = checkBusinessName(businessName);
   const [radiusKm, setRadiusKm] = useState(3);
   const [skillIds, setSkillIds] = useState<string[]>([]);
-  const [docType, setDocType] = useState('AADHAAR');
+  const [docType, setDocType] = useState<KycDocumentType>('AADHAAR');
   const [docNumber, setDocNumber] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -157,7 +151,7 @@ export default function ProviderProfileScreen() {
                 <View key={k.id} style={styles.docRow}>
                   <Ionicons name="document-text-outline" size={16} color={palette.textSecondary} />
                   <Text variant="caption" style={{ flex: 1 }}>
-                    {DOCS.find((d) => d.key === k.documentType)?.label ?? k.documentType}
+                    {KYC_DOCUMENT[k.documentType as KycDocumentType] ?? k.documentType}
                     {k.last4 ? ` ••${k.last4}` : ''}
                   </Text>
                   <Badge tone={VERIFICATION[k.status].tone} label={VERIFICATION[k.status].label} />
@@ -168,11 +162,15 @@ export default function ProviderProfileScreen() {
 
           {canSubmitKyc && (
             <>
+              {/* Built from the enum the server accepts, not from a list typed out beside it.
+                  The hand-written one offered four of six - somebody holding a voter ID or a GST
+                  certificate had nothing to pick, for documents that would have been taken. */}
               <SegmentedControl
                 label="Which document"
-                options={DOCS.map((d) => ({ value: d.key, label: d.label }))}
+                scroll
+                options={KYC_DOCUMENT_TYPES.map((k) => ({ value: k, label: KYC_DOCUMENT[k] }))}
                 value={docType}
-                onChange={(v) => setDocType(v as typeof docType)}
+                onChange={setDocType}
               />
               <TextField
                 label="Document number"

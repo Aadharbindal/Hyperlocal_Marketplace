@@ -2,12 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { checkReason, type KycReviewItem } from '@hyperlocal/core';
+import { checkReason, type KycDocumentType, type KycReviewItem } from '@hyperlocal/core';
+import { KYC_DOCUMENT } from '@/i18n/status';
 import { ApiError } from '@/api/client';
 import { useKycQueue, useMfaStatus, useOpenKycDocument, useReviewKyc } from '@/api/admin';
 import { MfaGate } from '@/features/admin/MfaGate';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, DataRow, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text, TextField } from '@/ui';
+
+/** `PROVIDER` as `Provider`. Staff read these, but they are still words. */
+const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, ' ');
 
 export default function VerifyScreen() {
   const mfa = useMfaStatus();
@@ -79,14 +83,15 @@ function KycCard({ item }: { item: KycReviewItem }) {
             {item.userName}
           </Text>
           <Text variant="micro" tone="muted">
-            {item.userPhoneMasked} · {item.roles.join(', ') || 'no role'}
+            {item.userPhoneMasked} · {item.roles.map(titleCase).join(', ') || 'no role'}
           </Text>
         </View>
         <Badge tone={waitingDays >= 2 ? 'danger' : 'warning'} label={waitingDays === 0 ? 'today' : `${waitingDays}d`} />
       </View>
 
       <View style={styles.detail}>
-        <DataRow label="Document" value={item.documentType} />
+        {/* The reviewer was reading "SHOP_LICENCE" while deciding somebody's livelihood. */}
+        <DataRow label="Document" value={KYC_DOCUMENT[item.documentType as KycDocumentType] ?? item.documentType} />
         <DataRow label="Ends with" value={item.documentLast4 ?? 'not recorded'} />
       </View>
 

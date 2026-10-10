@@ -20,6 +20,16 @@ export type UserStatus = (typeof USER_STATUSES)[number];
 export const ROLE_STATUSES = ['ACTIVE', 'SUSPENDED', 'REVOKED'] as const;
 export type RoleStatus = (typeof ROLE_STATUSES)[number];
 
+/**
+ * The identity documents the platform accepts.
+ *
+ * It was an inline `z.enum` in `KycSubmitBody` and nowhere else, so the provider's own picker -
+ * written by hand from the same list - offered four of the six. A professional holding a voter ID
+ * or a GST certificate had nothing to choose, for documents the server would have taken.
+ */
+export const KYC_DOCUMENT_TYPES = ['AADHAAR', 'PAN', 'DRIVING_LICENCE', 'VOTER_ID', 'SHOP_LICENCE', 'GST'] as const;
+export type KycDocumentType = (typeof KYC_DOCUMENT_TYPES)[number];
+
 export const VERIFICATION_STATUSES = [
   'UNVERIFIED',
   'SUBMITTED',

@@ -6,7 +6,7 @@ import { TWO_PERSON_REFUND_THRESHOLD_PAISE, checkReason, checkRupees, formatInr,
 import { ApiError } from '@/api/client';
 import { useDisputeQueue, useMfaStatus, useMoveDispute, useResolveDispute } from '@/api/admin';
 import { MfaGate } from '@/features/admin/MfaGate';
-import { DISPUTE_STATUS } from '@/i18n/status';
+import { DISPUTE_CATEGORY, DISPUTE_STATUS } from '@/i18n/status';
 import { palette, spacing } from '@/theme';
 import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text, TextField, SegmentedControl } from '@/ui';
 
@@ -102,7 +102,9 @@ function DisputeCard({ dispute }: { dispute: DisputeView }) {
       <View style={styles.head}>
         <View style={{ flex: 1 }}>
           <Text variant="label" weight="semibold">
-            {dispute.category.toLowerCase().replace(/_/g, ' ')}
+            {/* The card's own heading was a lowercased column value. Staff read the same words
+                the customer picked, which is also how you notice a miscategorised report. */}
+            {DISPUTE_CATEGORY[dispute.category].label}
           </Text>
           <Text variant="micro" tone={overdue ? 'danger' : 'muted'}>
             {overdue ? 'Past the promised time' : `Answer by ${new Date(dispute.slaDueAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`}

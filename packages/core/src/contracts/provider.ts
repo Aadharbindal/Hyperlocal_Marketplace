@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MATERIAL_RESPONSIBILITIES, VERIFICATION_STATUSES } from './enums';
+import { KYC_DOCUMENT_TYPES, MATERIAL_RESPONSIBILITIES, VERIFICATION_STATUSES } from './enums';
 import { PhoneSchema } from './auth';
 import { checkBusinessName, checkPersonName, refineWith } from '../validation/validation';
 
@@ -54,7 +54,7 @@ export type ProviderProfileView = z.infer<typeof ProviderProfileView>;
 
 export const KycSubmitBody = z
   .object({
-    documentType: z.enum(['AADHAAR', 'PAN', 'DRIVING_LICENCE', 'VOTER_ID', 'SHOP_LICENCE', 'GST']),
+    documentType: z.enum(KYC_DOCUMENT_TYPES),
     /** Only the last four characters are stored; the full number never reaches the database. */
     documentNumber: z.string().trim().min(4).max(24),
     mime: z.string().min(3).max(100),

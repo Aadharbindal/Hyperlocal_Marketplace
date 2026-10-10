@@ -236,6 +236,16 @@ function People() {
         </Text>
       ) : results.isPending ? (
         <Skeleton height={80} />
+      ) : results.isError ? (
+        /* "Nobody matches that" is a statement about the database. A failed request is a
+           statement about the network, and telling somebody looking for an account that it does
+           not exist is the worst version of this mistake on the screen where suspensions happen. */
+        <ErrorState
+          title="Could not search"
+          body="Check the connection and try again."
+          onRetry={() => void results.refetch()}
+          retrying={results.isRefetching}
+        />
       ) : (results.data ?? []).length === 0 ? (
         <Text variant="caption" tone="muted">
           Nobody matches that.
@@ -442,6 +452,15 @@ function PersonCard({ user }: { user: AdminUser }) {
       {showHistory ? (
         audit.isPending ? (
           <Skeleton height={60} />
+        ) : audit.isError ? (
+          /* "Nothing recorded" about an account whose history we failed to fetch is the opposite
+             of what an audit trail is for. */
+          <Pressable accessibilityRole="button" onPress={() => void audit.refetch()} style={styles.linkRow}>
+            <Text variant="micro" tone="primary" weight="semibold">
+              Could not load the history. Try again
+            </Text>
+            <Ionicons name="refresh" size={12} color={palette.primary} />
+          </Pressable>
         ) : (audit.data ?? []).length === 0 ? (
           <Text variant="micro" tone="muted">
             Nothing recorded.

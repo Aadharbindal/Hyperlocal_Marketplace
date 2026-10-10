@@ -1,4 +1,4 @@
-import type { DisputeStatus, VerificationStatus } from '@hyperlocal/core';
+import type { DisputeCategory, DisputeStatus, KycDocumentType, VerificationStatus } from '@hyperlocal/core';
 
 /**
  * What a verification status is called, once, for every role.
@@ -76,3 +76,56 @@ export const DISPUTE_STATUS: Record<DisputeStatus, { label: string; tone: 'succe
   RESOLVED: { label: 'Resolved', tone: 'success' },
   REJECTED: { label: 'Not upheld', tone: 'neutral' },
 };
+
+/**
+ * What each identity document is called.
+ *
+ * The provider's profile had four of these written by hand and the admin's verification queue had
+ * none, so a reviewer deciding somebody's livelihood read "SHOP_LICENCE". Keyed by the enum, so
+ * the seventh document we accept has to be named before it compiles.
+ */
+export const KYC_DOCUMENT: Record<KycDocumentType, string> = {
+  AADHAAR: 'Aadhaar',
+  PAN: 'PAN',
+  DRIVING_LICENCE: 'Driving licence',
+  VOTER_ID: 'Voter ID',
+  SHOP_LICENCE: 'Shop licence',
+  GST: 'GST certificate',
+};
+
+/**
+ * What each kind of problem is called, and which ones somebody can report themselves.
+ *
+ * The customer's picker was a hand-written list of six of the ten categories, and the four it
+ * left out were not decorative:
+ *
+ * - **`NO_SHOW` has a 12-hour SLA.** With no option for it, somebody whose professional never
+ *   arrived had to file "They were very late" (24h) or "It was left unfinished" (48h), so the
+ *   platform answered them in two to four times the time its own policy promises.
+ * - **`ABUSIVE_BEHAVIOUR` has a 12-hour SLA and is in `HUMAN_ONLY_CATEGORIES`** - never decided
+ *   by an automated rule. Without it, that report arrived as "The work is not right": a 72-hour
+ *   queue, and eligible to be closed by a rule. That is the one that actually mattered.
+ * - `MATERIAL_MISMATCH` existed for the whole materials flow and could not be chosen.
+ *
+ * Keyed by the enum with an explicit `customer` flag, so an eleventh category cannot be added
+ * without somebody deciding whether a customer may pick it. `SUSPECTED_FRAUD` is false: it is a
+ * classification support applies, not something anybody self-selects accurately, and offering it
+ * invites it to be used as a threat.
+ */
+export const DISPUTE_CATEGORY: Record<DisputeCategory, { label: string; customer: boolean }> = {
+  POOR_WORKMANSHIP: { label: 'The work is not right', customer: true },
+  INCOMPLETE_WORK: { label: 'It was left unfinished', customer: true },
+  NO_SHOW: { label: 'They never turned up', customer: true },
+  LATE_ARRIVAL: { label: 'They were very late', customer: true },
+  PROPERTY_DAMAGE: { label: 'Something was damaged', customer: true },
+  INCORRECT_PRICING: { label: 'The price is wrong', customer: true },
+  PAYMENT_ISSUE: { label: 'Something about the payment', customer: true },
+  MATERIAL_MISMATCH: { label: 'The wrong materials arrived', customer: true },
+  ABUSIVE_BEHAVIOUR: { label: 'I was treated badly', customer: true },
+  SUSPECTED_FRAUD: { label: 'Suspected fraud', customer: false },
+};
+
+/** The ones somebody can raise themselves, in the order they are offered. */
+export const CUSTOMER_DISPUTE_CATEGORIES = (Object.keys(DISPUTE_CATEGORY) as DisputeCategory[]).filter(
+  (c) => DISPUTE_CATEGORY[c].customer,
+);

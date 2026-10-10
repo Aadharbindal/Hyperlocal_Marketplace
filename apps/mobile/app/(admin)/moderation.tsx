@@ -27,6 +27,11 @@ const OUTCOMES: Array<{ value: ModerationOutcome; label: string; hint: string; t
   { value: 'SUSPENDED', label: 'Suspend', hint: 'A major strike. Review their account separately.', tone: 'danger' },
 ];
 
+/** `PROVIDER` as `Provider`. Staff read these, but they are still words. */
+const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, ' ');
+
+const FLAG_LABEL: Record<string, string> = { CONTACT_DETAILS: 'Contact details' };
+
 export default function ModerationScreen() {
   const queue = useFlaggedMessages();
   const review = useReviewMessage();
@@ -72,7 +77,7 @@ export default function ModerationScreen() {
                       {message.senderName}
                     </Text>
                     <Text variant="micro" tone="muted">
-                      {message.senderRole.toLowerCase()} ·{' '}
+                      {titleCase(message.senderRole)} ·{' '}
                       {new Date(message.createdAt).toLocaleString('en-IN', {
                         day: 'numeric',
                         month: 'short',
@@ -82,7 +87,9 @@ export default function ModerationScreen() {
                     </Text>
                   </View>
                   {message.overdue ? <Badge tone="danger" label="overdue" /> : null}
-                  {message.flagReason ? <Badge tone="warning" label={message.flagReason.toLowerCase().replace(/_/g, ' ')} /> : null}
+                  {/* One value exists today, `CONTACT_DETAILS`. Named rather than derived, so a
+                      second one does not arrive on screen as a lowercased column value. */}
+                  {message.flagReason ? <Badge tone="warning" label={FLAG_LABEL[message.flagReason] ?? titleCase(message.flagReason)} /> : null}
                 </View>
 
                 {/* The message itself, verbatim. A reviewer deciding on a summary is deciding

@@ -17,6 +17,12 @@ jobs:
       - run: npm run lint
       # Contrast is arithmetic and labelling is checkable, so neither has to be re-argued in review.
       - run: npm run a11y
+      # An empty state rendered for a failed request tells somebody a comfortable thing we do not
+      # know. Five of those shipped before anybody opened the screens; this is the line now.
+      - run: npm run honesty
+      # An endpoint or a hook nothing reaches is a feature that does not exist. Fourteen of them
+      # did, including the only way a vendor could ever be paid.
+      - run: npm run wiring
       - run: npm run test
       - run: npm run build
       - run: npm run migrate:check

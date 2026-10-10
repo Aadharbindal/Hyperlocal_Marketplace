@@ -11,6 +11,9 @@ import { MfaGate } from '@/features/admin/MfaGate';
 import { palette, spacing } from '@/theme';
 import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, StatTile, Text } from '@/ui';
 
+/** `PROVIDER` as `Provider`. Staff read these, but they are still words. */
+const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, ' ');
+
 export default function MoneyScreen() {
   const mfa = useMfaStatus();
   const unlocked = !!mfa.data && (mfa.data.verifiedForSession || !mfa.data.requiredForAdmin);
@@ -52,7 +55,11 @@ export default function MoneyScreen() {
         ) : (
           <>
             <Card style={styles.card}>
-              <Text weight="semibold">Today</Text>
+              {/* Not "Today". `/admin/reports/overview` has no date filter in either data store -
+                  captured, refunded and platform revenue are every rupee the platform has ever
+                  moved, and labelling that as one day's trading is the kind of wrong number
+                  somebody repeats in a meeting. */}
+              <Text weight="semibold">All time</Text>
               <View style={styles.grid}>
                 <View style={styles.statCell}>
                   <StatTile label="Live jobs" value={String(report.data.liveJobs)} />
@@ -92,7 +99,8 @@ export default function MoneyScreen() {
                 <View style={{ flex: 1 }}>
                   <Text weight="semibold">Payout run</Text>
                   <Text variant="micro" tone="muted">
-                    Nothing is sent before 24 h after capture, or while a dispute is open.
+                    Runs itself every 15 minutes. Nothing is sent before 24 h after capture, or
+                    while a dispute is open.
                   </Text>
                 </View>
                 <Badge tone="neutral" label={`${pending.data?.items.length ?? 0} queued`} />
@@ -112,9 +120,13 @@ export default function MoneyScreen() {
                 </Text>
               )}
               <Button title="Run payouts" fullWidth icon="send-outline" loading={run.isPending} onPress={runPayouts} />
+              {/* This said "there is no scheduler yet, so this is run by hand". `run-settlements`
+                  is in `TASK_SCHEDULE` at 900 seconds and has been running on a timer in the
+                  server process since it was written - so somebody reading that would believe
+                  payouts only move when they press this, which is the opposite of true. */}
               <Text variant="micro" tone="muted">
-                There is no scheduler yet, so this is run by hand. Every guard is re-checked per
-                payout, so running it twice is safe.
+                You do not have to press this - it is for forcing a sweep now. Every guard is
+                re-checked per payout, so running it twice is safe.
               </Text>
             </Card>
 
@@ -132,7 +144,8 @@ export default function MoneyScreen() {
                             {formatInr(s.amountPaise)}
                           </Text>
                           <Text variant="micro" tone="muted">
-                            {s.payeeRole.toLowerCase()} · {s.failureReason ?? 'on hold'} · {s.attempts} attempt{s.attempts === 1 ? '' : 's'}
+                            {titleCase(s.payeeRole)} · {s.failureReason ?? 'on hold'} · {s.attempts} attempt
+                            {s.attempts === 1 ? '' : 's'}
                           </Text>
                         </View>
                         <Button title="Retry" size="sm" variant="secondary" loading={retry.isPending} onPress={() => retry.mutate(s.id)} />
@@ -143,12 +156,28 @@ export default function MoneyScreen() {
               </>
             )}
 
-            {(pending.data?.items.length ?? 0) === 0 && (held.data?.items.length ?? 0) === 0 && (
+            {pending.isError || held.isError ? (
+              /* "Every settled job has been paid out" is a strong claim to make out of a request
+                 that failed. The same false negative the vendor's shop card and the console's
+                 payout list had. */
+              <>
+                <Spacer h={spacing.md} />
+                <ErrorState
+                  title="Could not load the payout queue"
+                  body="We do not know what is owed right now. Check the connection and try again."
+                  onRetry={() => {
+                    void pending.refetch();
+                    void held.refetch();
+                  }}
+                  retrying={pending.isRefetching || held.isRefetching}
+                />
+              </>
+            ) : (pending.data?.items.length ?? 0) === 0 && (held.data?.items.length ?? 0) === 0 ? (
               <>
                 <Spacer h={spacing.md} />
                 <EmptyState icon="cash-outline" title="Nothing owed" body="Every settled job has been paid out." />
               </>
-            )}
+            ) : null}
           </>
         )}
 

@@ -2,10 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { checkMeaningfulText, checkReviewComment, formatInr, type DisputeView, type JobStatus } from '@hyperlocal/core';
+import { checkMeaningfulText, checkReviewComment, formatInr, type DisputeCategory, type DisputeView, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { askForPhoto } from '@/features/capture/media';
-import { DISPUTE_STATUS } from '@/i18n/status';
+import { CUSTOMER_DISPUTE_CATEGORIES, DISPUTE_CATEGORY, DISPUTE_STATUS } from '@/i18n/status';
 import { useAddEvidence } from '@/api/execution';
 import {
   useAddDisputeEvidence,
@@ -20,14 +20,6 @@ import { Badge, Button, Card, DataRow, SegmentedControl, Text, TextField } from 
 
 const AFTER: JobStatus[] = ['COMPLETED', 'SETTLED', 'DISPUTED', 'REFUNDED'];
 
-const CATEGORIES: Array<{ key: string; label: string }> = [
-  { key: 'POOR_WORKMANSHIP', label: 'The work is not right' },
-  { key: 'INCOMPLETE_WORK', label: 'It was left unfinished' },
-  { key: 'PROPERTY_DAMAGE', label: 'Something was damaged' },
-  { key: 'INCORRECT_PRICING', label: 'The price is wrong' },
-  { key: 'LATE_ARRIVAL', label: 'They were very late' },
-  { key: 'PAYMENT_ISSUE', label: 'Something about the payment' },
-];
 
 /**
  * What the customer sees once the job is over: what was actually charged, the review, and the
@@ -305,7 +297,7 @@ function ReviewSheet({ jobId, visible, onClose }: { jobId: string; visible: bool
 
 function DisputeSheet({ jobId, visible, onClose }: { jobId: string; visible: boolean; onClose: () => void }) {
   const raise = useRaiseDispute();
-  const [category, setCategory] = useState(CATEGORIES[0]!.key);
+  const [category, setCategory] = useState<DisputeCategory>(CUSTOMER_DISPUTE_CATEGORIES[0]!);
   const [description, setDescription] = useState('');
   const descriptionProblem = description.trim() ? checkMeaningfulText(description, 20, 'Your report') : null;
   const [error, setError] = useState<string | null>(null);
@@ -326,9 +318,12 @@ function DisputeSheet({ jobId, visible, onClose }: { jobId: string; visible: boo
       <Text variant="caption" tone="secondary">
         Your payment is held while we look into it. The provider is not paid until it is settled.
       </Text>
+      {/* Stacked, because nine of these in a wrapping row of chips is a wall somebody scans
+          past - and the one they need may be the ninth. */}
       <SegmentedControl
+        stacked
         label="What kind of problem"
-        options={CATEGORIES.map((c) => ({ value: c.key, label: c.label }))}
+        options={CUSTOMER_DISPUTE_CATEGORIES.map((c) => ({ value: c, label: DISPUTE_CATEGORY[c].label }))}
         value={category}
         onChange={setCategory}
       />

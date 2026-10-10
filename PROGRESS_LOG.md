@@ -4,6 +4,78 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## A category for the thing that actually happened
+
+**Milestone:** post-M9 - the rest of the admin surface, and two pickers
+**Date:** 2026-10-10
+**Status:** Complete
+
+**Why this exists:** finishing the admin screens turned up two pickers built by hand from a list
+that lives in the contracts, and both had quietly dropped options - which in one case changed how
+fast somebody gets answered.
+
+**The dispute picker had six of ten categories, and the four it left out were not decorative:**
+
+- **`NO_SHOW` has a 12-hour SLA.** With no option for it, somebody whose professional never
+  arrived had to file "They were very late" (24h) or "It was left unfinished" (48h), so the
+  platform answered them in two to four times the time its own policy promises.
+- **`ABUSIVE_BEHAVIOUR` has a 12-hour SLA and is in `HUMAN_ONLY_CATEGORIES`** - never decided by
+  an automated rule. Without it, that report arrived as "The work is not right": a 72-hour queue,
+  and eligible to be closed by a rule. That is the one that actually mattered.
+- `MATERIAL_MISMATCH` existed for the whole materials flow and could not be chosen.
+
+All nine reportable kinds are offered now, from a map keyed by the enum with an explicit
+`customer` flag, so an eleventh category cannot be added without somebody deciding whether a
+person may pick it. `SUSPECTED_FRAUD` is deliberately false - support applies it; offering "I
+suspect fraud" invites it to be used as a threat.
+
+**The KYC picker had four of six.** `AADHAAR, PAN, DRIVING_LICENCE, VOTER_ID, SHOP_LICENCE, GST`
+lived inline in `KycSubmitBody` and nowhere else, so the provider's own list - typed out beside
+it - omitted voter ID and GST, for documents the server would have accepted. It is
+`KYC_DOCUMENT_TYPES` in core now, and the picker and the labels are both built from it.
+
+**Two false claims on the money screen.** It headed all-time figures **"Today"** - the report has
+no date filter in either data store, so "Charged" is every rupee the platform has ever moved, and
+labelling that as one day's trading is the kind of wrong number somebody repeats in a meeting.
+And it said **"There is no scheduler yet, so this is run by hand"** while `run-settlements` has
+been in `TASK_SCHEDULE` at 900 seconds, running on a timer in the server process, since it was
+written.
+
+**Three more comfortable lies, and an audit so there is no fourth.** The people search said
+"Nobody matches that" for a failed request - on the screen where suspensions are issued - an
+account's audit history said "Nothing recorded", and the money screen claimed "Every settled job
+has been paid out". React Query hands back `undefined` for an error as readily as for an empty
+list, so `(x.data ?? []).length === 0` is true either way and the screen says the reassuring one.
+`npm run honesty` now fails the build on a query whose empty state is rendered without an
+`isError` path. It and `npm run wiring` are both in CI.
+
+**Also:** the verification queue showed its reviewer `SHOP_LICENCE` while they decided somebody's
+livelihood, and the dispute queue's card heading was a lowercased column value.
+
+**Changed files:** `scripts/honesty-audit.mjs` (new), `.github/workflows/ci.yml`, `package.json`,
+`packages/core/src/contracts/enums.ts`, `packages/core/src/contracts/provider.ts`,
+`apps/mobile/src/i18n/status.ts` and `status.test.ts`,
+`apps/mobile/src/features/customer/AfterJobCard.tsx`, `apps/mobile/app/(provider)/profile.tsx`,
+`apps/mobile/app/(admin)/{console,money,queue,verify,moderation}.tsx`, `KNOWN_LIMITATIONS.md`.
+**Database changes:** none.
+**API changes:** `KycSubmitBody` takes the same six values from a named constant instead of an
+inline list. No behaviour change.
+**Tests added / passed:** 4 new, including one that derives its expectation from
+`DISPUTE_SLA_HOURS` and `HUMAN_ONLY_CATEGORIES` rather than from a list - anything we answer
+within a day, or have promised a person will read, has to be reachable by the person it happened
+to. Mobile 63/63, core 279/279, API 392/392, lint clean, a11y 0, honesty 0, wiring 0 and 0.
+**Manual verification completed:** read the money screen in the running app as the seeded admin -
+"All time" and "Runs itself every 15 minutes" where the two false claims were.
+**Known limitations:** four rows corrected while I was in there. The contractor app was marked
+"not built" and has four tabs; the Postgres row still said 16 migrations and 321 tests; the
+component-test row said 29. Added a row for Hindi coverage, which is honest about being partial:
+150 strings carry the auth flow, the tab bar and the booking spine in both languages, and screen
+copy written since is English only.
+**Security considerations:** none new.
+**Next milestone:** the full Postgres run and the end-to-end journey.
+
+---
+
 ## Three fields the console was sure it had
 
 **Milestone:** post-M9 - admin console
