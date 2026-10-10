@@ -192,6 +192,53 @@ function elementAt(src, from) {
 
 const CONTROLS = /<(Pressable|TouchableOpacity|TouchableHighlight|TouchableWithoutFeedback)\b/g;
 
+/**
+ * State that native reads and the web does not.
+ *
+ * React Native Web does not translate `accessibilityState` into ARIA on a `Pressable`, so a
+ * control that carries only the state object renders into the DOM with no state at all. This was
+ * not theoretical: the app's own tab bar had a `tablist` with three `tab`s and `aria-selected`
+ * null on every one of them, on every screen in every role, and the component test for the
+ * segmented control passed throughout because the query reads `accessibilityState` directly and
+ * never sees the DOM.
+ *
+ * Also checks the spelling. `selected` is not a state a radio or a checkbox has, and
+ * `aria-selected` is invalid on `role="button"` - both render as nothing even where they are
+ * emitted, which is how a defect like this stays invisible for months.
+ */
+const ARIA_FOR = { checked: 'aria-checked', selected: 'aria-selected', expanded: 'aria-expanded', busy: 'aria-busy' };
+const ROLE_STATE = { radio: 'checked', checkbox: 'checked', switch: 'checked', tab: 'selected', button: null };
+
+function auditAriaState() {
+  const findings = [];
+  for (const file of walk(join(MOBILE, 'app')).concat(walk(join(MOBILE, 'src')))) {
+    if (/\.test\.tsx?$/.test(file)) continue;
+    const src = readFileSync(file, 'utf8');
+    const rel = relative(ROOT, file).replace(/\\/g, '/');
+    for (const match of src.matchAll(CONTROLS)) {
+      const el = elementAt(src, match.index);
+      if (!el) continue;
+      const state = /accessibilityState=\{\{([^}]*)\}\}/.exec(el.open);
+      if (!state) continue;
+      const line = src.slice(0, match.index).split('\n').length;
+      const role = /accessibilityRole="(\w+)"/.exec(el.open)?.[1] ?? null;
+
+      for (const key of Object.keys(ARIA_FOR)) {
+        if (!new RegExp(`\\b${key}\\s*:`).test(state[1])) continue;
+        // Wrong word for the role: it renders as nothing, so the ARIA twin would not help either.
+        if (role && role in ROLE_STATE && ROLE_STATE[role] !== key && key !== 'busy') {
+          findings.push({ file: rel, line, why: `role="${role}" has no "${key}" state` + (ROLE_STATE[role] ? ` - it is "${ROLE_STATE[role]}"` : '') });
+          continue;
+        }
+        if (!el.open.includes(`${ARIA_FOR[key]}=`)) {
+          findings.push({ file: rel, line, why: `${key} in accessibilityState with no ${ARIA_FOR[key]} - the DOM gets nothing` });
+        }
+      }
+    }
+  }
+  return findings;
+}
+
 function auditLabels() {
   const findings = [];
   for (const file of walk(join(MOBILE, 'app')).concat(walk(join(MOBILE, 'src')))) {
@@ -341,6 +388,11 @@ for (const f of hard) {
   console.log(`  ${f.file}:${f.line}  ${f.hex} at ${f.ratio.toFixed(2)}:1 (needs ${f.need}) - ${f.kind}`);
 }
 
-const total = failing.length + labels.length + hard.length;
+const aria = auditAriaState();
+console.log(`
+Controls whose state never reaches the DOM: ${aria.length}`);
+for (const f of aria) console.log(`  ${f.file}:${f.line}  ${f.why}`);
+
+const total = failing.length + labels.length + hard.length + aria.length;
 console.log(`\n${total} finding(s).`);
 process.exit(total > 0 ? 1 : 0);

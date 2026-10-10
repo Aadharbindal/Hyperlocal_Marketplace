@@ -150,8 +150,10 @@ function ReviewSheet({ message, onClose }: { message: FlaggedMessageView | null;
             key={o.value}
             onPress={() => setOutcome(o.value)}
             accessibilityRole="radio"
-            // A radio's state is `checked`; `selected` renders as nothing on web.
+            // A radio's state is `checked`; `selected` renders as nothing on web. And both
+            // spellings, because React Native Web does not turn the state object into ARIA.
             accessibilityState={{ checked: outcome === o.value }}
+            aria-checked={outcome === o.value}
             style={[styles.option, outcome === o.value && styles.optionOn]}
           >
             <Ionicons

@@ -36,7 +36,23 @@ export function FloatingTabBar({ state, navigation, specs }: BottomTabBarProps &
             if (!active && !event.defaultPrevented) navigation.navigate(route.name);
           };
           return (
-            <Pressable key={route.key} accessibilityRole="tab" accessible accessibilityState={{ selected: active }} accessibilityLabel={spec.label} onPress={onPress} style={styles.item}>
+            <Pressable
+              key={route.key}
+              accessibilityRole="tab"
+              accessible
+              /*
+               * Both spellings, for the same reason as `SegmentedControl`: native reads the state
+               * object, the DOM needs the attribute, and React Native Web does not derive one from
+               * the other on a `Pressable`. Checked in the rendered page - a `tablist` with three
+               * `tab`s and `aria-selected` null on every one of them. This is the most-used control
+               * in the app, on every screen, in every role.
+               */
+              accessibilityState={{ selected: active }}
+              aria-selected={active}
+              accessibilityLabel={spec.label}
+              onPress={onPress}
+              style={styles.item}
+            >
               <View>
                 <Ionicons name={active ? spec.iconActive : spec.icon} size={24} color={active ? palette.primary : palette.textSecondary} />
                 {spec.badge ? <View style={styles.badge} /> : null}

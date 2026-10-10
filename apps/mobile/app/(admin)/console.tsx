@@ -53,13 +53,14 @@ export default function ConsoleScreen() {
       </Text>
       <Spacer h={spacing.md} />
 
-      <View style={styles.tabs}>
+      <View style={styles.tabs} accessibilityRole="tablist" accessibilityLabel="Console sections">
         {SECTIONS.map((s) => (
           <Pressable
             key={s.id}
             onPress={() => setSection(s.id)}
             accessibilityRole="tab"
             accessibilityState={{ selected: section === s.id }}
+            aria-selected={section === s.id}
             style={[styles.tab, section === s.id && styles.tabOn]}
           >
             <Ionicons name={s.icon} size={14} color={section === s.id ? palette.textOnPrimary : palette.primaryDeep} />

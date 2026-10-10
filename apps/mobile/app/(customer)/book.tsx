@@ -152,19 +152,29 @@ export default function BookScreen() {
           <Text weight="semibold" style={styles.label}>
             What do you need?
           </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.catRow}
+            accessibilityRole="radiogroup"
+            accessibilityLabel="What do you need?"
+          >
             {categories.data?.items.map((c) => {
               const active = c.id === categoryId;
               return (
                 <Pressable
                   key={c.id}
                   onPress={() => setCategoryId(c.id)}
-                  accessibilityRole="button"
+                  accessibilityRole="radio"
                   // Named explicitly. Without this Android builds a name out of the children,
                   // so the tile is announced and then its own label is read again.
                   accessible
                   accessibilityLabel={c.name}
-                  accessibilityState={{ selected: active }}
+                  /* `selected` is not a state a button has, and `aria-selected` is invalid on one,
+                     so these tiles rendered with no state at all - a row of category buttons where
+                     nothing said which was chosen. A single-choice picker is a radio group. */
+                  accessibilityState={{ checked: active }}
+                  aria-checked={active}
                   style={[styles.cat, active && styles.catActive]}
                 >
                   <View importantForAccessibility="no-hide-descendants">
@@ -272,11 +282,18 @@ export default function BookScreen() {
           <Text weight="semibold" style={styles.label}>
             When?
           </Text>
-          <View style={styles.slots}>
+          <View style={styles.slots} accessibilityRole="radiogroup" accessibilityLabel="When?">
             {SLOTS.map((s) => {
               const active = s.key === slot;
               return (
-                <Pressable key={s.key} onPress={() => setSlot(s.key)} accessibilityRole="button" accessibilityState={{ selected: active }} style={[styles.slot, active && styles.slotActive]}>
+                <Pressable
+                  key={s.key}
+                  onPress={() => setSlot(s.key)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: active }}
+                  aria-checked={active}
+                  style={[styles.slot, active && styles.slotActive]}
+                >
                   <Text variant="caption" weight="semibold" style={active ? styles.slotTextActive : undefined}>
                     {s.label}
                   </Text>

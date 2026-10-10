@@ -4,6 +4,63 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Twelve controls that never said which one was on
+
+**Milestone:** post-M9 - control state on the web
+**Date:** 2026-10-10
+**Status:** Complete
+
+**Why this exists:** fixing `SegmentedControl` earlier, the cause turned out to be general and I
+only fixed the one instance. React Native Web does not translate `accessibilityState` into ARIA
+on a `Pressable`, so a control carrying only the state object renders into the DOM with no state
+at all. Reading the page confirmed the worst case: **the app's own tab bar - every screen, every
+role - was a `tablist` with three `tab`s and `aria-selected` null on all of them.**
+
+Twelve controls in all, and three of them were also using the wrong word. `selected` is not a
+state a radio or a checkbox has, and `aria-selected` is invalid on `role="button"`, so the
+category tiles on the booking screen, the time slots beside them, the repeat-interval chips and
+the star rating were all emitting something that renders as nothing even where it is emitted. A
+single-choice picker is a radio group; saying so is what tells somebody that picking one unpicks
+another.
+
+**What was built:**
+
+- `aria-*` beside `accessibilityState` on the main tab bar, the customer's bookings tabs, the
+  console's six sections, the moderation outcome radios, the consent checkboxes and the help
+  accordion.
+- The booking screen's categories and slots, the repeat-interval chips and the payout method
+  picker now carry the role they actually are, inside a labelled group. The star rating is a
+  radio group with `checked` on exactly the chosen star - the *fill* is cumulative, four stars
+  means four are solid, but announcing four checked radios would read a rating of four as four
+  separate choices.
+- Every submitting button in the app was silent about being busy. `aria-busy` now says so.
+- `scripts/a11y-audit.mjs` grew a fourth check for this whole class: state in
+  `accessibilityState` with no ARIA twin, and state whose name does not belong to the role it is
+  on. Confirmed non-vacuous by reverting the tab bar alone and watching it fail.
+
+**Changed files:** `scripts/a11y-audit.mjs`, `apps/mobile/src/ui/TabBar.tsx`,
+`apps/mobile/src/ui/Button.tsx`, `apps/mobile/app/(admin)/console.tsx`,
+`apps/mobile/app/(admin)/moderation.tsx`, `apps/mobile/app/(auth)/profile-setup.tsx`,
+`apps/mobile/app/(customer)/book.tsx`, `apps/mobile/app/(customer)/bookings.tsx`,
+`apps/mobile/app/help.tsx`, `apps/mobile/app/payout-account.tsx`,
+`apps/mobile/src/features/customer/RepeatThisCard.tsx`,
+`apps/mobile/src/features/provider/RateCustomerCard.tsx`.
+**Database changes:** none.
+**API changes:** none.
+**Tests added / passed:** none new - this is a defect component tests are structurally blind to,
+which is the point. The RNTL query reads `accessibilityState` directly and never sees the DOM, so
+the segmented control's test passed throughout while the rendered page carried nothing. The audit
+is the regression guard instead. Mobile 59/59, core 279/279, API 392/392, lint clean, a11y 0,
+wiring 0 and 0.
+**Manual verification completed:** read the rendered page before and after. Before: a `tablist`
+with three `tab`s, `aria-selected` null on each. After: `false, false, true` with the current tab
+true, and the booking screen reporting two labelled radio groups each with exactly one checked.
+**Known limitations:** none for this class - the audit now fails the build on a reoccurrence.
+**Security considerations:** none.
+**Next milestone:** the admin console's own visual pass.
+
+---
+
 ## The database's words, on four people's screens
 
 **Milestone:** post-M9 - status vocabulary

@@ -30,11 +30,11 @@ export default function BookingsScreen() {
       </Text>
       <Spacer h={spacing.lg} />
 
-      <View style={styles.tabs}>
+      <View style={styles.tabs} accessibilityRole="tablist" accessibilityLabel="Your bookings">
         {TABS.map((x) => {
           const active = x.key === tab;
           return (
-            <Pressable key={x.key} onPress={() => setTab(x.key)} accessibilityRole="tab" accessibilityState={{ selected: active }} style={[styles.tab, active && styles.tabActive]}>
+            <Pressable key={x.key} onPress={() => setTab(x.key)} accessibilityRole="tab" accessibilityState={{ selected: active }} aria-selected={active} style={[styles.tab, active && styles.tabActive]}>
               <Text variant="label" weight="semibold" style={active ? styles.tabTextActive : undefined}>
                 {x.label}
               </Text>

@@ -129,16 +129,17 @@ export function RepeatThisCard({ job }: { job: JobView }) {
           {`Repeat ${job.category.name.toLowerCase()}`}
         </Text>
 
-        <View style={styles.choices}>
+        <View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel="How often">
           {CHOICES.map((days) => {
             const active = days === interval;
             return (
               <Pressable
                 key={days}
                 onPress={() => setInterval(days)}
-                accessibilityRole="button"
+                accessibilityRole="radio"
                 accessible
-                accessibilityState={{ selected: active }}
+                accessibilityState={{ checked: active }}
+                aria-checked={active}
                 accessibilityLabel={describeInterval(days)}
                 style={[styles.choice, active && styles.choiceActive]}
               >

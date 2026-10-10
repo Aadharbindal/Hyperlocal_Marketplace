@@ -99,6 +99,7 @@ export default function HelpScreen() {
               // hears what sighted users see rather than "expanded" and nothing else.
               accessibilityLabel={expanded ? `${item.q}. ${item.a}` : item.q}
               accessibilityState={{ expanded }}
+              aria-expanded={expanded}
               style={[styles.item, i < FAQ.length - 1 && styles.itemDivider]}
             >
               <View style={styles.itemHead} importantForAccessibility="no-hide-descendants">

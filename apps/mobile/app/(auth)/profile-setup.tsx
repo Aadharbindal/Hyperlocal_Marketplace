@@ -159,6 +159,7 @@ function Check({ checked, onToggle, label }: { checked: boolean; onToggle: () =>
       accessibilityRole="checkbox"
       accessible
       accessibilityState={{ checked }}
+      aria-checked={checked}
       accessibilityLabel={label}
       hitSlop={6}
       style={styles.check}

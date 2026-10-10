@@ -64,15 +64,21 @@ export function RateCustomerCard({ jobId, status, customerName }: { jobId: strin
       <Text variant="caption" weight="semibold">
         How was {customerName ?? 'this customer'}?
       </Text>
-      <View style={styles.stars}>
+      {/*
+        A radio group rather than five buttons, and `checked` on exactly the chosen one.
+        The *fill* is cumulative - four stars means four are solid - but the *state* is not: saying
+        four radios are checked would announce a rating of four as four separate choices.
+      */}
+      <View style={styles.stars} accessibilityRole="radiogroup" accessibilityLabel="Your rating">
         {[1, 2, 3, 4, 5].map((n) => (
           <Pressable
             key={n}
             onPress={() => void submit(n)}
             hitSlop={6}
-            accessibilityRole="button"
+            accessibilityRole="radio"
             accessibilityLabel={`${n} star${n > 1 ? 's' : ''}`}
-            accessibilityState={{ selected: rating >= n }}
+            accessibilityState={{ checked: rating === n }}
+            aria-checked={rating === n}
           >
             <Ionicons name={rating >= n ? 'star' : 'star-outline'} size={26} color={rating >= n ? palette.ratingOn : palette.iconFaint} />
           </Pressable>

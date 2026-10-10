@@ -143,7 +143,7 @@ export default function PayoutAccountScreen() {
       )}
 
       <Spacer h={spacing.lg} />
-      <View style={styles.tabs}>
+      <View style={styles.tabs} accessibilityRole="tablist" accessibilityLabel="How you get paid">
         {(['UPI', 'BANK_ACCOUNT'] as const).map((m) => (
           <Pressable
             key={m}
@@ -152,8 +152,9 @@ export default function PayoutAccountScreen() {
               setError(null);
             }}
             style={[styles.tab, method === m && styles.tabActive]}
-            accessibilityRole="button"
+            accessibilityRole="tab"
             accessibilityState={{ selected: method === m }}
+            aria-selected={method === m}
           >
             <Text variant="label" weight="semibold" style={method === m ? { color: palette.primary } : { color: palette.textMuted }}>
               {m === 'UPI' ? 'UPI' : 'Bank account'}

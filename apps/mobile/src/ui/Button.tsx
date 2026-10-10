@@ -51,6 +51,13 @@ export function Button({ title, variant = 'primary', size = 'lg', loading, icon,
       accessible
       accessibilityLabel={title}
       accessibilityState={{ disabled: !!isDisabled, busy: !!loading }}
+      /* `busy` is the whole point of the loading state for somebody who cannot see the spinner,
+         and React Native Web does not turn the state object into ARIA - so every submitting
+         button in the app was silent about it. `disabled` does reach the DOM through the prop
+         below, but a natively disabled button is also removed from the tab order, and
+         `aria-disabled` is what keeps it announceable while it is refusing. */
+      aria-busy={!!loading}
+      aria-disabled={!!isDisabled}
       disabled={isDisabled}
       {...rest}
       style={({ pressed }) => [
