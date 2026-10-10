@@ -145,6 +145,22 @@ export function createMemoryExecutionRepo(): ExecutionRepo {
         .sort((a, b) => a.created_at.getTime() - b.created_at.getTime())
         .slice(-limit);
     },
+    async listThreadsFor(userId, limit) {
+      const mine = [...threads.values()].filter((t) => t.participant_ids.includes(userId));
+      const withLast = mine.map((thread) => ({
+        thread,
+        last:
+          [...messages.values()]
+            .filter((m) => m.thread_id === thread.id)
+            .sort((a, b) => a.created_at.getTime() - b.created_at.getTime())
+            .at(-1) ?? null,
+      }));
+      // Most recently spoken on first; a thread nobody has used yet sorts by when it was opened,
+      // which is the only time it has.
+      return withLast
+        .sort((a, b) => (b.last?.created_at ?? b.thread.created_at).getTime() - (a.last?.created_at ?? a.thread.created_at).getTime())
+        .slice(0, limit);
+    },
     async markRead(threadId, readerId) {
       let n = 0;
       for (const m of messages.values()) {

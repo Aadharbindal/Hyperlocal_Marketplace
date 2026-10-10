@@ -431,6 +431,48 @@ describe('in-job chat', () => {
     expect(r.statusCode).toBe(403);
   });
 
+  it('lists a person their own conversations, with the last thing said and what they have not read', async () => {
+    /*
+     * The question nothing could answer. Chat is per job and opens from the booking, so there was
+     * no endpoint for "what conversations does this person have" - and the Messages tab in the
+     * customer's own tab bar had exactly one state, "No messages", which it went on showing while
+     * a conversation was running.
+     */
+    const { c, p, jobId } = await jobInProgress('+919777000045', '+919777000046');
+    await app.inject({ method: 'POST', url: `/jobs/${jobId}/chat`, headers: c.headers, payload: { body: 'The gate code is on the intercom' } });
+    await app.inject({ method: 'POST', url: `/jobs/${jobId}/chat`, headers: p.headers, payload: { body: 'On my way, about twenty minutes' } });
+
+    const mine = await app.inject({ method: 'GET', url: '/me/conversations', headers: c.headers });
+    expect(mine.statusCode).toBe(200);
+    const items = mine.json().items;
+    expect(items).toHaveLength(1);
+    expect(items[0].jobId).toBe(jobId);
+    expect(items[0].open).toBe(true);
+    expect(items[0].lastMessage.body).toBe('On my way, about twenty minutes');
+    // Theirs, not mine: the preview says "You: " only for my own, and getting that backwards
+    // makes every row read as though I said it.
+    expect(items[0].lastMessage.mine).toBe(false);
+    expect(items[0].unread).toBe(1);
+    // A first name, the same as everywhere else a counterparty is shown.
+    expect(items[0].otherPartyName).not.toContain(' ');
+
+    // Opening the thread is what clears it; a list that marked things read by being looked at
+    // would lose the unread state of everything below the fold.
+    await app.inject({ method: 'GET', url: `/jobs/${jobId}/chat`, headers: c.headers });
+    const after = await app.inject({ method: 'GET', url: '/me/conversations', headers: c.headers });
+    expect(after.json().items[0].unread).toBe(0);
+  });
+
+  it('shows a stranger none of it', async () => {
+    const { c, jobId } = await jobInProgress('+919777000047', '+919777000048');
+    await app.inject({ method: 'POST', url: `/jobs/${jobId}/chat`, headers: c.headers, payload: { body: 'Please ring the bell twice' } });
+
+    const stranger = await makeProvider('+919777000049');
+    const r = await app.inject({ method: 'GET', url: '/me/conversations', headers: stranger.headers });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().items).toEqual([]);
+  });
+
   it('closes the thread once the work is approved', async () => {
     const { c, p, jobId } = await jobInProgress('+919777000043', '+919777000044');
     const mediaId = await attachEvidence(jobId, p.headers);

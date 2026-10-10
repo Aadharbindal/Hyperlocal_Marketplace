@@ -193,6 +193,36 @@ export const ChatThreadView = z.object({
 });
 export type ChatThreadView = z.infer<typeof ChatThreadView>;
 
+/**
+ * One row in somebody's list of conversations.
+ *
+ * There was no such list. Chat is per job and opens from the booking, so the Messages tab in the
+ * customer's own tab bar had exactly one state - "No messages. Chat with your provider opens once
+ * a booking is confirmed." - and kept saying it while a conversation was running. A tab that
+ * cannot ever show the thing it is named after is worse than no tab.
+ *
+ * `otherPartyName` is a first name, like everywhere else a counterparty is shown. `lastMessage` is
+ * null for a thread that was opened and never used, which happens: confirming a booking opens one.
+ */
+export const ConversationView = z.object({
+  jobId: z.string().uuid(),
+  threadId: z.string().uuid(),
+  categoryName: z.string(),
+  otherPartyName: z.string(),
+  /** Closed with the job. Kept in the list, because the record of what was agreed is the point. */
+  open: z.boolean(),
+  lastMessage: z
+    .object({
+      body: z.string(),
+      mine: z.boolean(),
+      at: z.string(),
+    })
+    .nullable(),
+  /** Messages from the other person that this person has not opened the thread since. */
+  unread: z.number().int().nonnegative(),
+});
+export type ConversationView = z.infer<typeof ConversationView>;
+
 // ---------------------------------------------------------------------------
 // Arrival: where they are, while they are on their way
 // ---------------------------------------------------------------------------

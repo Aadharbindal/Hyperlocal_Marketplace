@@ -14,6 +14,7 @@ import {
   revisionNeedsSupport,
   type CallView,
   type ChatMessageView,
+  type ConversationView,
   type CompletionView,
   type ExecutionView,
   type JobStatus,
@@ -722,6 +723,45 @@ export function executionService(d: ExecutionDeps) {
         createdAt: m.created_at.toISOString(),
       }));
       return { threadId: thread.id, jobId: job.id, open: !thread.closed_at, items };
+    },
+
+    /**
+     * Every conversation this person is in.
+     *
+     * Chat is per job and opens from the booking, so nothing had ever asked this question - which
+     * is why the Messages tab had exactly one state, "No messages", and went on saying it while a
+     * conversation was running.
+     *
+     * The job is read per thread rather than joined, because the category name and the other
+     * party both come from it and a person has a handful of these, not thousands. If that stops
+     * being true the query is the place to fix it, not this loop.
+     */
+    async conversations(viewerId: string, lang: 'en' | 'hi', limit = 50): Promise<ConversationView[]> {
+      const rows = await store.execution.listThreadsFor(viewerId, limit);
+      // One read for the whole list rather than one per row: there are a dozen categories and a
+      // person may have many threads.
+      const categories = new Map((await store.categories.listEnabled()).map((c) => [c.id, c]));
+      const out: ConversationView[] = [];
+      for (const { thread, last } of rows) {
+        const job = await store.jobs.get(thread.job_id);
+        if (!job) continue;
+        const otherId = thread.participant_ids.find((id) => id !== viewerId);
+        const other = otherId ? await store.users.findById(otherId) : null;
+        const category = categories.get(job.category_id);
+        out.push({
+          jobId: job.id,
+          threadId: thread.id,
+          categoryName: category ? (lang === 'hi' ? category.name_hi : category.name_en) : 'Booking',
+          // A first name only, the same as everywhere else a counterparty is shown.
+          otherPartyName: (other?.display_name ?? 'Your professional').split(' ')[0] ?? 'Your professional',
+          open: !thread.closed_at,
+          lastMessage: last
+            ? { body: last.body, mine: last.sender_id === viewerId, at: last.created_at.toISOString() }
+            : null,
+          unread: await store.execution.unreadCount(thread.id, viewerId),
+        });
+      }
+      return out;
     },
 
     // ------------------------------------------------------------------ talking

@@ -3,7 +3,7 @@
  * DISPUTE_POLICY.md). None of this decides money on its own - it decides whether the server is
  * allowed to, and the server writes the ledger.
  */
-import type { JobStatus } from '../contracts/enums';
+import type { DisputeCategory, JobStatus } from '../contracts/enums';
 import type { Paise } from '../pricing/pricing';
 
 // ---------------------------------------------------------------------------
@@ -199,8 +199,14 @@ export const DISPUTE_RESOLUTIONS = [
 ] as const;
 export type DisputeResolution = (typeof DISPUTE_RESOLUTIONS)[number];
 
-/** SLA in hours per category (DISPUTE_POLICY §1). */
-export const DISPUTE_SLA_HOURS: Readonly<Record<string, number>> = {
+/**
+ * SLA in hours per category (DISPUTE_POLICY §1).
+ *
+ * Keyed by the enum rather than by `string`: a category added without an SLA would otherwise
+ * compile and then answer `undefined` hours, and the screens that read this to decide what is
+ * overdue would quietly stop counting it.
+ */
+export const DISPUTE_SLA_HOURS: Readonly<Record<DisputeCategory, number>> = {
   LATE_ARRIVAL: 24,
   NO_SHOW: 12,
   INCORRECT_PRICING: 48,

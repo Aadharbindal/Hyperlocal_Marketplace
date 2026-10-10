@@ -21,6 +21,7 @@ import {
 } from '@hyperlocal/core';
 import { z } from 'zod';
 import { AppError, forbidden, notFound } from '../../lib/errors';
+import { langOf } from '../../lib/lang';
 import { parse } from '../../lib/validate';
 import { requireAction, requireAuth } from '../../plugins/auth';
 import type { AppContext } from '../../app';
@@ -360,6 +361,19 @@ export async function executionRoutes(app: FastifyInstance, ctx: AppContext) {
   });
 
   // ---------------------------------------------------------------- chat
+  /**
+   * Somebody's own conversations.
+   *
+   * No job id: the thread list *is* the question, and it is the one nothing could answer, which
+   * is why the Messages tab had a single permanent empty state. `allowSuspended` because reading
+   * what was already said to you is not an action - a suspended account should still be able to
+   * see the conversation its suspension is about.
+   */
+  app.get('/me/conversations', { preHandler: requireAction('job.read_own', { allowSuspended: true }) }, async (req) => {
+    const auth = requireAuth(req);
+    return { items: await execution.conversations(auth.userId, langOf(req)) };
+  });
+
   app.get('/jobs/:id/chat', { preHandler: requireAction('job.read_own', { allowSuspended: true }) }, async (req) => {
     const auth = requireAuth(req);
     const { id } = parse(IdParam, req.params);

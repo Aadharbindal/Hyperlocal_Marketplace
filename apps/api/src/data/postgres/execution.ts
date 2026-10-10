@@ -125,6 +125,35 @@ export function createPostgresExecutionRepo(q: Queryable): ExecutionRepo {
       );
       return rows.reverse();
     },
+    async listThreadsFor(userId, limit) {
+      /*
+       * One row per thread with its latest message, via `distinct on` - the Postgres way of
+       * saying "the first row of each group" without a window function and a subquery. The sort
+       * key is `coalesce(last message, thread opened)`, because a thread opened by confirming a
+       * booking and not yet used still belongs in the list, at the time it has.
+       */
+      const rows = await many<ChatThreadRecord & { last_id: string | null }>(
+        `select t.*, m.id as last_id
+           from chat_threads t
+           left join lateral (
+             select id, created_at from chat_messages
+              where thread_id = t.id order by created_at desc limit 1
+           ) m on true
+          where $1 = any(t.participant_ids)
+          order by coalesce(m.created_at, t.created_at) desc
+          limit $2`,
+        [userId, limit],
+      );
+      const out = [];
+      for (const row of rows) {
+        const { last_id: lastId, ...thread } = row;
+        out.push({
+          thread: thread as ChatThreadRecord,
+          last: lastId ? await one<ChatMessageRecord>('select * from chat_messages where id = $1', [lastId]) : null,
+        });
+      }
+      return out;
+    },
     async markRead(threadId, readerId) {
       const res = await q.query(
         'update chat_messages set read_at = now() where thread_id = $1 and sender_id <> $2 and read_at is null',

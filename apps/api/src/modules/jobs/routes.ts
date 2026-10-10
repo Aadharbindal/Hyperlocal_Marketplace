@@ -11,11 +11,11 @@ import {
   JobUpdate,
   type JobStatus,
   type JobTrackView,
-  type Language,
   type ScheduleProposalView,
 } from '@hyperlocal/core';
 import { z } from 'zod';
 import { AppError, forbidden, notFound } from '../../lib/errors';
+import { langOf } from '../../lib/lang';
 import { parse } from '../../lib/validate';
 import { requireAction, requireAuth } from '../../plugins/auth';
 import type { AppContext } from '../../app';
@@ -38,10 +38,6 @@ const PAST: JobStatus[] = [
   'COMPLETED', 'SETTLED', 'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_PROVIDER', 'AUTO_CANCELLED',
   'DISPUTED', 'REFUNDED', 'ABANDONED',
 ];
-
-function langOf(req: FastifyRequest): Language {
-  return req.auth?.user.preferred_language ?? (req.headers['accept-language']?.toString().startsWith('hi') ? 'hi' : 'en');
-}
 
 export async function jobRoutes(app: FastifyInstance, ctx: AppContext) {
   const { store, services } = ctx;

@@ -1356,6 +1356,15 @@ export interface ExecutionRepo {
   addMessage(m: New<ChatMessageRecord>): Promise<ChatMessageRecord>;
   listMessages(threadId: string, limit: number): Promise<ChatMessageRecord[]>;
   /**
+   * Every thread this person is on, most recently spoken on first, with the last thing said.
+   *
+   * Chat is per job and opens from the booking, so nothing had ever needed to ask the question
+   * "what conversations does this person have" - which is why the Messages tab could only ever
+   * say "No messages". A thread with nothing in it is included: confirming a booking opens one,
+   * and a list that hid those would hide the conversation somebody is about to start.
+   */
+  listThreadsFor(userId: string, limit: number): Promise<Array<{ thread: ChatThreadRecord; last: ChatMessageRecord | null }>>;
+  /**
    * Flagged messages nobody has read yet, oldest first. A queue worked newest-first leaves the
    * worst cases at the bottom forever.
    */

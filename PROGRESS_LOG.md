@@ -4,6 +4,70 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## A Messages tab that can show a message
+
+**Milestone:** post-M9 - conversations
+**Date:** 2026-10-10
+**Status:** Complete
+
+**Why this exists:** walking the customer's screens one at a time, the Messages tab turned out to
+fetch nothing at all. It was the empty state and nothing else - **"No messages. Chat with your
+provider opens once a booking is confirmed."** - and it went on saying exactly that while a
+conversation was running, because chat is per job and opens from the booking, so nothing had ever
+needed to ask "what conversations does this person have".
+
+A tab named after a thing it structurally cannot show is worse than no tab. It also makes a
+promise - *chat opens once a booking is confirmed* - that it is itself the proof against.
+
+**What was built:**
+
+- `GET /me/conversations`, and `listThreadsFor` in both data stores. The Postgres one uses a
+  lateral join for the latest message per thread and sorts on `coalesce(last message, thread
+  opened)`, because a thread opened by confirming a booking and not yet used still belongs in the
+  list, at the only time it has.
+- The screen: who, what the booking was for, when, the last line with "You: " on your own, and an
+  unread count. The row opens the booking, because that is where the chat already lives and a
+  second place to read the same thread is a second place to miss it. A finished booking says so
+  rather than being hidden - the record of what was agreed is the point of keeping it.
+- Each row is one accessible element with one name, so a screen reader does not read four
+  separate strings and leave somebody to work out which name goes with which message.
+- `langOf` moved to `lib/lang.ts`. It existed twice and a third copy was about to be written;
+  what matters in it is the order of precedence, and a copy that checked `Accept-Language` first
+  would quietly answer a Hindi-speaking customer in English whenever their phone was set to
+  English, which is most of them.
+- `DISPUTE_SLA_HOURS` is keyed by `DisputeCategory` instead of `string`. A category added without
+  an SLA used to compile and then answer `undefined` hours, and the screens that read it to decide
+  what is overdue would have quietly stopped counting it.
+
+**Changed files:** `packages/core/src/contracts/execution.ts`,
+`packages/core/src/finance/settlement.ts`, `apps/api/src/lib/lang.ts` (new),
+`apps/api/src/data/types.ts`, `apps/api/src/data/{memory,postgres}/execution.ts`,
+`apps/api/src/modules/execution/{routes,service}.ts`,
+`apps/api/src/modules/{jobs,provider}/routes.ts`, `apps/api/src/test/execution.test.ts`,
+`apps/mobile/src/api/execution.ts`, `apps/mobile/app/(customer)/messages.tsx`.
+**Database changes:** none - `chat_threads` and `chat_messages` already held all of it.
+**API changes:** one new endpoint, `GET /me/conversations`. `allowSuspended`, because reading what
+was already said to you is not an action: a suspended account should still see the conversation
+its suspension is about.
+**Tests added / passed:** 2 new API tests - one that the list carries the last message, whose
+message it was, and the unread count, and that opening the thread is what clears it; one that a
+stranger sees none of it. Mobile 63/63, core 279/279, API 394/394, lint clean, a11y 0, honesty 0,
+wiring 0 and 0. **Against real PostgreSQL: 21 migrations and 394 tests. End-to-end: 89 checks,
+all green.**
+**Manual verification completed:** drove a real booking to PROVIDER_ASSIGNED against the running
+API - submitted, bid, accepted, paid - sent a message each way, and read the tab: "Suresh · 1:16
+pm · Plumbing · Got it. On my way, about twenty minutes." with an unread badge of 1. Tapped the
+row and landed on the booking with "Message the provider" badged 1.
+**Known limitations:** a provider has no Messages tab - their four are Jobs, Active, Earnings and
+Profile, and they reach a chat from the active job. The endpoint is role-neutral and would serve
+one if that changes.
+**Security considerations:** the list is built from threads the person is a participant of, which
+is the same membership the per-job chat enforces. A test asserts a stranger gets an empty list
+rather than somebody else's conversations.
+**Next milestone:** owner-only - credentials and the legal and tax review.
+
+---
+
 ## A category for the thing that actually happened
 
 **Milestone:** post-M9 - the rest of the admin surface, and two pickers

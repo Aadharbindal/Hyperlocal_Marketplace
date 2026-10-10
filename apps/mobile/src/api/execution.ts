@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ChatThreadView, CompletionView, ExecutionView, PriceRevisionView } from '@hyperlocal/core';
+import type { ChatThreadView, CompletionView, ConversationView, ExecutionView, PriceRevisionView } from '@hyperlocal/core';
 import { api, newIdempotencyKey } from './client';
 import { bookingKeys } from './negotiation';
 import { jobKeys, type LocalMedia } from './jobs';
@@ -8,6 +8,7 @@ import { FALLBACK_POLL_MS } from './polling';
 export const executionKeys = {
   panel: (jobId: string) => ['job', jobId, 'execution'] as const,
   chat: (jobId: string) => ['job', jobId, 'chat'] as const,
+  conversations: ['conversations'] as const,
 };
 
 function invalidate(qc: ReturnType<typeof useQueryClient>, jobId: string) {
@@ -142,6 +143,15 @@ export function useChat(jobId: string | undefined, enabled = true) {
   });
 }
 
+/** Everything this person is talking about, for the tab that is named after it. */
+export function useConversations() {
+  return useQuery({
+    queryKey: executionKeys.conversations,
+    queryFn: async () => (await api<{ items: ConversationView[] }>('/me/conversations')).items,
+    refetchInterval: FALLBACK_POLL_MS,
+  });
+}
+
 export function useSendMessage() {
   const qc = useQueryClient();
   return useMutation({
@@ -150,6 +160,8 @@ export function useSendMessage() {
     onSuccess: (_r, v) => {
       void qc.invalidateQueries({ queryKey: executionKeys.chat(v.jobId) });
       void qc.invalidateQueries({ queryKey: executionKeys.panel(v.jobId) });
+      // The list carries the last message and the unread count, both of which just changed.
+      void qc.invalidateQueries({ queryKey: executionKeys.conversations });
     },
   });
 }

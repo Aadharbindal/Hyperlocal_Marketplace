@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import {
   AvailabilityBody,
   BidCreate,
@@ -9,19 +9,15 @@ import {
   ProviderProfileUpdate,
   type JobPriority,
   type JobRequestType,
-  type Language,
 } from '@hyperlocal/core';
 import { z } from 'zod';
 import { forbidden, notFound } from '../../lib/errors';
+import { langOf } from '../../lib/lang';
 import { parse } from '../../lib/validate';
 import { requireAction, requireAuth } from '../../plugins/auth';
 import type { AppContext } from '../../app';
 
 const IdParam = z.object({ id: z.string().uuid() });
-
-function langOf(req: FastifyRequest): Language {
-  return req.auth?.user.preferred_language ?? (req.headers['accept-language']?.toString().startsWith('hi') ? 'hi' : 'en');
-}
 
 export async function providerRoutes(app: FastifyInstance, ctx: AppContext) {
   const { store, services } = ctx;
