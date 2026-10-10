@@ -4,6 +4,83 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## Walking the five journeys nobody had walked
+
+**Milestone:** post-M9 - the side journeys
+**Date:** 2026-10-10
+**Status:** Complete
+
+**Why this exists:** `e2e-journey.mjs` follows one customer and one professional from booking to
+settlement. Five journeys hang off that spine and had never been driven end to end over HTTP at
+all - contractor, warranty, service plans, redispatch and materials. They were built from the
+contracts and covered by route tests, which prove each endpoint in isolation with a hand-made
+record in front of it. That is not the same as proving the endpoints reach each other, which is
+the entire reason the main journey exists.
+
+Walking them found one flow that could not be completed by anybody, and two production problems
+that had nothing to do with the flows.
+
+**The contractor flow was unreachable end to end.** Granting CONTRACTOR created a contractor
+profile and nothing else, so:
+
+- `GET /provider/jobs/nearby` answered **404 "provider profile"**
+- `POST /jobs/:id/bids` answered the same
+- `/contractor/jobs` reads *provider assignments*, so nothing could ever arrive in it
+- and the eligibility check looked only for an active **PROVIDER** role, so even with a profile a
+  contractor came back `ROLE_INACTIVE` for ever
+
+A contractor could register, name their firm, hire a crew, submit their documents and have them
+approved, and then watch an empty jobs list with nothing on screen saying why. `PERMISSIONS`
+has listed CONTRACTOR under `bid.create` since it was written, which is the system saying this was
+always meant to work. Granting CONTRACTOR now creates the provider profile the marketplace reads,
+`PUT /contractor/profile` writes the firm's name, base and radius through to it (one writer, not
+two forms that can disagree), the contractor can declare their skills at last - the feed matches
+on them - and eligibility accepts whichever of the two roles they hold, as long as it is active.
+Approving a contractor's documents also flips `contractor_profiles` now; it flipped provider,
+technician and vendor and skipped the one whose own screen reads that row.
+
+**A per-IP OTP ceiling that locks out buildings.** It was `OTP_REQUESTS_PER_HOUR * 4`, so twenty
+an hour. Most mobile traffic in India arrives through carrier-grade NAT, where thousands of Jio or
+Airtel subscribers share one public address, and an office, a college or a housing society behind
+one connection is the same picture. Twenty sign-ins an hour from "one host" is an ordinary Monday
+morning, and the people it refused would have read "Too many code requests. Please try again in an
+hour." with nothing they could do. It is its own setting now, defaulting to 200. The control that
+actually stops enumeration is the per-phone limit of five, which is untouched.
+
+**Four things the flows refused, correctly, which the first draft of the test had wrong:** a
+material request before the professional is on site; a redispatch rescuer who costs more than the
+customer authorised; a technician sent to a home unverified; and an address outside the pilot
+zone. Each one was my test data, not the code, and each is now walked as the refusal it is.
+
+**Changed files:** `scripts/e2e-flows.mjs` (new), `scripts/e2e-suite.mjs`, `package.json`,
+`apps/api/src/modules/users/routes.ts`, `apps/api/src/modules/contractor/routes.ts`,
+`apps/api/src/modules/provider/service.ts`, `apps/api/src/modules/admin/service.ts`,
+`apps/api/src/modules/auth/service.ts`, `apps/api/src/config/env.ts`, `.env.example`,
+`packages/core/src/contracts/provider.ts`, `apps/api/src/test/{contractor,auth}.test.ts`,
+`KNOWN_LIMITATIONS.md`.
+**Database changes:** none - every column these need already existed.
+**API changes:** `ContractorProfileUpdate` accepts `skills`. New env var
+`OTP_REQUESTS_PER_IP_PER_HOUR` (default 200), replacing a hardcoded multiple.
+**Tests added / passed:** 4 new API tests - three that a contractor can reach the marketplace at
+all, and one that twenty-five different numbers from one address is not an attack. Plus 55
+end-to-end checks in `e2e-flows.mjs`, which is the real guard. Core 279/279, API 398/398, mobile
+63/63, lint clean, a11y 0, honesty 0, wiring 0 and 0.
+**Manual verification completed:** **against real PostgreSQL**: 21 migrations, 398 API tests, the
+main journey ALL GREEN and the five flows ALL GREEN at 55 checks - including a contractor winning
+a job and sending a verified technician to it, a warranty claim accepted and booked as a return
+visit, a repeat booking skipped and paused, a dropped booking rescued by a losing bidder without
+a second charge, and a vendor quoting, delivering and invoicing an order to the point where they
+can be paid.
+**Known limitations:** the five flows are walked over HTTP; none of them has been run on a real
+Android device, which remains the largest untested surface.
+**Security considerations:** the per-IP OTP ceiling is deliberately looser and documented. The
+per-phone limit, which is the control that matters, is unchanged at five an hour. Nothing else
+about authorisation moved: a contractor gains the provider profile the marketplace reads, not any
+permission they did not already have in `PERMISSIONS`.
+**Next milestone:** a real Android device, and the owner-only credentials.
+
+---
+
 ## A Messages tab that can show a message
 
 **Milestone:** post-M9 - conversations

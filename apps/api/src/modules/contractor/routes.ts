@@ -85,6 +85,34 @@ export async function contractorRoutes(app: FastifyInstance, ctx: AppContext) {
       base_lng: address?.lng ?? existing?.base_lng ?? null,
       service_radius_km: body.serviceRadiusKm ?? existing?.service_radius_km ?? 5,
     });
+
+    /*
+     * Written through to the provider profile, which is the record the marketplace actually
+     * reads: the job feed matches on `provider_profiles` and `provider_skills`, and bids,
+     * assignments and settlements all key off the same row.
+     *
+     * `contractor_profiles` carried its own copy of the business name, base and radius, and
+     * nothing read them - so a contractor who filled this form in was still invisible. One writer
+     * for both, here, rather than two forms that can disagree: the alternative is the same class
+     * of drift that had the vendor's shop card claiming it was open for requests while the feed
+     * refused them.
+     */
+    const provider = await store.users.getProviderProfile(auth.userId);
+    if (provider) {
+      await store.users.upsertProviderProfile({
+        ...provider,
+        business_name: body.businessName,
+        base_lat: address?.lat ?? provider.base_lat,
+        base_lng: address?.lng ?? provider.base_lng,
+        service_radius_km: body.serviceRadiusKm ?? provider.service_radius_km,
+      });
+    }
+    if (body.skills !== undefined) {
+      const cats = await store.categories.listEnabled();
+      const all = await store.categories.listSkills(cats.map((c) => c.id));
+      await store.users.setProviderSkills(auth.userId, body.skills.filter((id) => all.some((s) => s.id === id)));
+    }
+
     return { businessName: saved.business_name, verificationStatus: saved.verification_status, serviceRadiusKm: saved.service_radius_km };
   });
 

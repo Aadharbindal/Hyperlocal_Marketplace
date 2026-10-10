@@ -206,3 +206,47 @@ describe('the day a contractor runs', () => {
     expect(profile.json().verifiedTeamSize).toBe(0);
   });
 });
+
+describe('a contractor is a professional who delegates', () => {
+  /*
+   * The whole flow was unreachable and nothing said so.
+   *
+   * Granting CONTRACTOR created only a contractor profile, so the job feed and the bid endpoint
+   * both answered 404 "provider profile", and `/contractor/jobs` reads *provider* assignments -
+   * meaning there was no path by which a job could ever reach a contractor at all. They could
+   * register, name the firm, hire and verify a whole crew, and watch an empty list for ever.
+   *
+   * `PERMISSIONS['bid.create']` has always listed CONTRACTOR, which is the system saying this was
+   * meant to work. These are the two halves of making it true.
+   */
+  it('can see the job feed at all', async () => {
+    const c = await makeContractor('+919888000040');
+    const feed = await app.inject({ method: 'GET', url: '/provider/jobs/nearby?limit=5', headers: c.headers });
+    expect(feed.statusCode).toBe(200);
+    // The ordinary not-set-up-yet blockers, not a 404 about a record they were never given.
+    expect(feed.json().blockers).toContain('VERIFICATION_PENDING');
+  });
+
+  it('is eligible on the strength of the CONTRACTOR role, not a PROVIDER one they do not hold', async () => {
+    const c = await makeContractor('+919888000041');
+    const feed = await app.inject({ method: 'GET', url: '/provider/jobs/nearby?limit=5', headers: c.headers });
+    // ROLE_INACTIVE would mean the eligibility check is still looking only for PROVIDER, which is
+    // a refusal no contractor could ever clear.
+    expect(JSON.stringify(feed.json())).not.toContain('ROLE_INACTIVE');
+  });
+
+  it('says what the firm does, where the marketplace can read it', async () => {
+    const c = await makeContractor('+919888000042');
+    const saved = await app.inject({
+      method: 'PUT', url: '/contractor/profile', headers: c.headers,
+      payload: { businessName: 'BuildRight Services', serviceRadiusKm: 12 },
+    });
+    expect(saved.statusCode).toBe(200);
+
+    // `contractor_profiles` carried its own copy of these and nothing read them. The provider
+    // profile is what the feed, bids, assignments and settlements all key off.
+    const provider = await app.ctx.store.users.getProviderProfile(c.userId);
+    expect(provider?.business_name).toBe('BuildRight Services');
+    expect(Number(provider?.service_radius_km)).toBe(12);
+  });
+});

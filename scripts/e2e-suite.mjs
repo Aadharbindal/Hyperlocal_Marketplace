@@ -2,9 +2,10 @@
  * The whole journey, against a real PostgreSQL, with one command.
  *
  * `e2e-journey.mjs` makes the same HTTP calls a phone makes, in the order a real customer and a
- * real professional make them - but it needs a database with every migration applied and an API
- * pointed at it, and setting those up by hand is four steps nobody remembers. This does the
- * setup, runs the journey, and takes the cluster down again.
+ * real professional make them; `e2e-flows.mjs` walks the five journeys that hang off it -
+ * contractor, warranty, service plans, redispatch and materials. Both need a database with every
+ * migration applied and an API pointed at it, and setting those up by hand is four steps nobody
+ * remembers. This does the setup, runs both, and takes the cluster down again.
  *
  *   npm run test:e2e
  *
@@ -104,13 +105,24 @@ try {
 
   if (!(await reachable(`http://127.0.0.1:${API_PORT}/health`, 90))) throw new Error('the api never came up');
 
-  const journey = spawnSync('node', ['scripts/e2e-journey.mjs'], {
+  /*
+   * The flows script needs the seeded platform admin to approve identity documents, and seeding
+   * only happens automatically in memory mode - so it is run explicitly here.
+   */
+  const seeded = spawnSync('npm', ['run', 'seed:demo'], {
     cwd: ROOT,
-    env: { ...process.env, DATABASE_URL: DB_URL, E2E_BASE_URL: `http://127.0.0.1:${API_PORT}` },
+    env: { ...process.env, DATA_MODE: 'postgres', DATABASE_URL: DB_URL },
     stdio: 'inherit',
     shell: WIN,
   });
-  code = journey.status ?? 1;
+  if (seeded.status !== 0) throw new Error('seeding failed');
+
+  const env = { ...process.env, DATABASE_URL: DB_URL, E2E_BASE_URL: `http://127.0.0.1:${API_PORT}` };
+  // Both run even when the first fails: knowing which of the two broke is the point, and a
+  // suite that stops at the first failure hides the second every time.
+  const journey = spawnSync('node', ['scripts/e2e-journey.mjs'], { cwd: ROOT, env, stdio: 'inherit', shell: WIN });
+  const flows = spawnSync('node', ['scripts/e2e-flows.mjs'], { cwd: ROOT, env, stdio: 'inherit', shell: WIN });
+  code = (journey.status ?? 1) || (flows.status ?? 1);
 } catch (e) {
   // Printed whole: embedded-postgres rejects with things that are not Errors, and "undefined"
   // on its own is a worse message than anything it could actually be carrying.

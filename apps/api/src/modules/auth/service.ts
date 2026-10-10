@@ -101,7 +101,7 @@ export function authService(d: AuthDeps) {
         store.auth.countChallengesSince(input.phoneE164, hourAgo),
         input.ip ? store.auth.countChallengesByIpSince(input.ip, hourAgo) : Promise.resolve(0),
       ]);
-      if (byPhone >= env.OTP_REQUESTS_PER_HOUR || byIp >= env.OTP_REQUESTS_PER_HOUR * 4) {
+      if (byPhone >= env.OTP_REQUESTS_PER_HOUR || byIp >= env.OTP_REQUESTS_PER_IP_PER_HOUR) {
         await audit.record(
           { actorUserId: null, actorRole: null, ip: input.ip, requestId: input.requestId },
           { action: 'otp.rate_limited', entityType: 'phone', entityId: maskPhone(input.phoneE164) },

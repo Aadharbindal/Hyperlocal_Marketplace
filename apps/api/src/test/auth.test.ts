@@ -76,6 +76,28 @@ describe('OTP login (AUTH-05/06/07, signup)', () => {
     expect(second.json().error.details.resendAfterSeconds).toBeGreaterThan(0);
   });
 
+  it('does not lock out a whole building because they share one address', async () => {
+    /*
+     * The per-IP ceiling used to be `OTP_REQUESTS_PER_HOUR * 4`, so twenty an hour. Most mobile
+     * traffic in India arrives through carrier-grade NAT, where thousands of subscribers share
+     * one public address, and an office or a housing society behind one connection looks the
+     * same - so twenty sign-ins an hour from "one host" is an ordinary Monday morning, and the
+     * people it refused would have seen "Too many code requests. Please try again in an hour."
+     * with nothing they could do about it.
+     *
+     * The control that actually stops enumeration is the per-phone limit, which is untouched and
+     * tested above. Twenty-five different numbers from one address is what this proves is fine.
+     */
+    for (let i = 0; i < 25; i += 1) {
+      const r = await app.inject({
+        method: 'POST',
+        url: '/auth/request-otp',
+        payload: { phone: `+9193111${String(i).padStart(5, '0')}` },
+      });
+      expect(r.statusCode, `request ${i + 1} from the same address`).toBe(200);
+    }
+  });
+
   it('rotates refresh tokens and rejects the old one', async () => {
     const res = await login(app, '+919111111115');
     const r = await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refreshToken: res.refreshToken } });

@@ -134,7 +134,16 @@ export function providerService(d: ProviderDeps) {
     const base = await providerBase(p);
     const distanceKm = job.lat != null && job.lng != null ? haversineKm(base, { lat: job.lat, lng: job.lng }) : Number.POSITIVE_INFINITY;
     const roles = await store.users.listRoles(p.user_id);
-    const providerRole = roles.find((r) => r.role === 'PROVIDER');
+    /*
+     * Either role. A contractor bids on their firm's behalf and sends one of their crew - which
+     * is why `PERMISSIONS['bid.create']` lists CONTRACTOR - but this looked only for PROVIDER, so
+     * every contractor came back `ROLE_INACTIVE` for ever and could not bid on anything.
+     *
+     * Whichever one they hold has to be ACTIVE: a suspended provider role is not laundered by
+     * also being a contractor, and the reverse holds too.
+     */
+    const held = roles.filter((r) => r.role === 'PROVIDER' || r.role === 'CONTRACTOR');
+    const providerRole = held.find((r) => r.status === 'ACTIVE') ?? held[0];
     const result = providerEligibility({
       verificationStatus: p.verification_status,
       roleStatus: providerRole?.status ?? 'REVOKED',

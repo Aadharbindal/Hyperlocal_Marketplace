@@ -280,14 +280,26 @@ export async function userRoutes(app: FastifyInstance, ctx: AppContext) {
     if (role === 'CUSTOMER' && !(await store.users.getCustomerProfile(auth.userId))) {
       await store.users.upsertCustomerProfile({ user_id: auth.userId, full_name: auth.user.display_name, email: null, default_address_id: null, marketing_opt_in: false });
     }
-    if (role === 'PROVIDER' && !(await store.users.getProviderProfile(auth.userId))) {
-      await store.users.upsertProviderProfile({
-        user_id: auth.userId, business_name: null, bio: null, experience_years: null, service_radius_km: 3, base_lat: null, base_lng: null,
-        is_available: false, verification_status: 'UNVERIFIED', reliability_score: 5, rating_avg: null, rating_count: 0, completed_jobs: 0, strike_count: 0, contractor_id: null, suspended_until: null,
-      });
-    }
     if (role === 'CONTRACTOR' && !(await store.users.getContractorProfile(auth.userId))) {
       await store.users.upsertContractorProfile({ user_id: auth.userId, business_name: null, verification_status: 'UNVERIFIED', base_lat: null, base_lng: null, service_radius_km: 5 });
+    }
+    /*
+     * A contractor is a professional who delegates, and the whole marketplace already treats them
+     * as one: `/contractor/jobs` reads *provider* assignments, settlements pay them by the same
+     * path, and their earnings screen is literally the provider's screen re-exported.
+     *
+     * What was missing was the record the marketplace reads. Granting CONTRACTOR created only a
+     * contractor profile, so the job feed and `POST /jobs/:id/bids` both answered 404 "provider
+     * profile" - while `PERMISSIONS['bid.create']` listed CONTRACTOR, saying this was meant to
+     * work. The result: a contractor could register, name their firm, hire and verify a whole
+     * crew, and watch an empty jobs list for ever, with nothing on screen saying why. There was no
+     * path by which a job could reach them at all.
+     */
+    if ((role === 'CONTRACTOR' || role === 'PROVIDER') && !(await store.users.getProviderProfile(auth.userId))) {
+      await store.users.upsertProviderProfile({
+        user_id: auth.userId, business_name: null, bio: null, experience_years: null, service_radius_km: role === 'CONTRACTOR' ? 5 : 3, base_lat: null, base_lng: null,
+        is_available: false, verification_status: 'UNVERIFIED', reliability_score: 5, rating_avg: null, rating_count: 0, completed_jobs: 0, strike_count: 0, contractor_id: null, suspended_until: null,
+      });
     }
     if (role === 'VENDOR' && !(await store.users.getVendorProfile(auth.userId))) {
       await store.users.upsertVendorProfile({ user_id: auth.userId, shop_name: null, shop_address_id: null, delivery_radius_km: 3, material_categories: [], delivery_available: false, verification_status: 'UNVERIFIED' });

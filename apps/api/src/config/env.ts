@@ -114,6 +114,21 @@ const EnvSchema = z.object({
   OTP_TTL_SECONDS: z.coerce.number().int().min(60).default(300),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(5),
   OTP_REQUESTS_PER_HOUR: z.coerce.number().int().min(1).default(5),
+  /**
+   * The per-IP ceiling, which is a different question from the per-phone one.
+   *
+   * It used to be `OTP_REQUESTS_PER_HOUR * 4`, so twenty an hour. In India that is not a limit on
+   * attackers, it is a limit on buildings: most mobile traffic arrives through carrier-grade NAT,
+   * where thousands of Jio or Airtel subscribers share one public address, and an office, a
+   * college or a housing society behind one connection is the same picture. Twenty sign-ins an
+   * hour from "one host" is an ordinary Monday morning, and the people it locked out would have
+   * seen "Too many code requests. Please try again in an hour." with nothing they could do.
+   *
+   * The control that actually stops an attack is the per-phone one above - five an hour means
+   * enumerating numbers costs an attacker a fresh number every five tries. This one only has to
+   * catch bulk scripted abuse from a single host, which looks nothing like 20.
+   */
+  OTP_REQUESTS_PER_IP_PER_HOUR: z.coerce.number().int().min(1).default(200),
   OTP_DEMO_CODE: z.string().regex(/^\d{4,8}$/).default('123456'),
 
   /**

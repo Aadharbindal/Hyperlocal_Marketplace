@@ -158,11 +158,18 @@ export type OfferView = z.infer<typeof OfferView>;
 // Contractors and their crews
 // ---------------------------------------------------------------------------
 
+/**
+ * What a contractor can tell us about their firm.
+ *
+ * `skillIds` is here because the job feed matches on skills, and without them a contractor was
+ * invisible to it - see the note on the provider profile a contractor also gets.
+ */
 export const ContractorProfileUpdate = z
   .object({
     businessName: z.string().trim().min(3).max(80).superRefine(refineWith(checkBusinessName)),
     baseAddressId: z.string().uuid().optional(),
     serviceRadiusKm: z.number().min(1).max(25).optional(),
+    skills: z.array(z.string().uuid()).max(10).optional(),
   })
   .strict();
 export type ContractorProfileUpdate = z.infer<typeof ContractorProfileUpdate>;

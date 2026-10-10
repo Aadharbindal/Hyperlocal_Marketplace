@@ -27,6 +27,7 @@
     "honesty": "node scripts/honesty-audit.mjs",
     "test:pg": "node scripts/postgres-suite.mjs",
     "test:e2e": "node scripts/e2e-suite.mjs",
+    "test:flows": "node scripts/e2e-flows.mjs",
     "wiring": "node scripts/wiring-audit.mjs"
   },
   "engines": {

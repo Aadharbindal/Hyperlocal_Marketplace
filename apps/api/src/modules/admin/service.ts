@@ -214,6 +214,14 @@ export function adminService(d: AdminDeps) {
         if (technician) await store.users.upsertTechnicianProfile({ ...technician, verification_status: status });
         const vendor = await store.users.getVendorProfile(record.user_id);
         if (vendor) await store.users.upsertVendorProfile({ ...vendor, verification_status: status });
+        /*
+         * The contractor was missing from this list. Their *provider* profile is flipped above,
+         * which is what the marketplace reads, so they could bid - but `/contractor/profile`
+         * reads `contractor_profiles`, so their own screen would have gone on saying "Not
+         * started" for ever, next to a team they had just had verified.
+         */
+        const contractor = await store.users.getContractorProfile(record.user_id);
+        if (contractor) await store.users.upsertContractorProfile({ ...contractor, verification_status: status });
       }
 
       await store.notifications.create({
