@@ -2,13 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { checkBusinessName, type VerificationStatus } from '@hyperlocal/core';
+import { checkBusinessName } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useCategories, useLogout, useMe } from '@/api/hooks';
 import { useAddresses } from '@/api/jobs';
 import { useProviderProfile, useSubmitKyc, useUpdateProviderProfile } from '@/api/provider';
 import { useStrings } from '@/i18n';
 import { useSession } from '@/store/session';
+import { VERIFICATION } from '@/i18n/status';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, ErrorState, Screen, Skeleton, ChipMultiSelect, SegmentedControl, Spacer, StatTile, Text, TextField } from '@/ui';
 import { RealisticIcon } from '@/ui/RealisticIcon';
@@ -21,15 +22,6 @@ const DOCS = [
   { key: 'DRIVING_LICENCE', label: 'Driving licence' },
   { key: 'SHOP_LICENCE', label: 'Shop licence' },
 ];
-
-const VERIFICATION: Record<VerificationStatus, { tone: 'success' | 'warning' | 'danger' | 'neutral'; label: string; body: string }> = {
-  VERIFIED: { tone: 'success', label: 'Verified', body: 'Customers can see your verified badge.' },
-  SUBMITTED: { tone: 'warning', label: 'In review', body: 'We are checking your documents. This usually takes a day.' },
-  UNDER_REVIEW: { tone: 'warning', label: 'In review', body: 'We are checking your documents. This usually takes a day.' },
-  REJECTED: { tone: 'danger', label: 'Not accepted', body: 'Your documents were not accepted. Please submit again.' },
-  SUSPENDED: { tone: 'danger', label: 'Suspended', body: 'Contact support to restore your account.' },
-  UNVERIFIED: { tone: 'neutral', label: 'Not started', body: 'Submit one ID document to start receiving jobs.' },
-};
 
 export default function ProviderProfileScreen() {
   const t = useStrings();

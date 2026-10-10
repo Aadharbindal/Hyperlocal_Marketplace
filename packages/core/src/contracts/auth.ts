@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CONSENT_TYPES, LANGUAGES, SELF_SERVICE_ROLES, USER_ROLES, USER_STATUSES, ROLE_STATUSES } from './enums';
+import { CONSENT_TYPES, LANGUAGES, SELF_SERVICE_ROLES, USER_ROLES, USER_STATUSES, ROLE_STATUSES, VERIFICATION_STATUSES } from './enums';
 import { normaliseIndianPhone } from '../otp/otp';
 import { checkEmail, checkIndianMobile, checkPersonName, refineWith } from '../validation/validation';
 
@@ -179,18 +179,25 @@ export const ConsentView = ConsentBody.extend({
 export const MeResponse = z.object({
   user: UserView,
   consents: z.array(ConsentView),
+  /*
+   * `verificationStatus` is the `verification_status` enum column, in all three, and was declared
+   * here as a bare string - the only place in the contracts that does not use the enum. The cost
+   * was downstream: every screen reading it got `string`, so each one wrote its own
+   * `Record<string, ...>` with its own fallback for a value the database cannot produce, and one
+   * of them ended up printing `under_review` to a shopkeeper.
+   */
   profiles: z.object({
     customer: z.object({ fullName: z.string().nullable(), email: z.string().nullable() }).nullable(),
     provider: z
       .object({
         businessName: z.string().nullable(),
-        verificationStatus: z.string(),
+        verificationStatus: z.enum(VERIFICATION_STATUSES),
         isAvailable: z.boolean(),
         serviceRadiusKm: z.number(),
       })
       .nullable(),
-    vendor: z.object({ shopName: z.string().nullable(), verificationStatus: z.string() }).nullable(),
-    contractor: z.object({ businessName: z.string().nullable(), verificationStatus: z.string() }).nullable(),
+    vendor: z.object({ shopName: z.string().nullable(), verificationStatus: z.enum(VERIFICATION_STATUSES) }).nullable(),
+    contractor: z.object({ businessName: z.string().nullable(), verificationStatus: z.enum(VERIFICATION_STATUSES) }).nullable(),
   }),
 });
 export type MeResponse = z.infer<typeof MeResponse>;

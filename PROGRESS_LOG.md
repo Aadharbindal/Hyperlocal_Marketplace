@@ -4,6 +4,69 @@ Newest first. Every milestone ends with this report (PRODUCT_SPEC section 30).
 
 ---
 
+## The database's words, on four people's screens
+
+**Milestone:** post-M9 - status vocabulary
+**Date:** 2026-10-10
+**Status:** Complete
+
+**Why this exists:** going through the role screens one at a time, the same defect kept turning
+up in a different costume. A shopkeeper waiting to be allowed to quote read **"Verification is
+under_review."** A customer who had reported a problem with their job read a badge saying
+**"awaiting party"** - a phrase from our admin queue describing a move a staff member had made. A
+technician standing on a doorstep read **"price revision pending"**. In each case a Postgres enum
+had been lowercased and printed.
+
+Three screens had their own `Record<string, ...>` map with their own vocabulary - "In review" on
+one, "in review" on another, "needs documents" against "Not started" for the same state - and two
+screens had no map at all. The `string` key is what let it happen: the `/me` contract declared
+`verificationStatus` as a bare string in all three profiles, the only place in the contracts that
+does not use the enum, so every consumer got `string` back and wrote its own fallback for a value
+the database cannot produce.
+
+**What was built:**
+
+- `apps/mobile/src/i18n/status.ts` - one `VERIFICATION` map and one `DISPUTE_STATUS` map, typed
+  `Record<VerificationStatus, ...>` and `Record<DisputeStatus, ...>`, so a seventh status stops
+  compiling instead of falling through to `undefined` on a screen.
+- The `/me` contract now declares `verificationStatus` as the enum, which is what made the three
+  loose maps into compile errors rather than a thing to notice.
+- `AWAITING_PARTY` is "Waiting for a reply". The column does not record *which* party was asked,
+  so the label does not claim it is them; if we had asked them, they would have a notification.
+- The technician's and contractor's job badges use `JOB_STATUS_LABEL_KEY`, which already existed
+  and which the provider's own screen was already using - so all four roles now read the same
+  words for the same job.
+- The vendor's shop card said **"You are receiving material requests"** while the requests screen
+  said they were blocked. `deliveryAvailable` can be true while verification is pending, and the
+  feed blocks an unverified vendor regardless; verification is now part of that sentence.
+- A failed read of the vendor profile rendered as "Shop not set up yet" - the same mistake the
+  payout card three lines below it carries a comment warning against. Only a 404 says that now;
+  anything else says we could not load it.
+
+**Changed files:** `apps/mobile/src/i18n/status.ts` and `status.test.ts` (new),
+`packages/core/src/contracts/auth.ts`, `apps/mobile/app/(vendor)/shop.tsx`,
+`apps/mobile/app/(technician)/jobs.tsx`, `apps/mobile/app/(contractor)/jobs.tsx`,
+`apps/mobile/app/(contractor)/team.tsx`, `apps/mobile/app/(admin)/queue.tsx`,
+`apps/mobile/app/(provider)/profile.tsx`, `apps/mobile/src/features/ProfileScreen.tsx`,
+`apps/mobile/src/features/customer/AfterJobCard.tsx`.
+**Database changes:** none.
+**API changes:** `/me` tightens three fields from `string` to the existing enum. No value changes.
+**Tests added / passed:** 4 new, asserting every enum member has words and that no label contains
+an underscore or a shouting key - the type catches a missing entry, it cannot catch somebody
+satisfying it with `'under_review'`. Mobile 59/59, core 279/279, API 392/392, lint clean, a11y 0,
+wiring 0 and 0.
+**Manual verification completed:** signed in as the seeded vendor against the running API and read
+the card with the shop verified; moved the seed to `UNDER_REVIEW`, restarted, signed in again and
+read "In review" and "We are checking your documents. This usually takes a day. You can quote once
+it is approved." where "Verification is under_review." used to be, and the delivery line correctly
+reading "Nothing will arrive until your shop is verified." Seed restored.
+**Known limitations:** admin-only screens still lowercase a few internal enums - settlement and
+moderation reasons - which staff read and which have no customer-facing equivalent yet.
+**Security considerations:** none - copy and types only.
+**Next milestone:** the admin console's own visual pass.
+
+---
+
 ## Four tasks shown as four tasks
 
 **Milestone:** post-M9 - provider first-run

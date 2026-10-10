@@ -50,9 +50,8 @@ describe('SetupChecklist', () => {
     const onAction = jest.fn();
     await render(<SetupChecklist blockers={ALL} onAction={onAction} />);
 
-    const buttons = screen.getAllByRole('button');
-    expect(buttons).toHaveLength(1);
-    await fireEvent.press(buttons[0]);
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    await fireEvent.press(screen.getByRole('button'));
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 

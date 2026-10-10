@@ -5,6 +5,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { checkMeaningfulText, checkReviewComment, formatInr, type DisputeView, type JobStatus } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { askForPhoto } from '@/features/capture/media';
+import { DISPUTE_STATUS } from '@/i18n/status';
 import { useAddEvidence } from '@/api/execution';
 import {
   useAddDisputeEvidence,
@@ -163,7 +164,7 @@ function DisputeCard({ dispute }: { dispute: DisputeView }) {
         <Text weight="semibold" style={{ flex: 1 }}>
           {dispute.resolvedAt ? 'Your report was resolved' : 'We are looking into it'}
         </Text>
-        <Badge tone={dispute.resolvedAt ? 'success' : 'warning'} label={dispute.status.toLowerCase().replace('_', ' ')} />
+        <Badge tone={DISPUTE_STATUS[dispute.status].tone} label={DISPUTE_STATUS[dispute.status].label} />
       </View>
       <Text variant="caption" tone="secondary">
         “{dispute.description}”

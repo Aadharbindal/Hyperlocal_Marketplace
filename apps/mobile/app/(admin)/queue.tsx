@@ -6,6 +6,7 @@ import { TWO_PERSON_REFUND_THRESHOLD_PAISE, checkReason, checkRupees, formatInr,
 import { ApiError } from '@/api/client';
 import { useDisputeQueue, useMfaStatus, useMoveDispute, useResolveDispute } from '@/api/admin';
 import { MfaGate } from '@/features/admin/MfaGate';
+import { DISPUTE_STATUS } from '@/i18n/status';
 import { palette, spacing } from '@/theme';
 import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Spacer, Text, TextField, SegmentedControl } from '@/ui';
 
@@ -107,7 +108,8 @@ function DisputeCard({ dispute }: { dispute: DisputeView }) {
             {overdue ? 'Past the promised time' : `Answer by ${new Date(dispute.slaDueAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`}
           </Text>
         </View>
-        <Badge tone={overdue ? 'danger' : 'warning'} label={dispute.status.toLowerCase().replace('_', ' ')} />
+        {/* Overdue still outranks the status' own tone - an SLA breach is the thing to see first. */}
+        <Badge tone={overdue ? 'danger' : DISPUTE_STATUS[dispute.status].tone} label={DISPUTE_STATUS[dispute.status].label} />
       </View>
 
       <Text variant="caption" tone="secondary">

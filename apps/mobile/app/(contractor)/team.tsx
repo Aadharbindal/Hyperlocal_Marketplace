@@ -7,6 +7,7 @@ import type { TechnicianView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useAddTechnician, useRemoveTechnician, useSubmitTechnicianKyc, useTeam } from '@/api/contractor';
 import { useStrings } from '@/i18n';
+import { VERIFICATION } from '@/i18n/status';
 import { palette, radius, spacing } from '@/theme';
 import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, SegmentedControl, Spacer, Text, TextField } from '@/ui';
 
@@ -23,14 +24,6 @@ import { Badge, Button, Card, EmptyState, ErrorState, Screen, Skeleton, Segmente
  *   them find out when an assignment is refused.
  */
 
-const STATUS: Record<string, { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' }> = {
-  VERIFIED: { label: 'verified', tone: 'success' },
-  SUBMITTED: { label: 'in review', tone: 'warning' },
-  UNDER_REVIEW: { label: 'in review', tone: 'warning' },
-  REJECTED: { label: 'rejected', tone: 'danger' },
-  SUSPENDED: { label: 'suspended', tone: 'danger' },
-  UNVERIFIED: { label: 'needs documents', tone: 'neutral' },
-};
 
 const ADD_ERROR: Record<string, string> = {
   TECHNICIAN_NOT_REGISTERED: 'Ask them to install the app and sign in with this number first.',
@@ -130,7 +123,9 @@ export default function TeamScreen() {
 function TeamCard({ person, onRemove }: { person: TechnicianView; onRemove: () => void }) {
   const kyc = useSubmitTechnicianKyc();
   const [showKyc, setShowKyc] = useState(false);
-  const meta = STATUS[person.verificationStatus] ?? { label: person.verificationStatus.toLowerCase(), tone: 'neutral' as const };
+  // The same words the technician is reading about themselves, rather than a second vocabulary
+  // for the person who hired them.
+  const meta = VERIFICATION[person.verificationStatus];
 
   return (
     <Card style={styles.card}>

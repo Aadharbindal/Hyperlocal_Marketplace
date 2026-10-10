@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import type { ContractorJobItem, TechnicianView } from '@hyperlocal/core';
+import { JOB_STATUS_LABEL_KEY, type ContractorJobItem, type JobStatus, type TechnicianView } from '@hyperlocal/core';
 import { ApiError } from '@/api/client';
 import { useAssignTechnician, useContractorJobs, useTeam } from '@/api/contractor';
 import { useStrings } from '@/i18n';
@@ -76,7 +76,10 @@ export default function ContractorJobsScreen() {
                         : ''}
                     </Text>
                   </View>
-                  <Badge tone={job.needsTechnician ? 'warning' : 'success'} label={job.status.replace(/_/g, ' ').toLowerCase()} />
+                  <Badge
+                    tone={job.needsTechnician ? 'warning' : 'success'}
+                    label={t(JOB_STATUS_LABEL_KEY[job.status as JobStatus] as never)}
+                  />
                 </View>
 
                 <View style={styles.assignRow}>

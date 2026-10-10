@@ -12,18 +12,11 @@ import type { Language, UserRole } from '@hyperlocal/core';
 import { useLogout, useMe, useUpdateMe } from '@/api/hooks';
 import { useWarrantyClaims } from '@/api/warranty';
 import { useStrings } from '@/i18n';
+import { VERIFICATION } from '@/i18n/status';
 import { useSession } from '@/store/session';
 import { palette, spacing } from '@/theme';
 import { Badge, Button, Card, ErrorState, Screen, SegmentedControl, Skeleton, Spacer, Text } from '@/ui';
 
-const VERIFICATION_TONE: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
-  VERIFIED: 'success',
-  SUBMITTED: 'warning',
-  UNDER_REVIEW: 'warning',
-  REJECTED: 'danger',
-  SUSPENDED: 'danger',
-  UNVERIFIED: 'neutral',
-};
 
 /** Shared profile screen for every role group. */
 export function ProfileScreen() {
@@ -121,7 +114,7 @@ export function ProfileScreen() {
               <Text variant="subheading" weight="bold">
                 {t('profile.verification')}
               </Text>
-              <Badge tone={VERIFICATION_TONE[verification] ?? 'neutral'} icon="shield-checkmark" label={verification.replace('_', ' ')} />
+              <Badge tone={VERIFICATION[verification].tone} icon="shield-checkmark" label={VERIFICATION[verification].label} />
             </Animated.View>
           ) : null}
 

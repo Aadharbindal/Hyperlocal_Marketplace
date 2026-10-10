@@ -2,20 +2,35 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import type { VerificationStatus } from '@hyperlocal/core';
+import { ApiError } from '@/api/client';
 import { api } from '@/api/client';
 import { usePayoutAccount } from '@/api/finance';
 import { materialKeys } from '@/api/materials';
 import { useLogout, useMe } from '@/api/hooks';
+import { VERIFICATION } from '@/i18n/status';
 import { palette, spacing } from '@/theme';
-import { Badge, Button, Card, Screen, Skeleton, Spacer, Text } from '@/ui';
+import { Badge, Button, Card, DataRow, ErrorState, Screen, Skeleton, Spacer, Text } from '@/ui';
 
 interface VendorProfile {
   shopName: string | null;
   verified: boolean;
-  verificationStatus: string;
+  verificationStatus: VerificationStatus;
   deliveryAvailable: boolean;
   deliveryRadiusKm: number;
   materialCategories: string[];
+}
+
+/** `DataRow` takes a string; this is the same row when the value is a badge. */
+function DataRowLike({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.row}>
+      <Text variant="caption" tone="secondary" style={{ flex: 1 }}>
+        {label}
+      </Text>
+      {children}
+    </View>
+  );
 }
 
 export default function VendorShopScreen() {
@@ -46,12 +61,27 @@ export default function VendorShopScreen() {
           <Skeleton height={40} />
         </Card>
       ) : profile.isError ? (
-        <Card style={styles.card}>
-          <Text weight="semibold">Shop not set up yet</Text>
-          <Text variant="caption" tone="secondary">
-            Support will add your shop details and verify you before requests start arriving.
-          </Text>
-        </Card>
+        /*
+         * A 404 means there is genuinely no shop yet. Anything else - offline, a 500 - means we do
+         * not know, and saying "Shop not set up yet" to somebody whose shop has been trading for a
+         * month is both wrong and alarming. The payout card below already drew this distinction;
+         * this card was making exactly the mistake its comment warns about.
+         */
+        profile.error instanceof ApiError && profile.error.status === 404 ? (
+          <Card style={styles.card}>
+            <Text weight="semibold">Shop not set up yet</Text>
+            <Text variant="caption" tone="secondary">
+              Support will add your shop details and verify you before requests start arriving.
+            </Text>
+          </Card>
+        ) : (
+          <ErrorState
+            title="We could not load your shop"
+            body="Check your connection and try again. Nothing has changed."
+            onRetry={() => void profile.refetch()}
+            retrying={profile.isRefetching}
+          />
+        )
       ) : (
         <>
           <Card style={styles.card}>
@@ -60,23 +90,42 @@ export default function VendorShopScreen() {
                 <Text variant="label" weight="semibold">
                   Accepting deliveries
                 </Text>
+                {/*
+                  Verification is the other half of this sentence. `deliveryAvailable` can be true
+                  while verification is pending - the switch is only refused on the way *on*, so a
+                  shop verified once and later moved back to review keeps the stored `true` - and
+                  the feed blocks an unverified vendor regardless. This card was saying "You are
+                  receiving material requests" to somebody whose requests screen says the opposite.
+                */}
                 <Text variant="micro" tone="muted">
-                  {profile.data.deliveryAvailable ? 'You are receiving material requests.' : 'Requests are paused. Nothing new will arrive.'}
+                  {!profile.data.verified
+                    ? 'Nothing will arrive until your shop is verified.'
+                    : profile.data.deliveryAvailable
+                      ? 'You are receiving material requests.'
+                      : 'Requests are paused. Nothing new will arrive.'}
                 </Text>
               </View>
               <Switch
                 value={profile.data.deliveryAvailable}
                 disabled={!profile.data.verified || setAvailable.isPending}
                 onValueChange={(v) => setAvailable.mutate(v)}
-                trackColor={{ true: palette.primary, false: '#D7E3DE' }}
+                trackColor={{ true: palette.primary, false: palette.borderStrong }}
                 thumbColor="#FFFFFF"
+                accessibilityLabel="Accepting deliveries"
+                /* The server refuses to turn this on before verification, so the control is
+                   correctly disabled - but a disabled switch that says nothing is a dead end. The
+                   note below says it on screen; this says it to a screen reader. */
+                accessibilityHint={!profile.data.verified ? 'You can accept deliveries once your shop is verified.' : undefined}
               />
             </View>
             {!profile.data.verified && (
               <View style={styles.note}>
                 <Ionicons name="shield-outline" size={14} color={palette.textMuted} />
                 <Text variant="micro" tone="muted" style={{ flex: 1 }}>
-                  Verification is {profile.data.verificationStatus.toLowerCase()}. You can quote once it is approved.
+                  {VERIFICATION[profile.data.verificationStatus].body}
+                  {profile.data.verificationStatus === 'SUBMITTED' || profile.data.verificationStatus === 'UNDER_REVIEW'
+                    ? ' You can quote once it is approved.'
+                    : ''}
                 </Text>
               </View>
             )}
@@ -84,28 +133,14 @@ export default function VendorShopScreen() {
 
           <Spacer h={spacing.md} />
           <Card style={styles.card}>
-            <View style={styles.row}>
-              <Text variant="caption" tone="secondary" style={{ flex: 1 }}>
-                Verification
-              </Text>
-              <Badge tone={profile.data.verified ? 'success' : 'warning'} label={profile.data.verificationStatus.toLowerCase()} />
-            </View>
-            <View style={styles.row}>
-              <Text variant="caption" tone="secondary" style={{ flex: 1 }}>
-                Delivery radius
-              </Text>
-              <Text variant="caption" weight="medium">
-                {profile.data.deliveryRadiusKm} km
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text variant="caption" tone="secondary" style={{ flex: 1 }}>
-                Supplies
-              </Text>
-              <Text variant="caption" weight="medium">
-                {profile.data.materialCategories.join(', ') || 'Not set'}
-              </Text>
-            </View>
+            <DataRowLike label="Verification">
+              <Badge
+                tone={VERIFICATION[profile.data.verificationStatus].tone}
+                label={VERIFICATION[profile.data.verificationStatus].label}
+              />
+            </DataRowLike>
+            <DataRow label="Delivery radius" value={`${profile.data.deliveryRadiusKm} km`} />
+            <DataRow label="Supplies" value={profile.data.materialCategories.join(', ') || 'Not set'} />
           </Card>
         </>
       )}

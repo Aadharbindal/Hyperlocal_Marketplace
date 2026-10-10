@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import type { JobStatus } from '@hyperlocal/core';
+import { JOB_STATUS_LABEL_KEY, type JobStatus } from '@hyperlocal/core';
 import type { TechnicianJob } from '@/api/technician';
 import { useTechnicianJobs, useTechnicianProfile } from '@/api/technician';
 import { JobRunner } from '@/features/provider/JobRunner';
@@ -105,6 +105,7 @@ export default function TechnicianJobsScreen() {
 }
 
 function JobCard({ job, live }: { job: TechnicianJob; live: boolean }) {
+  const t = useStrings();
   async function navigate() {
     // Handed to whichever maps app they already use, rather than a map we would have to build
     // and they would have to learn.
@@ -127,7 +128,10 @@ function JobCard({ job, live }: { job: TechnicianJob; live: boolean }) {
               : ''}
           </Text>
         </View>
-        <Badge tone={live ? 'primary' : 'neutral'} label={job.status.replace(/_/g, ' ').toLowerCase()} />
+        {/* The same words the customer and the provider are reading for this job. This card was
+            printing the enum - a technician standing on a doorstep saw "price revision pending",
+            which is our vocabulary for a thing the customer has been asked to approve. */}
+        <Badge tone={live ? 'primary' : 'neutral'} label={t(JOB_STATUS_LABEL_KEY[job.status as JobStatus] as never)} />
       </View>
 
       {job.description ? (
