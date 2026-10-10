@@ -83,7 +83,7 @@ export function JobRunner({ jobId, status, categoryName }: { jobId: string; stat
         <Text variant="label" weight="semibold" style={{ flex: 1 }}>
           {categoryName}
         </Text>
-        <Badge tone="primary" label={LABEL[status] ?? status.toLowerCase()} />
+        <Badge tone="primary" label={LABEL[status] ?? status.replace(/_/g, ' ').toLowerCase()} />
       </View>
 
       {error && (
@@ -206,12 +206,21 @@ export function JobRunner({ jobId, status, categoryName }: { jobId: string; stat
   );
 }
 
+/**
+ * The working view's own voice: lower case, in the middle of doing the job, not a status report.
+ *
+ * Every status this component can actually be rendered with is named. `STARTED` and
+ * `COMPLETION_PENDING` were missing and both are live states - the fallback would have put
+ * "completion_pending" on a badge in front of somebody standing in a customer's kitchen.
+ */
 const LABEL: Partial<Record<JobStatus, string>> = {
   PROVIDER_ASSIGNED: 'confirmed',
   EN_ROUTE: 'on the way',
   ARRIVED: 'at the door',
+  STARTED: 'working',
   IN_PROGRESS: 'working',
   PRICE_REVISION_PENDING: 'awaiting approval',
+  COMPLETION_PENDING: 'awaiting sign-off',
   CUSTOMER_APPROVAL_PENDING: 'awaiting sign-off',
 };
 
